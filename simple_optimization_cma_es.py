@@ -33,9 +33,9 @@ curr_folder = Path(__file__).parent
 plots_folder = curr_folder/'plots and videos'/Path(__file__).stem
 plots_folder.mkdir(parents=True, exist_ok=True)
 
-# Folder for saving data
-data_folder = curr_folder/'saved data'/Path(__file__).stem
-data_folder.mkdir(parents=True, exist_ok=True)
+# # Folder for saving data
+# data_folder = curr_folder/'saved data'/Path(__file__).stem
+# data_folder.mkdir(parents=True, exist_ok=True)
 
 
 # =====================================================
@@ -184,6 +184,7 @@ animate_evolution(
     problem=problem,
     means=means,
     populations=populations,
+    fitness_populations=fitness_populations,
     duration=5,
     grid_res=101,
     savepath=plots_folder/'animation.gif',
