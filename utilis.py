@@ -1,5 +1,6 @@
 import numpy as np
 import jax
+import jax.numpy as jnp
 from jax import Array
 from functools import partial
 from typing import Callable
@@ -7,8 +8,10 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 # =====================================================
-# Class for optimization problems to run with evosax package
+# Evolutionary algorithms
 # =====================================================
+
+# Class for optimization problems to run with evosax package
 class MyOptimizationProblem:
     """
     Class for defining custom optimization problem to use with evosax.
@@ -89,13 +92,14 @@ class MyOptimizationProblem:
         )
         return point
     
-# =====================================================
-# Function to animate the progress of the optimization (! ONLY FOR 2D CASES)
-# =====================================================
+
+# Function to animate the progress of the optimization (! ONLY FOR 2D CASES !)
 def animate_evolution(
         problem,
         means : Array,
-        populations : Array = None,
+        fitness_means: Array = None,
+        populations: Array = None,
+        fitness_populations: Array = None,
         duration: int = 10,
         grid_res: int = 0,
         savepath = None,
@@ -110,8 +114,14 @@ def animate_evolution(
         Optimization problem defined by the user. It's a Problem object from evosax.
     means : Array
         Solution (mean of the population) for each iteration. Shape (num_generations, num_dims)
+    fitness_means
+        Fitness of the solution (mean of the population) for each iteration. If not provided, it is
+        computed by calling problem.eval on means. Shape (num_generations,)
     populations : Array, optional
         Population for each iteration. Shape (num_generations, population_size, num_dims)
+    fitness_populations: Array, optional
+        Fitness of each individual of the population for each iteration. If not provided, it is computed 
+        by calling problem.eval on populations. Shape (num_generations, population_size)
     duration : int, optional
         Duration of the animation in seconds (default: 10). 
     grid_res : int, optional
@@ -124,14 +134,16 @@ def animate_evolution(
     """
     num_generations = len(means)
 
-    # compute fitness of the mean at each iteration. Shape (num_generations,)
-    fitness_means = problem.eval(means)
+    # compute fitness of the mean at each iteration, if not provided
+    if fitness_means is None:
+        fitness_means = problem.eval(means)
     
-    # compute fitness of all individuals at each iteration. Shape (num_generations, population_size)
+    # compute fitness of all individuals at each iteration, if not provided
     if populations is not None:
         pop = populations
-        eval_pop = jax.vmap(problem.eval, in_axes=0)
-        fitness_populations = eval_pop(pop)
+        if fitness_populations is None:
+            eval_pop = jax.vmap(problem.eval, in_axes=0)
+            fitness_populations = eval_pop(pop)
     else:
         pop = np.full((num_generations,1,2), np.nan)
         fitness_populations = np.full((num_generations,1), np.nan)
@@ -232,3 +244,15 @@ def animate_evolution(
         plt.show()
     else:
         plt.close()
+
+
+# =====================================================
+# Others
+# =====================================================
+
+# Inverse softplus function
+def InverseSoftplus(x):
+    """
+    Inverse softplus function.
+    """
+    return jnp.log(jnp.exp(x)-1)
