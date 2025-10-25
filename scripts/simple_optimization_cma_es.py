@@ -28,13 +28,14 @@ jnp.set_printoptions(
     formatter={"float_kind": lambda x: "0" if x == 0 else f"{x:.2e}"},
 )
 
-# Folder for plots and videos
+# Folders
 curr_folder = Path(__file__).parent
-plots_folder = curr_folder/'plots and videos'/Path(__file__).stem
+main_folder = curr_folder.parent
+
+plots_folder = main_folder/'plots and videos'/Path(__file__).stem
 plots_folder.mkdir(parents=True, exist_ok=True)
 
-# # Folder for saving data
-# data_folder = curr_folder/'saved data'/Path(__file__).stem
+# data_folder = main_folder/'saved data'/Path(__file__).stem
 # data_folder.mkdir(parents=True, exist_ok=True)
 
 

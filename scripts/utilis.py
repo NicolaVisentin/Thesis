@@ -2,8 +2,10 @@ import numpy as np
 import jax
 import jax.numpy as jnp
 from jax import Array
+
 from functools import partial
 from typing import Callable
+
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 
