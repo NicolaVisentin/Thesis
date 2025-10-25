@@ -101,7 +101,7 @@ def animate_evolution(
         populations: Array = None,
         fitness_populations: Array = None,
         duration: int = 10,
-        grid_res: int = 0,
+        grid_res: int | dict = 0,
         savepath = None,
         show: bool = True
 ):    
@@ -124,8 +124,10 @@ def animate_evolution(
         by calling problem.eval on populations. Shape (num_generations, population_size)
     duration : int, optional
         Duration of the animation in seconds (default: 10). 
-    grid_res : int, optional
+    grid_res : int | dict, optional
         Resolution of the grid for plotting the surface (default: 0). If zero, does not plot the surface.
+        If dict, must be a dictionary containing the data to plot the surface, i.e. grid_res["X"], 
+        grid_res["Y"], grid_res["Z"].
     savepath : optional
         Path to save the animation, in form /my_path/'name_animation.gif'. Animation will be saved
         in /my_path as 'name_amination.gif'. If None, animation will not be saved.
@@ -149,19 +151,24 @@ def animate_evolution(
         fitness_populations = np.full((num_generations,1), np.nan)
     
     # compute fitness surface in the research space
-    if grid_res != 0:
-        x = np.linspace(problem.lower_research_bound[0], problem.upper_research_bound[0], grid_res)
-        y = np.linspace(problem.lower_research_bound[1], problem.upper_research_bound[1], grid_res)
-        X, Y = np.meshgrid(x, y)
-        points = np.stack([X.flatten(), Y.flatten()], axis=1)
-        Z = problem.eval(points).reshape(X.shape)
-    else:
+    if grid_res == 0:
         if populations is not None:
             z_min = np.min([np.min(fitness_means), np.min(fitness_populations)])
             z_max = np.max([np.max(fitness_means), np.max(fitness_populations)])
         else:
             z_min = np.min(fitness_means)
             z_max = np.max(fitness_means)
+    else:
+        if isinstance(grid_res, int):
+            x = np.linspace(problem.lower_research_bound[0], problem.upper_research_bound[0], grid_res)
+            y = np.linspace(problem.lower_research_bound[1], problem.upper_research_bound[1], grid_res)
+            X, Y = np.meshgrid(x, y)
+            points = np.stack([X.flatten(), Y.flatten()], axis=1)
+            Z = problem.eval(points).reshape(X.shape)
+        else:
+            X = grid_res["X"]
+            Y = grid_res["Y"]
+            Z = grid_res["Z"]
 
     # create figure
     fig = plt.figure(figsize=(6, 10))
