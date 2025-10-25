@@ -304,6 +304,7 @@ best_fitness = metrics["best_fitness"]               # fitness of the best indiv
 L_opt = means[-1]
 print(f"Optimal L: {L_opt} m")
 
+
 # =====================================================
 # Visualize results
 # =====================================================
@@ -360,11 +361,13 @@ animate_evolution(
     problem=problem,
     means=means,
     populations=populations,
+    fitness_populations=fitness_populations,
     duration=5,
-    grid_res=11,
+    grid_res={"X": X, "Y": Y, "Z": Z},
     savepath=plots_folder/'animation.gif',
     show=True,
 )
+
 
 # =====================================================
 # Robot simulation after optimization
