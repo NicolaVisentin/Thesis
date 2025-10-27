@@ -7,6 +7,7 @@ import os
 os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 # Imports
+import sys
 import jax
 import jax.numpy as jnp
 from pathlib import Path
@@ -16,9 +17,11 @@ from tqdm import tqdm
 import time
 
 from evosax.algorithms.distribution_based.cma_es import CMA_ES
-from utilis import *
-
 from soromox.systems.pendulum import Pendulum
+
+curr_folder = Path(__file__).parent # current folder
+sys.path.append(str(curr_folder.parent))
+from utilis import *
 
 # Set random seed
 seed = 123
@@ -33,13 +36,12 @@ jnp.set_printoptions(
 )
 
 # Folders
-curr_folder = Path(__file__).parent # current folder
-main_folder = curr_folder.parent
+main_folder = curr_folder.parent.parent                           # main folder "codes"
 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 plots_folder.mkdir(parents=True, exist_ok=True)
 
-# data_folder = main_folder/'saved data'/Path(__file__).stem # folder for saving data
+# data_folder = main_folder/'saved data'/Path(__file__).stem        # folder for saving data
 # data_folder.mkdir(parents=True, exist_ok=True)
 
 
