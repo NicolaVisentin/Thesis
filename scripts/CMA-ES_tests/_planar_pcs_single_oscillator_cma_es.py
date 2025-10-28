@@ -367,8 +367,8 @@ problem = MyOptimizationProblem(
 # =====================================================
 
 # Set parameters
-num_generations = 12 # number of iterations
-population_size = 24 # dimension of the population
+num_generations = 50 # number of iterations
+population_size = 36 # dimension of the population
 
 # Set info to save during the iterations
 def metrics_fn(key, population, fitness, state, cma_params):
