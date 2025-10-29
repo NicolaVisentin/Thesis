@@ -265,3 +265,50 @@ def InverseSoftplus(x):
     Inverse softplus function.
     """
     return jnp.log(jnp.exp(x)-1)
+
+
+# Split dataset in train/validation/test
+def split_dataset(
+        key, 
+        dataset : dict,
+        train_ratio : float = 0.7, 
+        test_ratio : float = 0.2,
+    ) -> tuple[dict, dict, dict]:
+    """
+    Split datapoints and labels into train, validation, and test sets.
+
+    Args
+    ----
+    key 
+        jax.random.key.
+    dataset : dict
+        Dataset provided as a dictionary with all elements (m datapoints and m labels). Each key has shape (m, ...),
+        where m in the size of the dataset.
+    train_ratio : float
+        Train set ratio between 0 and 1 (default: 0.7). train_ratio + val_ratio + test_ratio = 1.
+    test_ratio : float
+        Test set ratio between 0 and 1 (default: 0.2). train_ratio + val_ratio + test_ratio = 1.
+    
+    Returns
+    -------
+    train_set, val_set, test_set : dict
+        Dictionaries for train set, validation set and test set, with the same keys of the original dataset.
+    """
+    # Dataset size
+    first_key = next(iter(dataset.keys()))
+    m = dataset[first_key].shape[0]
+
+    # shuffle indices
+    key, subkey = jax.random.split(key)
+    perm = jax.random.permutation(subkey, m)
+
+    # compute split indices
+    train_end = int(train_ratio * m)
+    test_end = m - int(test_ratio * m)
+
+    # create splits for each item in dataset
+    train_set = {k: v[perm[:train_end]] for k, v in dataset.items()}
+    val_set   = {k: v[perm[train_end:test_end]] for k, v in dataset.items()}
+    test_set  = {k: v[perm[test_end:]] for k, v in dataset.items()}
+
+    return train_set, val_set, test_set
