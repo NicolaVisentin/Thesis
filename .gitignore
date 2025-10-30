@@ -1,8 +1,15 @@
 # Custom
 libraries/*
+!libraries/.gitkeep
+
 plots and videos/*
+!plots and videos/.gitkeep
+
 saved data/*
+!data/.gitkeep
+
 datasets/*
+!datasets/.gitkeep
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
