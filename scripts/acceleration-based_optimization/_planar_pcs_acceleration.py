@@ -188,7 +188,7 @@ def animate_robot_matplotlib(
 # Script settings
 # =====================================================
 
-use_scan = True         # choose whether to use normal for loop or lax.scan
+use_scan = True          # choose whether to use normal for loop or lax.scan
 show_simulations = False # choose whether to show simulations of the robot (just for visualization)
 
 
