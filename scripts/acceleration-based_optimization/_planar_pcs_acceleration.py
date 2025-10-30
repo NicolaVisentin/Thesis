@@ -188,8 +188,8 @@ def animate_robot_matplotlib(
 # Script settings
 # =====================================================
 
-use_scan = True         # choose whether to use normal for loop or lax.scan
-show_simulations = False # choose whether to show simulations of the robot (just for visualization)
+use_scan = False         # choose whether to use normal for loop or lax.scan
+show_simulations = True # choose whether to show simulations of the robot (just for visualization)
 
 
 # =====================================================
@@ -419,7 +419,7 @@ def train_step(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_y_yd_ydd.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset1e4_y_yd_ydd.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -554,7 +554,7 @@ optimiz_state = optimizer.init(optimiz_params) # initialize optimizer
 
 # Optimization iterations
 n_iter = 120 # number of epochs
-batch_size = 256
+batch_size = 2**12
 
 start = time.perf_counter()
 if use_scan:
@@ -627,7 +627,7 @@ if use_scan:
 else:
     train_loss_ts = onp.zeros(n_iter)
     val_loss_ts = onp.zeros(n_iter)
-    for epoch in tqdm(range(n_iter), 'Epoch'): # for each epoch...
+    for epoch in tqdm(range(n_iter), 'Training'): # for each epoch...
         # shuffle train dataset
         key, subkey = jax.random.split(key)
         batch_ids = batch_indx_generator(key=subkey, dataset_size=train_size, batch_size=batch_size)
@@ -637,7 +637,7 @@ else:
 
         # perform training
         train_loss_sum = 0
-        for i in range(len(batch_ids)): # for each batch...
+        for i in tqdm(range(len(batch_ids)), 'Current epoch', leave=False): # for each batch...
             batch_i_ids = batch_ids[i]
             y_train_batch = train_set["y"][batch_i_ids]
             yd_train_batch = train_set["yd"][batch_i_ids]
