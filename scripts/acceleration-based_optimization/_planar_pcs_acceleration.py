@@ -628,12 +628,12 @@ else:
     train_loss_ts = onp.zeros(n_iter)
     val_loss_ts = onp.zeros(n_iter)
     for epoch in tqdm(range(n_iter), 'Training'): # for each epoch...
-        # shuffle train dataset
-        key, subkey = jax.random.split(key)
-        batch_ids = batch_indx_generator(key=subkey, dataset_size=train_size, batch_size=batch_size)
         params_robot_print = jax.nn.softplus(params_robot_softplus)
         A_flat_print = A_flat
         c_print = c
+        # shuffle train dataset
+        key, subkey = jax.random.split(key)
+        batch_ids = batch_indx_generator(key=subkey, dataset_size=train_size, batch_size=batch_size)
 
         # perform training
         train_loss_sum = 0
