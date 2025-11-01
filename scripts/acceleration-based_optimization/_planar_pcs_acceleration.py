@@ -661,7 +661,7 @@ else:
         )
         train_loss_ts[epoch] = train_loss_epoch
         val_loss_ts[epoch] = val_loss_epoch
-        train_MSE_ts[epoch] = train_metrics["MSE"]
+        train_MSE_ts[epoch] = train_MSE_epoch
         val_MSE_ts[epoch] = val_metrics["MSE"]
 
 jax.block_until_ready(params_optimiz)
