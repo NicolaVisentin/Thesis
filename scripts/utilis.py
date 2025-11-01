@@ -294,7 +294,7 @@ def split_dataset(
     train_set, val_set, test_set : dict
         Dictionaries for train set, validation set and test set, with the same keys of the original dataset.
     """
-    # Dataset size
+    # dataset size
     first_key = next(iter(dataset.keys()))
     m = dataset[first_key].shape[0]
 
@@ -324,7 +324,6 @@ def batch_indx_generator(
     """
     Given a certain dataset_size and a certain desired batch_size, his function
     returns the indices to generate a shuffled collection of batches out of a dataset. 
-    It is thought for working with lax.scan loops.
 
     Args
     ----
@@ -360,3 +359,29 @@ def batch_indx_generator(
     batch_ids = perm.reshape((num_batches, batch_size))
 
     return batch_ids
+
+
+# Batch extractor
+@jax.jit
+def extract_batch(
+    dataset : dict,
+    indices : Array,
+) -> dict:
+    """
+    Extracts a batch from a dataset according to provided indices.
+
+    Args
+    ----
+    dataset : dict
+        Dataset provided as a dictionary with all elements (m datapoints and m labels). Each key has shape (m, ...),
+        where m in the size of the dataset.
+    indices : Array
+        Array containing indices of the elements to extract. Shape (batch_size,)
+        
+    Returns
+    -------
+    batch : tuple
+        Batch provided as a dictionary with all elements (batch_size datapoints and batch_size labels). Each key has shape (batch_size, ...).
+    """
+    batch = {key: value[indices] for key, value in dataset.items()}
+    return batch
