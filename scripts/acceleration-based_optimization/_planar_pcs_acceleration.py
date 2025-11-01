@@ -25,7 +25,6 @@ from pathlib import Path
 from tqdm import tqdm
 import time
 import sys
-import select
 
 from soromox.systems.planar_pcs import PlanarPCS
 from soromox.systems.planar_pcs_simplified import PlanarPCS_simple
@@ -277,34 +276,29 @@ else:
 # Loss function
 @jax.jit
 def Loss(
-        params_softplus : Array, 
-        A_flat : Array, 
-        c : Array, 
-        y_batch : Array,
-        yd_batch : Array, 
-        ydd_batch : Array, 
+        params_optimiz : tuple, 
+        data_batch : dict, 
 ) -> tuple[float, dict]:
     """
-    Loss function. Takes a batch of datapoints (y, yd), converts them into configurations (q, qd)
+    Computes loss function over a batch of data for certain parameters. In this case:
+    Takes a batch of datapoints (y, yd), converts them into configurations (q, qd)
     of the robot as q = A*y + c, qd = A*yd, computes the forward dynamics qdd = forward_dynamics_robot(q, qd)
     and computes the loss as the MSE in the batch between predictions qdd and labels A*ydd.
 
     Args
     ----
-    params_softplus : Array
-        Raw parameters of the robot, as params_softplus = InverseSoftplus(params). In this case 
-        lengths and damping coefficients of the segments. Shape (n_pcs+3n_pcs,)
-    A_flat : Array
-        Mapping matrix (flattened) between RON and robot configurations: q = A*y + c. Shape (3n_pcs*n_ron,)
-        or (3n_pcs,)=(n_ron,) if diagonal.
-    c : Array
-        Mapping vector between RON and robot configurations: q = A*y + c. Shape (3n_pcs,)
-    y_batch : Array
-        Batch of datapoints y. Shape (batch_size, n_ron)
-    yd_batch : Array
-        Batch of datapoints yd. Shape (batch_size, n_ron)
-    ydd_batch : Array
-        Batch of labels ydd. Shape (batch_size, n_ron)
+    params_optimiz : tuple
+        Parameters for the opimization. In this case:
+        - **L_softplus**: pcs segments lengths as InverseSoftplus(L). Array of shape (n_pcs,)
+        - **D_softplus**: pcs segments dampings as InverseSoftplus(D). Array of shape (3*n_pcs,)
+        - **A_flat**: Mapping matrix between RON and robot configurations q = A*y + c. Array of shape 
+                      (3n_pcs*n_ron,) or (3n_pcs,)=(n_ron,) if diagonal.
+        - **c**: Mapping vector between RON and robot configurations: q = A*y + c. Shape (3n_pcs,)
+    data_batch : dict
+        Dictionary with datapoints and labels to compute the loss. In this case has keys:
+        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
+        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of datapoints ydd. Shape (batch_size, n_ron)
 
     Returns
     -------
@@ -313,14 +307,16 @@ def Loss(
     metrics : dict
         Dictionary of useful metrics.
     """
-    # useful values
+    # extract everything
+    L_softplus, D_softplus, A_flat, c = params_optimiz
+    y_batch, yd_batch, ydd_batch = data_batch["y"], data_batch["yd"], data_batch["ydd"]
+
     n_pcs = int(len(c) / 3)
     n_ron = y_batch.shape[1]
 
     # get physical parameters of the robot
-    params = jax.nn.softplus(params_softplus)
-    L = params[:n_pcs]
-    D = jnp.diag(params[n_pcs:])
+    L = jax.nn.softplus(L_softplus)
+    D = jnp.diag(jax.nn.softplus(D_softplus))
 
     # update robot
     robot_updated = robot.update_params({"L": L, "D": D})
@@ -357,16 +353,16 @@ def Loss(
 
     return loss, metrics
 
+# Loss and grads function
+loss_and_grads = jax.jit(jax.value_and_grad(Loss, argnums=0, has_aux=True))
 
 # Optimization train step
 @partial(jax.jit, static_argnums=(1,))
 def train_step(
     optimiz_state,
     optimiz_update,
-    optimiz_params : tuple,
-    y_batch : Array,
-    yd_batch : Array,
-    ydd_batch : Array,
+    params_optimiz : tuple,
+    train_batch : dict,
 ):
     """
     Optimization step. Takes current optimization parameters and optimizer status and computes loss and gradients propagation
@@ -378,18 +374,17 @@ def train_step(
         Optimizer state. It's an optax object.
     optimiz_update
         Optimizer update. It's an optax object.
-    optimiz_params : tuple
-        Collects all optimization parameters. In our case (robot_params_softplus, A_flat, c).
-    y_batch : Array
-        Batch of datapoints y. Shape (batch_size, n_ron)
-    yd_batch : Array
-        Batch of datapoints yd. Shape (batch_size, n_ron)
-    ydd_batch : Array
-        Batch of labels ydd. Shape (batch_size, n_ron)
+    params_optimiz : tuple
+        Collects all optimization parameters. In our case (L_softplus, D_softplus, A_flat, c).
+    train_batch : dict
+        Dictionary with datapoints and labels of a batch of the train set. In this case has keys:
+        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
+        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of datapoints ydd. Shape (batch_size, n_ron)
 
     Returns
     -------
-    optimiz_params_updated
+    params_optimiz_updated
         Updated optimization parameters.
     optimiz_state_updated
         Updated optimizer state.
@@ -400,18 +395,14 @@ def train_step(
     metrics
         Metrics dictionary for this batch.
     """
-    # extract optimization parameters
-    params_softplus, A_flat, c = optimiz_params
-
     # compute loss and gradients
-    loss_and_grads = jax.jit(jax.value_and_grad(Loss, argnums=(0,1,2), has_aux=True))
-    (loss, metrics), grads = loss_and_grads(params_softplus, A_flat, c, y_batch, yd_batch, ydd_batch)
+    (loss, metrics), grads = loss_and_grads(params_optimiz, train_batch)
     
     # update optimization parameters
-    updates, optimiz_state = optimiz_update(grads, optimiz_state, optimiz_params)
-    optimiz_params = optax.apply_updates(optimiz_params, updates)
+    updates, optimiz_state = optimiz_update(grads, optimiz_state, params_optimiz)
+    params_optimiz = optax.apply_updates(params_optimiz, updates)
 
-    return optimiz_params, optimiz_state, loss, grads, metrics
+    return params_optimiz, optimiz_state, loss, grads, metrics
 
 
 # =====================================================
@@ -425,14 +416,14 @@ yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
 
 # Convert into jax
-y = jnp.array(y)
-yd = jnp.array(yd)
-ydd = jnp.array(ydd)
+y_dataset = jnp.array(y)
+yd_dataset = jnp.array(yd)
+ydd_dataset = jnp.array(ydd)
 
 dataset = {
-    "y": y,
-    "yd": y,
-    "ydd": y,
+    "y": y_dataset,
+    "yd": yd_dataset,
+    "ydd": ydd_dataset,
 }
 
 # Split into train/validation/test
@@ -451,21 +442,17 @@ train_size = len(train_set["y"])
 # =====================================================
 
 # First guess of the parameters
-params_robot = jnp.concatenate([L, jnp.diag(D)])
-params_robot_softplus = InverseSoftplus(params_robot)
+L_softplus = InverseSoftplus(L)
+D_softplus = InverseSoftplus(jnp.diag(D))
 A_flat = jnp.diag(jnp.eye(6))
 c = jnp.ones(6)
 
-optimiz_params = (params_robot_softplus, A_flat, c)
+params_optimiz = (L_softplus, D_softplus, A_flat, c)
 
 # Test RMSE on the test set before optimization
 _, metrics = Loss(
-    params_softplus=params_robot_softplus, 
-    A_flat=A_flat, 
-    c=c, 
-    y_batch=test_set["y"],
-    yd_batch=test_set["yd"], 
-    ydd_batch=test_set["ydd"],
+    params_optimiz=params_optimiz, 
+    data_batch=test_set,
 )
 RMSE = onp.sqrt(metrics["MSE"])
 pred = onp.array(metrics["predictions"])
@@ -485,12 +472,8 @@ print(f'Example:\n'
 # !! Check (jitted) loss computation !!
 start = time.perf_counter() # warm-up
 loss, metrics = Loss(
-    params_robot_softplus,
-    A_flat,
-    c,
-    train_set["y"],
-    train_set["yd"],
-    train_set["ydd"],
+    params_optimiz,
+    train_set,
 )
 print(loss) 
 end = time.perf_counter()
@@ -498,31 +481,23 @@ print(f'time (warmup): {end-start} s')
 
 start = time.perf_counter()
 loss, metrics = Loss(
-    params_robot_softplus,
-    A_flat,
-    c,
-    train_set["y"],
-    train_set["yd"],
-    train_set["ydd"],
+    params_optimiz,
+    train_set,
 )
 print(loss) 
 end = time.perf_counter()
 print(f'time (already compiled): {end-start} s')
-exit()
+#exit()
 # !! End check !!
 
 #########
 
 # !! Check loss + gradients computation !!
-loss_and_grad = jax.jit(jax.value_and_grad(Loss, argnums=(0,1,2), has_aux=True))
+loss_and_grad = jax.jit(jax.value_and_grad(Loss, argnums=(0,), has_aux=True))
 start = time.perf_counter()  # warm-up
 (loss, metrics), grads = loss_and_grad(
-    params_robot_softplus,
-    A_flat,
-    c,
-    train_set["y"],
-    train_set["yd"],
-    train_set["ydd"],
+    params_optimiz,
+    train_set,
 )
 print(loss, grads)
 end = time.perf_counter()
@@ -530,12 +505,8 @@ print(f'time (warmup): {end-start} s')
 
 start = time.perf_counter()
 (loss, metrics), grads = loss_and_grad(
-    params_robot_softplus,
-    A_flat,
-    c,
-    train_set["y"],
-    train_set["yd"],
-    train_set["ydd"],
+    params_optimiz,
+    train_set,
 )
 print(loss, grads)
 end = time.perf_counter()
@@ -550,76 +521,68 @@ print(F'\n--- OPTIMIZATION ---')
 # Setup optimizer
 lr = optax.piecewise_constant_schedule(1e-12, {20: 10, 50: 10, 150: 10, 250: 10, 300: 10, 350: 10, 400: 10, 450: 10})
 optimizer = optax.sgd(learning_rate=lr)
-optimiz_state = optimizer.init(optimiz_params) # initialize optimizer
+optimiz_state = optimizer.init(params_optimiz) # initialize optimizer
 
 # Optimization iterations
-n_iter = 120 # number of epochs
-batch_size = 2**12
+n_iter = 500 # number of epochs
+batch_size = 256
 
 start = time.perf_counter()
 if use_scan:
     # Inner loop function (train iterating through batches within an epoch)
-    @partial(jax.jit, static_argnums=(6,7))
-    def train_one_epoch(key, optimiz_state, optimiz_params, y_train, yd_train, ydd_train, batch_size, train_size):
+    @partial(jax.jit, static_argnums=(4,5))
+    def train_one_epoch(key, optimiz_state, params_optimiz, train_set, batch_size, train_size):
         # get indices to extract shuffled batches
         key, subkey = jax.random.split(key)
         batch_ids = batch_indx_generator(key=subkey, dataset_size=train_size, batch_size=batch_size)
 
         # step function for the batches
         def batch_step(carry, batch_i_ids):
-            optimiz_state, optimiz_params = carry
+            optimiz_state, params_optimiz = carry
             # extract a random batch
-            y_batch = y_train[batch_i_ids]
-            yd_batch = yd_train[batch_i_ids]
-            ydd_batch = ydd_train[batch_i_ids]
+            train_batch = extract_batch(train_set, batch_i_ids)
             # update parameters
-            optimiz_params, optimiz_state, loss, _, _ = train_step(
+            params_optimiz, optimiz_state, loss, _, train_metrics = train_step(
                 optimiz_state=optimiz_state,
                 optimiz_update=optimizer.update,
-                optimiz_params=optimiz_params,
-                y_batch=y_batch,
-                yd_batch=yd_batch,
-                ydd_batch=ydd_batch,
+                params_optimiz=params_optimiz,
+                train_batch=train_batch,
             )
-            return (optimiz_state, optimiz_params), loss
+            return (optimiz_state, params_optimiz), (loss, train_metrics["MSE"])
 
         # run scan on the batches to complete one epoch
-        (optimiz_state, optimiz_params), loss_vec = jax.lax.scan(
+        (optimiz_state, params_optimiz), (loss_vec, MSE_vec) = jax.lax.scan(
             batch_step,
-            (optimiz_state, optimiz_params),
+            (optimiz_state, params_optimiz),
             batch_ids
         )
 
         # compute train loss for this epoch
         train_loss_epoch = jnp.mean(loss_vec)
+        train_MSE_epoch = jnp.mean(MSE_vec)
 
-        return key, optimiz_state, optimiz_params, train_loss_epoch
+        return key, optimiz_state, params_optimiz, train_loss_epoch, train_MSE_epoch
 
     # Outer loop (iterate epochs)
     def epoch_step(carry, _):
-        key, optimiz_state, optimiz_params = carry
+        key, optimiz_state, params_optimiz = carry
         # run inner loop (perform training)
-        key, optimiz_state, optimiz_params, train_loss_epoch = train_one_epoch(
-            key, optimiz_state, optimiz_params,
-            train_set["y"], train_set["yd"], train_set["ydd"],
+        key, optimiz_state, params_optimiz, train_loss_epoch, train_MSE_epoch = train_one_epoch(
+            key, optimiz_state, params_optimiz,
+            train_set,
             batch_size, train_size
         )
         # perform validation after training on the epoch
-        params_robot_softplus, A_flat, c = optimiz_params
-        val_loss_epoch, _ = Loss(
-            params_softplus=params_robot_softplus,
-            A_flat=A_flat,
-            c=c,
-            y_batch=val_set["y"],
-            yd_batch=val_set["yd"],
-            ydd_batch=val_set["ydd"],
+        val_loss_epoch, val_metrics = Loss(
+            params_optimiz=params_optimiz,
+            data_batch=val_set,
         )
-        return (key, optimiz_state, optimiz_params), (train_loss_epoch, val_loss_epoch)
+        return (key, optimiz_state, params_optimiz), (train_loss_epoch, train_MSE_epoch, val_loss_epoch, val_metrics["MSE"])
 
     # Run scan on outer loop
-    (_, _, optimiz_params), (train_loss_ts, val_loss_ts) = jax.lax.scan(
+    (_, _, params_optimiz), (train_loss_ts, train_MSE_ts, val_loss_ts, val_MSE_ts) = jax.lax.scan(
         epoch_step,
-        (key, optimiz_state, optimiz_params),
+        (key, optimiz_state, params_optimiz),
         xs=None,
         length=n_iter
     )
@@ -627,8 +590,11 @@ if use_scan:
 else:
     train_loss_ts = onp.zeros(n_iter)
     val_loss_ts = onp.zeros(n_iter)
+    train_MSE_ts = onp.zeros(n_iter)
+    val_MSE_ts = onp.zeros(n_iter)
     for epoch in tqdm(range(n_iter), 'Training'): # for each epoch...
-        params_robot_print = jax.nn.softplus(params_robot_softplus)
+        L_print = jax.nn.softplus(L_softplus)
+        D_print = jax.nn.softplus(D_softplus)
         A_flat_print = A_flat
         c_print = c
         # shuffle train dataset
@@ -637,38 +603,36 @@ else:
 
         # perform training
         train_loss_sum = 0
+        train_MSE_sum = 0
         for i in tqdm(range(len(batch_ids)), 'Current epoch', leave=False): # for each batch...
             batch_i_ids = batch_ids[i]
-            y_train_batch = train_set["y"][batch_i_ids]
-            yd_train_batch = train_set["yd"][batch_i_ids]
-            ydd_train_batch = train_set["ydd"][batch_i_ids]
+            train_batch = extract_batch(train_set, batch_i_ids)
             # perform optimization step
-            optimiz_params_new, optimiz_state, loss, grads, _ = train_step(
+            params_optimiz_new, optimiz_state, loss, grads, train_metrics = train_step(
                 optimiz_state=optimiz_state,
                 optimiz_update=optimizer.update,
-                optimiz_params=optimiz_params,
-                y_batch=y_train_batch,
-                yd_batch=yd_train_batch,
-                ydd_batch=ydd_train_batch,
+                params_optimiz=params_optimiz,
+                train_batch=train_batch,
             )
             # check for nan
             if onp.isnan(loss):
                 n_iter = epoch
                 faulty_grads = grads_old
-                params_robot_softplus_print, A_flat_print, c_print = optimiz_params
-                params_robot_print = jax.nn.softplus(params_robot_softplus_print)
+                L_softplus_print, D_softplus_print, A_flat_print, c_print = params_optimiz
+                L_print, D_print = jax.nn.softplus(L_softplus_print), jax.nn.softplus(D_softplus_print)
                 break
             grads_old = grads
-            optimiz_params = optimiz_params_new
-            train_loss_sum += loss # sum train loss
+            params_optimiz = params_optimiz_new
+            train_loss_sum += loss                # sum train loss
+            train_MSE_sum += train_metrics["MSE"] # sum train MSE
 
         # exit outer loop if nan
         if onp.isnan(loss):
             tqdm.write(
                 f"Epoch {epoch:02d} | "
                 f"NaN loss detected! | "
-                f"Last L={params_robot_print[:n_pcs]} | "
-                f"Last D={params_robot_print[n_pcs:]} | "
+                f"Last L={L_print} | "
+                f"Last D={D_print} | "
                 f"Last A={onp.array2string(A_flat_print, precision=2, formatter={'float_kind': lambda x: f'{x:.2f}'})} | "
                 f"Last c={onp.array2string(c_print, precision=2, formatter={'float_kind': lambda x: f'{x:.2f}'})} | "
                 f"gradients={faulty_grads}"
@@ -676,23 +640,20 @@ else:
             break
         # compute mean training loss
         train_loss_epoch = train_loss_sum / len(batch_ids)
+        train_MSE_epoch = train_MSE_sum / len(batch_ids)
 
         # perform validation
-        params_robot_softplus, A_flat, c = optimiz_params
-        val_loss_epoch, _ = Loss(
-            params_softplus=params_robot_softplus, 
-            A_flat=A_flat, 
-            c=c, 
-            y_batch=val_set["y"],
-            yd_batch=val_set["yd"], 
-            ydd_batch=val_set["ydd"],
+        L_softplus, D_softplus, A_flat, c = params_optimiz
+        val_loss_epoch, val_metrics = Loss(
+            params_optimiz=params_optimiz, 
+            data_batch=val_set,
         )
         
         # print progress and save losses
         tqdm.write(
             f"Epoch {epoch:02d} | "
-            f"L={params_robot_print[:n_pcs]} | "
-            f"D={params_robot_print[n_pcs:]} | "
+            f"L={L_print} | "
+            f"D={D_print} | "
             f"A={onp.array2string(A_flat_print, precision=2, formatter={'float_kind': lambda x: f'{x:.2f}'})} | "
             f"c={onp.array2string(c_print, precision=2, formatter={'float_kind': lambda x: f'{x:.2f}'})} | "
             f"train loss={train_loss_epoch:.3e} | "
@@ -700,16 +661,18 @@ else:
         )
         train_loss_ts[epoch] = train_loss_epoch
         val_loss_ts[epoch] = val_loss_epoch
+        train_MSE_ts[epoch] = train_metrics["MSE"]
+        val_MSE_ts[epoch] = val_metrics["MSE"]
 
-jax.block_until_ready(optimiz_params)
+jax.block_until_ready(params_optimiz)
 end = time.perf_counter()
 print(f'Elapsed time (optimization): {end-start} s')
     
 # Print optimal parameters (and save them)
-params_robot_softplus_opt, A_flat_opt, c_opt = optimiz_params
-params_robot_opt = jax.nn.softplus(params_robot_softplus_opt)
-L_opt = params_robot_opt[:n_pcs]
-D_opt = jnp.diag(params_robot_opt[n_pcs:])
+params_optimiz_opt = params_optimiz
+L_softplus_opt, D_softplus_opt, A_flat_opt, c_opt = params_optimiz_opt
+L_opt = jax.nn.softplus(L_softplus_opt)
+D_opt = jnp.diag(jax.nn.softplus(D_softplus_opt))
 A_opt = jnp.diag(A_flat_opt)
 print(f'L_opt={L_opt}\n'
       f'D_opt={onp.diag(D_opt)}\n'
@@ -721,8 +684,10 @@ print(f'L_opt={L_opt}\n'
 # Visualization
 fig, ax1 = plt.subplots()
 
-train_loss_line, = ax1.plot(range(n_iter), train_loss_ts[:n_iter], label='train loss')
-val_loss_line, = ax1.plot(range(n_iter), val_loss_ts[:n_iter], label='validation loss')
+train_loss_line, = ax1.plot(range(n_iter), train_loss_ts[:n_iter], 'r', label='train loss')
+val_loss_line, = ax1.plot(range(n_iter), val_loss_ts[:n_iter], 'b', label='validation loss')
+train_MSE_line, = ax1.plot(range(n_iter), train_MSE_ts[:n_iter], 'r--', label='train MSE')
+val_MSE_line, = ax1.plot(range(n_iter), val_MSE_ts[:n_iter], 'b--', label='validation MSE')
 ax1.set_yscale('log')
 ax1.set_xlabel('iterations')
 ax1.set_ylabel('loss', color='k')
@@ -734,8 +699,8 @@ ax2.set_ylabel('lr', color='gray')
 ax2.set_yscale('log')
 ax2.tick_params(axis='y', labelcolor='gray')
 
-lines = [train_loss_line, val_loss_line, lr_line]
-labels = ['train Loss', 'validation loss', 'learning rate']
+lines = [train_loss_line, val_loss_line, train_MSE_line, val_MSE_line, lr_line]
+labels = ['train loss', 'validation loss', 'train MSE', 'validation MSE', 'learning rate']
 ax1.legend(lines, labels, loc='center right')
 plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
 plt.title('Loss curve')
@@ -790,12 +755,8 @@ else:
 
 # Test on the test dataset after optimization
 _, metrics = Loss(
-    params_softplus=params_robot_softplus_opt, 
-    A_flat=A_flat_opt, 
-    c=c_opt, 
-    y_batch=test_set["y"],
-    yd_batch=test_set["yd"], 
-    ydd_batch=test_set["ydd"],
+    params_optimiz=params_optimiz_opt, 
+    data_batch=test_set,
 )
 RMSE = onp.sqrt(metrics["MSE"])
 pred = onp.array(metrics["predictions"])
