@@ -108,7 +108,7 @@ def animate_evolution(
         show: bool = True
 ):    
     """
-    Function to animate evolution of the evolutionary algorithm.
+    Function to animate evolution of the evolutionary algorithm. Only works for 2D case, obviously.
 
     Args
     ----
