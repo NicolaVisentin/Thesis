@@ -298,7 +298,7 @@ def Loss(
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
         - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
-        - **"ydd"**: Batch of datapoints ydd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
 
     Returns
     -------
@@ -380,7 +380,7 @@ def train_step(
         Dictionary with datapoints and labels of a batch of the train set. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
         - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
-        - **"ydd"**: Batch of datapoints ydd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
 
     Returns
     -------
