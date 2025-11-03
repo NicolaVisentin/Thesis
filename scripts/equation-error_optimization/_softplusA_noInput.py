@@ -226,7 +226,7 @@ def Loss(
     Returns
     -------
     loss : float
-        Scalar loss computed as MSE in the batch between predictions qdd and labels A*ydd.
+        Scalar loss computed as MSE in the batch between predictions and labels.
     metrics : dict
         Dictionary of useful metrics.
     """
@@ -253,14 +253,14 @@ def Loss(
         A = jnp.reshape(A_flat, (3*n_pcs, n_ron))
 
     # generate input configurations for the robot
-    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, n_pcs)
-    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, n_pcs)
+    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
+    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, 3*n_pcs)
 
     # predictions
-    z = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*n_pcs)
+    z = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
 
     forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0))
-    zd = forward_dynamics_vmap(0, z) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*n_pcs)
+    zd = forward_dynamics_vmap(0, z) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
     _, qdd_batch = jnp.split(zd, 2, axis=1) 
 
     if ydd_hat_loss:

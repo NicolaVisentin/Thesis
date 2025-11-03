@@ -326,14 +326,14 @@ def Loss(
         A = jnp.reshape(A_flat, (3*n_pcs, n_ron))
 
     # generate input configurations for the robot
-    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, n_pcs)
-    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, n_pcs)
+    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
+    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, 3*n_pcs)
 
     # predictions
-    z = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*n_pcs)
+    z = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
 
     forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0))
-    zd = forward_dynamics_vmap(0, z) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*n_pcs)
+    zd = forward_dynamics_vmap(0, z) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
     _, previsions_qdd_batch = jnp.split(zd, 2, axis=1) 
 
     # compute loss
