@@ -416,7 +416,7 @@ robot = RobotModel(
 # If required, simulate robot and compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution.npz')
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_noInput.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'])
     y_RONsaved = jnp.array(RON_evolution_data['y'])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'])
