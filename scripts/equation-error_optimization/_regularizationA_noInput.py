@@ -19,7 +19,6 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider
 from matplotlib.ticker import MaxNLocator
-import pickle
 
 from pathlib import Path
 from tqdm import tqdm
@@ -28,7 +27,6 @@ import sys
 
 from soromox.systems.planar_pcs import PlanarPCS
 from soromox.systems.planar_pcs_simplified import PlanarPCS_simple
-from soromox.utils.lie_algebra.se2 import exp_SE2
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
