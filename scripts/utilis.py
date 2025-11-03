@@ -18,15 +18,6 @@ class MyOptimizationProblem:
     """
     Class for defining custom optimization problem to use with evosax.
 
-    Parameters
-    ----------
-    cost_fn : Callable
-        Cost function J = f(x), with x n-dimensional array.
-    lower_research_bound : Array
-        Lower bound for each research parameter (x1, x2, ..., xn). Shape (n,)
-    upper_research_bound : Array
-        Upper bound for each research parameter (x1, x2, ..., xn). Shape (n,)
-
     Attributes
     ----------
     cost_fn : Callable
@@ -44,6 +35,18 @@ class MyOptimizationProblem:
             lower_research_bound: Array, 
             upper_research_bound: Array,
     ):
+        """
+        Initialize the class.
+
+        Args
+        ----
+        cost_fn : Callable
+            Cost function J = f(x), with x n-dimensional array.
+        lower_research_bound : Array
+            Lower bound for each research parameter (x1, x2, ..., xn). Shape (n,)
+        upper_research_bound : Array
+            Upper bound for each research parameter (x1, x2, ..., xn). Shape (n,)
+        """
         if len(lower_research_bound) != len(upper_research_bound):
             raise ValueError('lower_research_bound and upper_research_bound must have same length.')
         self.lower_research_bound = lower_research_bound
