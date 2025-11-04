@@ -574,14 +574,16 @@ exit()
 # =====================================================
 print(F'\n--- OPTIMIZATION ---')
 
+# Optimization parameters
+n_iter = 500 # number of epochs
+batch_size = 256
+
+batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
+
 # Setup optimizer
 lr = optax.piecewise_constant_schedule(1e-11)
 optimizer = optax.sgd(learning_rate=lr)
 optimiz_state = optimizer.init(params_optimiz) # initialize optimizer
-
-# Optimization iterations
-n_iter = 500 # number of epochs
-batch_size = 256
 
 start = time.perf_counter()
 if use_scan:
@@ -747,16 +749,16 @@ print(f'L_opt={L_opt}\n'
 fig, ax1 = plt.subplots()
 
 train_loss_line, = ax1.plot(range(n_iter), train_loss_ts[:n_iter], 'r', label='train loss')
-val_loss_line, = ax1.plot(range(n_iter), val_loss_ts[:n_iter], 'b', label='validation loss')
+val_loss_line, = ax1.plot(onp.arange(1,n_iter+1), val_loss_ts[:n_iter], 'b', label='validation loss')
 train_MSE_line, = ax1.plot(range(n_iter), train_MSE_ts[:n_iter], 'r--', label='train MSE')
-val_MSE_line, = ax1.plot(range(n_iter), val_MSE_ts[:n_iter], 'b--', label='validation MSE')
+val_MSE_line, = ax1.plot(onp.arange(1,n_iter+1), val_MSE_ts[:n_iter], 'b--', label='validation MSE')
 ax1.set_yscale('log')
 ax1.set_xlabel('iterations')
 ax1.set_ylabel('loss', color='k')
 ax1.tick_params(axis='y', labelcolor='k')
 
 ax2 = ax1.twinx()
-lr_line, = ax2.plot(range(n_iter), [lr(i) for i in range(n_iter)], linewidth=0.5, label='learning rate', color='gray')
+lr_line, = ax2.plot(range(n_iter), [lr(i*batches_per_epoch) for i in range(n_iter)], linewidth=0.5, label='learning rate', color='gray')
 ax2.set_ylabel('lr', color='gray')
 ax2.set_yscale('log')
 ax2.tick_params(axis='y', labelcolor='gray')
