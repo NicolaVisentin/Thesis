@@ -259,7 +259,7 @@ def animate_evolution(
 
 
 # =====================================================
-# Others
+# Gradient-based optimization
 # =====================================================
 
 # Inverse softplus function
