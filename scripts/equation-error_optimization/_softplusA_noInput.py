@@ -507,7 +507,7 @@ pred = onp.array(metrics["predictions"])
 labels = onp.array(metrics["labels"])
 pred_str = 'inv(A)*qdd' if ydd_hat_loss else 'qdd'
 label_str = 'ydd' if ydd_hat_loss else 'A*ydd'
-print(f'Test accuracy (before training): RMSE = {RMSE:.6e}')
+print(f'Test accuracy: RMSE = {RMSE:.6e}')
 print(f'Example:\n'
       f'    (y, yd) = ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])})\n'
       f'    (q, qd) = (A*y+c, A*yd) = ({onp.array(test_set["y"][69]@A0.T+c0)}, {onp.array(test_set["yd"][69]@A0.T)})\n'
@@ -791,6 +791,10 @@ robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
 
 # If required, simulate robot and compare its behaviour in time with the RON's one
 if show_simulations:
+    # Simulation parameters
+    q0 = A_opt @ y_RONsaved[0] + c_opt
+    qd0 = A_opt @ yd_RONsaved[0]
+
     # Simulate robot
     print('Simulating robot...')
     start = time.perf_counter()
@@ -863,7 +867,7 @@ pred = onp.array(metrics["predictions"])
 labels = onp.array(metrics["labels"])
 pred_str = 'inv(A)*qdd' if ydd_hat_loss else 'qdd'
 label_str = 'ydd' if ydd_hat_loss else 'A*ydd'
-print(f'Test accuracy (before training): RMSE = {RMSE:.6e}')
+print(f'Test accuracy: RMSE = {RMSE:.6e}')
 print(f'Example:\n'
       f'    (y, yd) = ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])})\n'
       f'    (q, qd) = (A*y+c, A*yd) = ({onp.array(test_set["y"][69]@A_opt.T+c_opt)}, {onp.array(test_set["yd"][69]@A_opt.T)})\n'
