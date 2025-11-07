@@ -187,7 +187,7 @@ def animate_robot_matplotlib(
 # Script settings
 # =====================================================
 use_scan = False         # choose whether to use normal for loop or lax.scan
-show_simulations = False # choose whether to perform time simulations of the robot (and comparison with RON's)
+show_simulations = True # choose whether to perform time simulations of the robot (and comparison with RON's)
 ydd_hat_loss = True     # if True, computes the loss comparing ydd (requires inversion). If False, compares qdd
 
 
@@ -251,7 +251,7 @@ def Loss(
     robot_updated = robot.update_params({"L": L, "D": D, "E": E})
 
     # rebuild A and B matrices
-    A_thresh = 0.1
+    A_thresh = 0.001
     A_flat = A_thresh + jax.nn.softplus(A_softplus)
     if len(A_flat) == n_ron:
         A = jnp.diag(A_flat)

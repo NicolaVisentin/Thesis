@@ -245,7 +245,7 @@ def Loss(
     robot_updated = robot.update_params({"L": L, "D": D})
 
     # rebuild A matrix
-    A_thresh = 0.1
+    A_thresh = 0.001
     A_flat = A_thresh + jax.nn.softplus(A_softplus)
     if len(A_flat) == n_ron:
         A = jnp.diag(A_flat)
@@ -379,7 +379,7 @@ train_size = len(train_set["y"])
 print('--- BEFORE OPTIMIZATION ---')
 
 # First guess of the parameters
-A_thresh = 0.1
+A_thresh = 0.001
 A0 = jnp.eye(6)
 c0 = jnp.zeros(6)
 L0 = jnp.array([1.0e-1, 1.0e-1])
