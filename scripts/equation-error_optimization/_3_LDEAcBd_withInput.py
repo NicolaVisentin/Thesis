@@ -455,7 +455,7 @@ if show_simulations:
     t0 = time_RONsaved[0]
     t1 = time_RONsaved[-1]
     dt = 1e-4
-    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], 0.1*time_RONsaved[1]-time_RONsaved[0])
+    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], 0.1*(time_RONsaved[1]-time_RONsaved[0]))
     solver = Tsit5() # Tsit5(), Euler(), Heun(), Midpoint(), Ralston(), Bosh3(), Dopri5(), Dopri8()
     #step_size = PIDController(rtol=1e-6, atol=1e-6, dtmin=1e-4, force_dtmin=True) # ConstantStepSize(), PIDController(rtol=, atol=)
     step_size = ConstantStepSize()
@@ -789,7 +789,7 @@ else:
                 n_iter = epoch
                 faulty_grads = grads_old
                 L_softplus_print, D_softplus_print, E_print, A_softplus_print, c_print, B_print, d_print = params_optimiz
-                L_print, D_print, A_print, B_print = jax.nn.softplus(L_softplus_print), jax.nn.softplus(D_softplus_print), A_thresh + jax.nn.softplus(L_softplus_print), B.flatten()
+                L_print, D_print, A_print, B_print = jax.nn.softplus(L_softplus_print), jax.nn.softplus(D_softplus_print), A_thresh + jax.nn.softplus(A_softplus_print), B.flatten()
                 break
             grads_old = grads
             params_optimiz = params_optimiz_new

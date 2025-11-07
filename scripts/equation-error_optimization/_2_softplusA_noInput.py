@@ -677,7 +677,7 @@ else:
                 n_iter = epoch
                 faulty_grads = grads_old
                 L_softplus_print, D_softplus_print, A_softplus_print, c_print = params_optimiz
-                L_print, D_print, A_print = jax.nn.softplus(L_softplus_print), jax.nn.softplus(D_softplus_print), A_thresh + jax.nn.softplus(L_softplus_print)
+                L_print, D_print, A_print = jax.nn.softplus(L_softplus_print), jax.nn.softplus(D_softplus_print), A_thresh + jax.nn.softplus(A_softplus_print)
                 break
             grads_old = grads
             params_optimiz = params_optimiz_new
