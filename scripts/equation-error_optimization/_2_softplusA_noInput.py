@@ -245,7 +245,6 @@ def Loss(
     robot_updated = robot.update_params({"L": L, "D": D})
 
     # rebuild A matrix
-    A_thresh = 0.001
     A_flat = A_thresh + jax.nn.softplus(A_softplus)
     if len(A_flat) == n_ron:
         A = jnp.diag(A_flat)
