@@ -48,7 +48,7 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = False         # choose whether to use normal for loop or lax.scan
+use_scan = False # choose whether to use normal for loop or lax.scan
 
 
 # =====================================================
