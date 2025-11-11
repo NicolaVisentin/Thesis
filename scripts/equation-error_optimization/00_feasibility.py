@@ -50,8 +50,8 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = True         # choose whether to use normal for loop or lax.scan
-show_simulations = False # choose whether to perform time simulations of the approximator (and comparison with RON)
+use_scan = False         # choose whether to use normal for loop or lax.scan
+show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
 # =====================================================
@@ -157,7 +157,7 @@ train_size = len(train_set["y"])
 
 
 # =====================================================
-# Robot before optimization
+# Approximator before optimization
 # =====================================================
 print('--- BEFORE OPTIMIZATION ---')
 
@@ -185,7 +185,7 @@ if show_simulations:
     step_size = ConstantStepSize()
     max_steps = int(1e6)
 
-    # Simulate robot
+    # Simulate approximator
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
@@ -463,8 +463,9 @@ if True:
     plt.savefig(plots_folder/'Loss', bbox_inches='tight')
     plt.show()
 
+
 # =====================================================
-# Robot after optimization
+# Approximator after optimization
 # =====================================================
 print('\n--- AFTER OPTIMIZATION ---')
 
