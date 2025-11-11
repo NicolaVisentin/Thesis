@@ -297,58 +297,6 @@ def Loss(
 
     return loss, metrics
 
-# Loss and grads function
-loss_and_grads = jax.jit(jax.value_and_grad(Loss, argnums=0, has_aux=True))
-
-# Optimization train step
-@partial(jax.jit, static_argnums=(1,))
-def train_step(
-    optimiz_state,
-    optimiz_update,
-    params_optimiz : tuple,
-    train_batch : dict,
-):
-    """
-    Optimization step. Takes current optimization parameters and optimizer status and computes loss and gradients propagation
-    in a batch of data, finally updates and returns the optimization parameters and optimizer status (and the loss/grads). 
-
-    Args
-    ----
-    optimiz_state
-        Optimizer state. It's an optax object.
-    optimiz_update
-        Optimizer update. It's an optax object.
-    params_optimiz : tuple
-        Collects all optimization parameters. In our case (L_softplus, D_softplus, E, A_flat, c, B_flat, d).
-    train_batch : dict
-        Dictionary with datapoints and labels of a batch of the train set. In this case has keys:
-        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
-        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
-        - **"u"**: Batch of datapoints u. Shape (batch_size, n_input)
-        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
-
-    Returns
-    -------
-    params_optimiz_updated
-        Updated optimization parameters.
-    optimiz_state_updated
-        Updated optimizer state.
-    loss
-        Loss value for this batch.
-    grads
-        Gradients.
-    metrics
-        Metrics dictionary for this batch.
-    """
-    # compute loss and gradients
-    (loss, metrics), grads = loss_and_grads(params_optimiz, train_batch)
-    
-    # update optimization parameters
-    updates, optimiz_state = optimiz_update(grads, optimiz_state, params_optimiz)
-    params_optimiz = optax.apply_updates(params_optimiz, updates)
-
-    return params_optimiz, optimiz_state, loss, grads, metrics
-
 
 # =====================================================
 # Prepare datasets
@@ -694,64 +642,23 @@ optimiz_state = optimizer.init(params_optimiz) # initialize optimizer
 # Optimization iterations
 start = time.perf_counter()
 if use_scan:
-    # Inner loop function (train iterating through batches within an epoch)
-    @partial(jax.jit, static_argnums=(4,5))
-    def train_one_epoch(key, optimiz_state, params_optimiz, train_set, batch_size, train_size):
-        # get indices to extract shuffled batches
-        key, subkey = jax.random.split(key)
-        batch_ids = batch_indx_generator(key=subkey, dataset_size=train_size, batch_size=batch_size)
-
-        # step function for the batches
-        def batch_step(carry, batch_i_ids):
-            optimiz_state, params_optimiz = carry
-            # extract a random batch
-            train_batch = extract_batch(train_set, batch_i_ids)
-            # update parameters
-            params_optimiz, optimiz_state, loss, _, train_metrics = train_step(
-                optimiz_state=optimiz_state,
-                optimiz_update=optimizer.update,
-                params_optimiz=params_optimiz,
-                train_batch=train_batch,
-            )
-            return (optimiz_state, params_optimiz), (loss, train_metrics["MSE"])
-
-        # run scan on the batches to complete one epoch
-        (optimiz_state, params_optimiz), (loss_vec, MSE_vec) = jax.lax.scan(
-            batch_step,
-            (optimiz_state, params_optimiz),
-            batch_ids
-        )
-
-        # compute train loss for this epoch
-        train_loss_epoch = jnp.mean(loss_vec)
-        train_MSE_epoch = jnp.mean(MSE_vec)
-
-        return key, optimiz_state, params_optimiz, train_loss_epoch, train_MSE_epoch
-
-    # Outer loop (iterate epochs)
-    def epoch_step(carry, _):
-        key, optimiz_state, params_optimiz = carry
-        # run inner loop (perform training)
-        key, optimiz_state, params_optimiz, train_loss_epoch, train_MSE_epoch = train_one_epoch(
-            key, optimiz_state, params_optimiz,
-            train_set,
-            batch_size, train_size
-        )
-        # perform validation after training on the epoch
-        val_loss_epoch, val_metrics = Loss(
-            params_optimiz=params_optimiz,
-            data_batch=val_set,
-        )
-        return (key, optimiz_state, params_optimiz), (train_loss_epoch, train_MSE_epoch, val_loss_epoch, val_metrics["MSE"])
-
-    # Run scan on outer loop
-    (_, _, params_optimiz), (train_loss_ts, train_MSE_ts, val_loss_ts, val_MSE_ts) = jax.lax.scan(
-        epoch_step,
-        (key, optimiz_state, params_optimiz),
-        xs=None,
-        length=n_iter
+    key, subkey = jax.random.split(key)
+    results = train_with_scan(
+        key=subkey,
+        optimizer=optimizer,
+        optimiz_state=optimiz_state,
+        params_optimiz=params_optimiz,
+        loss_fn=Loss,
+        train_set=train_set,
+        val_set=val_set,
+        n_iter=n_iter,
+        batch_size=batch_size,
     )
-
+    params_optimiz = results["params_optimiz"]
+    train_loss_ts = results["train_loss_ts"]
+    train_MSE_ts = results["train_MSE_ts"]
+    val_loss_ts = results["val_loss_ts"]
+    val_MSE_ts = results["val_MSE_ts"]
 else:
     train_loss_ts = onp.zeros(n_iter)
     val_loss_ts = onp.zeros(n_iter)
@@ -778,6 +685,7 @@ else:
             train_batch = extract_batch(train_set, batch_i_ids)
             # perform optimization step
             params_optimiz_new, optimiz_state, loss, grads, train_metrics = train_step(
+                loss_fn=Loss,
                 optimiz_state=optimiz_state,
                 optimiz_update=optimizer.update,
                 params_optimiz=params_optimiz,
