@@ -41,14 +41,17 @@ main_folder = curr_folder.parent.parent                           # main folder 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                           # folder with the dataset
 saved_data_folder = main_folder/'saved data'                      # folder for saved data
+# data_folder = saved_data_folder/Path(__file__).stem              # folder for saving data
 
+# data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = False # choose whether to use normal for loop or lax.scan
+use_scan = True         # choose whether to use normal for loop or lax.scan
+show_simulations = False # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
 # =====================================================
@@ -67,9 +70,31 @@ def approximator_fd(t, z, params):
 # Loss function
 @jax.jit
 def Loss(
-        params_optimiz : tuple, 
-        data_batch : dict, 
-) -> tuple[float, dict]:
+        params_optimiz : Tuple, 
+        data_batch : Dict, 
+) -> Tuple[float, Dict]:
+    """
+    Computes loss function over a batch of data for certain parameters. In this case:
+    Takes a batch of datapoints (y, yd), computes the forward dynamics ydd_hat = f_approximator(y,yd)
+    and computes the loss as the MSE in the batch between predictions ydd_hat and labels ydd.
+
+    Args
+    ----
+    params_optimiz : Tuple
+        Parameters for the opimization. In this case (p1, p2).
+    data_batch : Dict
+        Dictionary with datapoints and labels to compute the loss. In this case has keys:
+        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
+        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
+
+    Returns
+    -------
+    loss : float
+        Scalar loss computed as MSE in the batch between predictions and labels.
+    metrics : Dict[float, Dict]
+        Dictionary of useful metrics.
+    """
     # extract everything
     y_batch, yd_batch, ydd_batch = data_batch["y"], data_batch["yd"], data_batch["ydd"]
 
@@ -141,66 +166,70 @@ p1 = 5.0
 p2 = 3.0
 params_optimiz = (p1, p2)
 
-# Load simulation results from RON
-RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_feasibility_1a.npz')
-time_RONsaved = jnp.array(RON_evolution_data['time'])
-y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
-yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
+# If required, simulate approximator and compare its behaviour in time with the RON's one
+if show_simulations:
+    # Load simulation results from RON
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_feasibility_1a.npz')
+    time_RONsaved = jnp.array(RON_evolution_data['time'])
+    y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
+    yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
 
-# Simulate current approximator
-z0 = jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]])
+    # Simulate current approximator
+    z0 = jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]])
 
-t0 = time_RONsaved[0]
-t1 = time_RONsaved[-1]
-dt = 1e-4
-saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], (time_RONsaved[1]-time_RONsaved[0]))
-solver = Tsit5()
-step_size = ConstantStepSize()
-max_steps = int(1e6)
+    t0 = time_RONsaved[0]
+    t1 = time_RONsaved[-1]
+    dt = 1e-4
+    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], (time_RONsaved[1]-time_RONsaved[0]))
+    solver = Tsit5()
+    step_size = ConstantStepSize()
+    max_steps = int(1e6)
 
-# Simulate robot
-print('Simulating...')
-start = time.perf_counter()
-solution = diffrax.diffeqsolve(
-        diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz)),
-        t0=t0,
-        t1=t1,
-        dt0=dt,
-        y0=z0,
-        solver=solver,
-        stepsize_controller=step_size,
-        max_steps=max_steps,
-        saveat=diffrax.SaveAt(ts=saveat),
-    )
-end = time.perf_counter()
-print(f'Elapsed time (simulation): {end-start} s')
+    # Simulate robot
+    print('Simulating...')
+    start = time.perf_counter()
+    solution = diffrax.diffeqsolve(
+            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz)),
+            t0=t0,
+            t1=t1,
+            dt0=dt,
+            y0=z0,
+            solver=solver,
+            stepsize_controller=step_size,
+            max_steps=max_steps,
+            saveat=diffrax.SaveAt(ts=saveat),
+        )
+    end = time.perf_counter()
+    print(f'Elapsed time (simulation): {end-start} s')
 
-z_hat = solution.ys
-y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
+    z_hat = solution.ys
+    y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
 
-# Plot y(t) and y_hat(t)
-fig, ax = plt.subplots(1,1)
-ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
-ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-ax.grid(True)
-ax.set_xlabel('t [s]')
-ax.set_ylabel('y')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
-#plt.show()
+    # Plot y(t) and y_hat(t)
+    fig, ax = plt.subplots(1,1)
+    ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
+    ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
+    #plt.show()
 
-# Plot phase planes
-fig, ax = plt.subplots(1,1)
-ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
-ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-ax.grid(True)
-ax.set_xlabel(r'$y$')
-ax.set_ylabel(r'$\dot{y}$')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
-plt.show()
+    # Plot phase planes
+    fig, ax = plt.subplots(1,1)
+    ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
+    ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
+    ax.grid(True)
+    ax.set_xlabel(r'$y$')
+    ax.set_ylabel(r'$\dot{y}$')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
+    plt.show()
+else:
+    print('[simulation skipped]')
 
 # Test RMSE on the test set before optimization
 _, metrics = Loss(
@@ -394,8 +423,14 @@ if True:
     params_optimiz_opt = params_optimiz
     p1_opt, p2_opt = params_optimiz_opt
     print(f'p1_opt={p1_opt}\n'
-        f'p2_opt={p2_opt}\n'
+        f'p2_opt={p2_opt}'
     )
+    # onp.savez(
+    #     data_folder/'optimal_data', 
+    #     p1=p1, 
+    #     p2=p2, 
+    # )
+
     # Visualization
     fig, ax1 = plt.subplots()
 
@@ -433,53 +468,61 @@ if True:
 # =====================================================
 print('\n--- AFTER OPTIMIZATION ---')
 
+# # Load optimal parameters
+# data_opt = onp.load(data_folder/'optimal_data.npz')
+# p1_opt = data_opt['p1']
+# p2_opt = data_opt['p2']
+
 params_optimiz_opt = (p1_opt, p2_opt)
 
-# Simulate final approximator
-print('Simulating...')
-start = time.perf_counter()
-solution = diffrax.diffeqsolve(
-        diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz_opt)),
-        t0=t0,
-        t1=t1,
-        dt0=dt,
-        y0=z0,
-        solver=solver,
-        stepsize_controller=step_size,
-        max_steps=max_steps,
-        saveat=diffrax.SaveAt(ts=saveat),
-    )
-end = time.perf_counter()
-print(f'Elapsed time (simulation): {end-start} s')
+# If required, simulate final approximator
+if show_simulations:
+    print('Simulating...')
+    start = time.perf_counter()
+    solution = diffrax.diffeqsolve(
+            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz_opt)),
+            t0=t0,
+            t1=t1,
+            dt0=dt,
+            y0=z0,
+            solver=solver,
+            stepsize_controller=step_size,
+            max_steps=max_steps,
+            saveat=diffrax.SaveAt(ts=saveat),
+        )
+    end = time.perf_counter()
+    print(f'Elapsed time (simulation): {end-start} s')
 
-z_hat = solution.ys
-y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
+    z_hat = solution.ys
+    y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
 
-# Plot y(t) and y_hat(t)
-fig, ax = plt.subplots(1,1)
-ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
-ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-ax.grid(True)
-ax.set_xlabel('t [s]')
-ax.set_ylabel('y')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
-#plt.show()
+    # Plot y(t) and y_hat(t)
+    fig, ax = plt.subplots(1,1)
+    ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
+    ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
+    #plt.show()
 
-# Plot phase planes
-fig, ax = plt.subplots(1,1)
-ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
-ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-ax.grid(True)
-ax.set_xlabel(r'$y$')
-ax.set_ylabel(r'$\dot{y}$')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
-plt.show()
+    # Plot phase planes
+    fig, ax = plt.subplots(1,1)
+    ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
+    ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
+    ax.grid(True)
+    ax.set_xlabel(r'$y$')
+    ax.set_ylabel(r'$\dot{y}$')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
+    plt.show()
+else:
+    print('[simulation skipped]')
 
-# Test RMSE on the test set before optimization
+# Test RMSE on the test set after optimization
 _, metrics = Loss(
     params_optimiz=params_optimiz_opt, 
     data_batch=test_set,
