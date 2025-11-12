@@ -41,14 +41,17 @@ main_folder = curr_folder.parent.parent                           # main folder 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                           # folder with the dataset
 saved_data_folder = main_folder/'saved data'                      # folder for saved data
+# data_folder = saved_data_folder/Path(__file__).stem              # folder for saving data
 
+# data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = False         # choose whether to use normal for loop or lax.scan
+use_scan = True         # choose whether to use normal for loop or lax.scan
+show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
 # =====================================================
@@ -86,9 +89,32 @@ def approximator_fd(t, z, params):
 # Loss function
 @jax.jit
 def Loss(
-        params_optimiz : tuple, 
-        data_batch : dict, 
-) -> tuple[float, dict]:
+        params_optimiz : Sequence, 
+        data_batch : Dict, 
+) -> Tuple[float, Dict]:
+    """
+    Computes loss function over a batch of data for certain parameters. In this case:
+    Takes a batch of datapoints (y, yd), computes the forward dynamics ydd_hat = f_approximator(y,yd)
+    and computes the loss as the MSE in the batch between predictions ydd_hat and labels ydd.
+
+    Args
+    ----
+    params_optimiz : Sequence
+        Parameters for the opimization. In this case a list of tuples (W_i, b_i) representing weights and
+        biases for each layer of the MLP approximator.
+    data_batch : Dict
+        Dictionary with datapoints and labels to compute the loss. In this case has keys:
+        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
+        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
+
+    Returns
+    -------
+    loss : float
+        Scalar loss computed as MSE in the batch between predictions and labels.
+    metrics : Dict[float, Dict]
+        Dictionary of useful metrics.
+    """
     # extract everything
     y_batch, yd_batch, ydd_batch = data_batch["y"], data_batch["yd"], data_batch["ydd"]
 
@@ -111,26 +137,6 @@ def Loss(
     }
 
     return loss, metrics
-
-# Loss and grads function
-loss_and_grads = jax.jit(jax.value_and_grad(Loss, argnums=0, has_aux=True))
-
-# Optimization train step
-@partial(jax.jit, static_argnums=(1,))
-def train_step(
-    optimiz_state,
-    optimiz_update,
-    params_optimiz : tuple,
-    train_batch : dict,
-):
-    # compute loss and gradients
-    (loss, metrics), grads = loss_and_grads(params_optimiz, train_batch)
-    
-    # update optimization parameters
-    updates, optimiz_state = optimiz_update(grads, optimiz_state, params_optimiz)
-    params_optimiz = optax.apply_updates(params_optimiz, updates)
-
-    return params_optimiz, optimiz_state, loss, grads, metrics
 
 
 # =====================================================
@@ -171,7 +177,7 @@ train_size = len(train_set["y"])
 
 
 # =====================================================
-# Robot before optimization
+# Approximator before optimization
 # =====================================================
 print('--- BEFORE OPTIMIZATION ---')
 
@@ -180,66 +186,70 @@ key, subkey = jax.random.split(key)
 mlp_sizes = [2, 16, 16, 1]  # [input, hidden1, hidden2, output]
 params_optimiz = init_mlp_params(subkey, mlp_sizes)
 
-# Load simulation results from RON
-RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_feasibility_1a.npz')
-time_RONsaved = jnp.array(RON_evolution_data['time'])
-y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
-yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
+# If required, simulate approximator and compare its behaviour in time with the RON's one
+if show_simulations:
+    # Load simulation results from RON
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_feasibility_1a.npz')
+    time_RONsaved = jnp.array(RON_evolution_data['time'])
+    y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
+    yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
 
-# Simulate current approximator
-z0 = jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]])
+    # Simulate current approximator
+    z0 = jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]])
 
-t0 = time_RONsaved[0]
-t1 = time_RONsaved[-1]
-dt = 1e-4
-saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], (time_RONsaved[1]-time_RONsaved[0]))
-solver = Tsit5()
-step_size = ConstantStepSize()
-max_steps = int(1e6)
+    t0 = time_RONsaved[0]
+    t1 = time_RONsaved[-1]
+    dt = 1e-4
+    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], (time_RONsaved[1]-time_RONsaved[0]))
+    solver = Tsit5()
+    step_size = ConstantStepSize()
+    max_steps = int(1e6)
 
-# Simulate robot
-print('Simulating...')
-start = time.perf_counter()
-solution = diffrax.diffeqsolve(
-        diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz)),
-        t0=t0,
-        t1=t1,
-        dt0=dt,
-        y0=z0,
-        solver=solver,
-        stepsize_controller=step_size,
-        max_steps=max_steps,
-        saveat=diffrax.SaveAt(ts=saveat),
-    )
-end = time.perf_counter()
-print(f'Elapsed time (simulation): {end-start} s')
+    # Simulate approximator
+    print('Simulating...')
+    start = time.perf_counter()
+    solution = diffrax.diffeqsolve(
+            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz)),
+            t0=t0,
+            t1=t1,
+            dt0=dt,
+            y0=z0,
+            solver=solver,
+            stepsize_controller=step_size,
+            max_steps=max_steps,
+            saveat=diffrax.SaveAt(ts=saveat),
+        )
+    end = time.perf_counter()
+    print(f'Elapsed time (simulation): {end-start} s')
 
-z_hat = solution.ys
-y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
+    z_hat = solution.ys
+    y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
 
-# Plot y(t) and y_hat(t)
-fig, ax = plt.subplots(1,1)
-ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
-ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-ax.grid(True)
-ax.set_xlabel('t [s]')
-ax.set_ylabel('y')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
-#plt.show()
+    # Plot y(t) and y_hat(t)
+    fig, ax = plt.subplots(1,1)
+    ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
+    ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
+    #plt.show()
 
-# Plot phase planes
-fig, ax = plt.subplots(1,1)
-ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
-ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-ax.grid(True)
-ax.set_xlabel(r'$y$')
-ax.set_ylabel(r'$\dot{y}$')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
-plt.show()
+    # Plot phase planes
+    fig, ax = plt.subplots(1,1)
+    ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
+    ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
+    ax.grid(True)
+    ax.set_xlabel(r'$y$')
+    ax.set_ylabel(r'$\dot{y}$')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
+    plt.show()
+else:
+    print('[simulation skipped]')
 
 # Test RMSE on the test set before optimization
 _, metrics = Loss(
@@ -336,64 +346,23 @@ if True:
     # Optimization iterations
     start = time.perf_counter()
     if use_scan:
-        # Inner loop function (train iterating through batches within an epoch)
-        @partial(jax.jit, static_argnums=(4,5))
-        def train_one_epoch(key, optimiz_state, params_optimiz, train_set, batch_size, train_size):
-            # get indices to extract shuffled batches
-            key, subkey = jax.random.split(key)
-            batch_ids = batch_indx_generator(key=subkey, dataset_size=train_size, batch_size=batch_size)
-
-            # step function for the batches
-            def batch_step(carry, batch_i_ids):
-                optimiz_state, params_optimiz = carry
-                # extract a random batch
-                train_batch = extract_batch(train_set, batch_i_ids)
-                # update parameters
-                params_optimiz, optimiz_state, loss, _, train_metrics = train_step(
-                    optimiz_state=optimiz_state,
-                    optimiz_update=optimizer.update,
-                    params_optimiz=params_optimiz,
-                    train_batch=train_batch,
-                )
-                return (optimiz_state, params_optimiz), (loss, train_metrics["MSE"])
-
-            # run scan on the batches to complete one epoch
-            (optimiz_state, params_optimiz), (loss_vec, MSE_vec) = jax.lax.scan(
-                batch_step,
-                (optimiz_state, params_optimiz),
-                batch_ids
-            )
-
-            # compute train loss for this epoch
-            train_loss_epoch = jnp.mean(loss_vec)
-            train_MSE_epoch = jnp.mean(MSE_vec)
-
-            return key, optimiz_state, params_optimiz, train_loss_epoch, train_MSE_epoch
-
-        # Outer loop (iterate epochs)
-        def epoch_step(carry, _):
-            key, optimiz_state, params_optimiz = carry
-            # run inner loop (perform training)
-            key, optimiz_state, params_optimiz, train_loss_epoch, train_MSE_epoch = train_one_epoch(
-                key, optimiz_state, params_optimiz,
-                train_set,
-                batch_size, train_size
-            )
-            # perform validation after training on the epoch
-            val_loss_epoch, val_metrics = Loss(
-                params_optimiz=params_optimiz,
-                data_batch=val_set,
-            )
-            return (key, optimiz_state, params_optimiz), (train_loss_epoch, train_MSE_epoch, val_loss_epoch, val_metrics["MSE"])
-
-        # Run scan on outer loop
-        (_, _, params_optimiz), (train_loss_ts, train_MSE_ts, val_loss_ts, val_MSE_ts) = jax.lax.scan(
-            epoch_step,
-            (key, optimiz_state, params_optimiz),
-            xs=None,
-            length=n_iter
+        key, subkey = jax.random.split(key)
+        results = train_with_scan(
+            key=subkey,
+            optimizer=optimizer,
+            optimiz_state=optimiz_state,
+            params_optimiz=params_optimiz,
+            loss_fn=Loss,
+            train_set=train_set,
+            val_set=val_set,
+            n_iter=n_iter,
+            batch_size=batch_size,
         )
-
+        params_optimiz = results["params_optimiz"]
+        train_loss_ts = results["train_loss_ts"]
+        train_MSE_ts = results["train_MSE_ts"]
+        val_loss_ts = results["val_loss_ts"]
+        val_MSE_ts = results["val_MSE_ts"]
     else:
         train_loss_ts = onp.zeros(n_iter)
         val_loss_ts = onp.zeros(n_iter)
@@ -412,6 +381,7 @@ if True:
                 train_batch = extract_batch(train_set, batch_i_ids)
                 # perform optimization step
                 params_optimiz_new, optimiz_state, loss, grads, train_metrics = train_step(
+                    loss_fn=Loss,
                     optimiz_state=optimiz_state,
                     optimiz_update=optimizer.update,
                     params_optimiz=params_optimiz,
@@ -457,8 +427,9 @@ if True:
     end = time.perf_counter()
     print(f'Elapsed time (optimization): {end-start} s')
 
-    # Print optimal parameters (and save them)
+    # Save optimal parameters
     params_optimiz_opt = params_optimiz
+    #mlp.save_params or whatever
 
     # Visualization
     fig, ax1 = plt.subplots()
@@ -486,56 +457,63 @@ if True:
     plt.savefig(plots_folder/'Loss', bbox_inches='tight')
     plt.show()
 
+
 # =====================================================
-# Robot after optimization
+# Approximator after optimization
 # =====================================================
 print('\n--- AFTER OPTIMIZATION ---')
 
-# Simulate final approximator
-print('Simulating...')
-start = time.perf_counter()
-solution = diffrax.diffeqsolve(
-        diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz_opt)),
-        t0=t0,
-        t1=t1,
-        dt0=dt,
-        y0=z0,
-        solver=solver,
-        stepsize_controller=step_size,
-        max_steps=max_steps,
-        saveat=diffrax.SaveAt(ts=saveat),
-    )
-end = time.perf_counter()
-print(f'Elapsed time (simulation): {end-start} s')
+# # Load optimal parameters
+# mlp.load() or whatever
 
-z_hat = solution.ys
-y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
+# If required, simulate final approximator
+if show_simulations:
+    print('Simulating...')
+    start = time.perf_counter()
+    solution = diffrax.diffeqsolve(
+            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz_opt)),
+            t0=t0,
+            t1=t1,
+            dt0=dt,
+            y0=z0,
+            solver=solver,
+            stepsize_controller=step_size,
+            max_steps=max_steps,
+            saveat=diffrax.SaveAt(ts=saveat),
+        )
+    end = time.perf_counter()
+    print(f'Elapsed time (simulation): {end-start} s')
 
-# Plot y(t) and y_hat(t)
-fig, ax = plt.subplots(1,1)
-ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
-ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-ax.grid(True)
-ax.set_xlabel('t [s]')
-ax.set_ylabel('y')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
-#plt.show()
+    z_hat = solution.ys
+    y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
 
-# Plot phase planes
-fig, ax = plt.subplots(1,1)
-ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
-ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-ax.grid(True)
-ax.set_xlabel(r'$y$')
-ax.set_ylabel(r'$\dot{y}$')
-ax.legend()
-plt.tight_layout()
-plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
-plt.show()
+    # Plot y(t) and y_hat(t)
+    fig, ax = plt.subplots(1,1)
+    ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
+    ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
+    #plt.show()
 
-# Test RMSE on the test set before optimization
+    # Plot phase planes
+    fig, ax = plt.subplots(1,1)
+    ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
+    ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
+    ax.grid(True)
+    ax.set_xlabel(r'$y$')
+    ax.set_ylabel(r'$\dot{y}$')
+    ax.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
+    plt.show()
+else:
+    print('[simulation skipped]')
+
+# Test RMSE on the test set after optimization
 _, metrics = Loss(
     params_optimiz=params_optimiz_opt, 
     data_batch=test_set,
