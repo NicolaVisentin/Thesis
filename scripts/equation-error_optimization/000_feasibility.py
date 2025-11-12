@@ -41,7 +41,7 @@ main_folder = curr_folder.parent.parent                           # main folder 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                           # folder with the dataset
 saved_data_folder = main_folder/'saved data'                      # folder for saved data
-# data_folder = saved_data_folder/Path(__file__).stem              # folder for saving data
+# data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
 
 # data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -50,41 +50,13 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = True         # choose whether to use normal for loop or lax.scan
+use_scan = False         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
 # =====================================================
 # Functions for optimization
 # =====================================================
-
-# NN approximator
-def init_mlp_params(key, sizes):
-    """Initialize MLP parameters as list of (W, b)."""
-    keys = jax.random.split(key, len(sizes) - 1)
-    params = []
-    for k, (m, n) in zip(keys, zip(sizes[:-1], sizes[1:])):
-        W = jax.random.normal(k, (n, m)) * jnp.sqrt(2.0 / m)
-        b = jnp.zeros((n,))
-        params.append((W, b))
-    return params
-
-
-def mlp_forward(params, x):
-    """Forward pass of MLP."""
-    for W, b in params[:-1]:
-        x = jnp.tanh(W @ x + b)
-    W, b = params[-1]
-    return W @ x + b  # output layer (no activation)
-
-@jax.jit
-def approximator_fd(t, z, params):
-    """NN-based approximator of the dynamics."""
-    y, yd = jnp.split(z, 2)
-    inp = jnp.concatenate([y, yd], axis=0)
-    ydd_hat = mlp_forward(params, inp)
-    zd = jnp.concatenate([yd, ydd_hat])
-    return zd
 
 # Loss function
 @jax.jit
@@ -119,11 +91,8 @@ def Loss(
     y_batch, yd_batch, ydd_batch = data_batch["y"], data_batch["yd"], data_batch["ydd"]
 
     # predictions
-    z = jnp.concatenate([y_batch, yd_batch], axis=1)
-
-    forward_dynamics_vmap = jax.vmap(approximator_fd, in_axes=(None,0,None))
-    zd = forward_dynamics_vmap(0, z, params_optimiz)
-    _, ydd_hat_batch = jnp.split(zd, 2, axis=1) 
+    z_batch = jnp.concatenate([y_batch, yd_batch], axis=1)
+    ydd_hat_batch = mlp_approximator.forward_batch(params_optimiz, z_batch)
 
     # compute loss
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
@@ -137,6 +106,14 @@ def Loss(
     }
 
     return loss, metrics
+
+# Forward function compatible with diffrax
+@jax.jit
+def forward_for_diffrax(mlp: MLP, z: Array) -> Array: 
+    _, yd = jnp.split(z, 2)
+    ydd = mlp._forward_single(z)
+    zd = jnp.concatenate([yd, ydd])
+    return zd
 
 
 # =====================================================
@@ -181,10 +158,11 @@ train_size = len(train_set["y"])
 # =====================================================
 print('--- BEFORE OPTIMIZATION ---')
 
-# First guess of the parameters
+# Initialize approximator
 key, subkey = jax.random.split(key)
 mlp_sizes = [2, 16, 16, 1]  # [input, hidden1, hidden2, output]
-params_optimiz = init_mlp_params(subkey, mlp_sizes)
+mlp_approximator = MLP(key=subkey, layer_sizes=mlp_sizes)
+params_optimiz = mlp_approximator.params
 
 # If required, simulate approximator and compare its behaviour in time with the RON's one
 if show_simulations:
@@ -200,7 +178,7 @@ if show_simulations:
     t0 = time_RONsaved[0]
     t1 = time_RONsaved[-1]
     dt = 1e-4
-    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], (time_RONsaved[1]-time_RONsaved[0]))
+    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], 1*(time_RONsaved[1]-time_RONsaved[0]))
     solver = Tsit5()
     step_size = ConstantStepSize()
     max_steps = int(1e6)
@@ -209,7 +187,7 @@ if show_simulations:
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
-            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz)),
+            diffrax.ODETerm(lambda t, z, args: forward_for_diffrax(mlp_approximator, z)),
             t0=t0,
             t1=t1,
             dt0=dt,
@@ -429,7 +407,9 @@ if True:
 
     # Save optimal parameters
     params_optimiz_opt = params_optimiz
-    #mlp.save_params or whatever
+
+    #mlp_approximator_opt = mlp_approximator.update_params(params_optimiz_opt)
+    #mlp_approximator_opt.save_params(data_folder/'opt_data.npz')
 
     # Visualization
     fig, ax1 = plt.subplots()
@@ -464,14 +444,17 @@ if True:
 print('\n--- AFTER OPTIMIZATION ---')
 
 # # Load optimal parameters
-# mlp.load() or whatever
+# params_optimiz_opt = mlp_approximator.load_params(data_folder/'opt_data.npz')
+
+# Update approximator
+mlp_approximator_opt = mlp_approximator.update_params(params_optimiz_opt)
 
 # If required, simulate final approximator
 if show_simulations:
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
-            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz_opt)),
+            diffrax.ODETerm(lambda t, z, args: forward_for_diffrax(mlp_approximator_opt, z)),
             t0=t0,
             t1=t1,
             dt0=dt,
