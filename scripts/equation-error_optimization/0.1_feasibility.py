@@ -214,7 +214,7 @@ if show_simulations:
     ax.set_ylabel('y')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsAPPR_time_before', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
@@ -226,7 +226,7 @@ if show_simulations:
     ax.set_ylabel(r'$\dot{y}$')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsAPPR_phaseplane_before', bbox_inches='tight')
     plt.show()
 else:
     print('[simulation skipped]')
@@ -506,7 +506,7 @@ if show_simulations:
     ax.set_ylabel('y')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsAPPR_time_after', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
@@ -518,7 +518,7 @@ if show_simulations:
     ax.set_ylabel(r'$\dot{y}$')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsAPPR_phaseplane_after', bbox_inches='tight')
     plt.show()
 else:
     print('[simulation skipped]')

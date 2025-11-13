@@ -49,6 +49,7 @@ class MLP(eqx.Module):
             params.append((W, b))
         return params
     
+    @eqx.filter_jit
     def update_params(self, new_params : Params) -> "MLP":
         """
         Returns a new instance of the class with updated parameters.
@@ -58,7 +59,18 @@ class MLP(eqx.Module):
         # assign new parameters
         updated_self = eqx.tree_at(lambda m: m.params, updated_self, new_params)
         return updated_self
-
+    
+    @eqx.filter_jit
+    def _forward_single(self, x: Array) -> Array:
+        """Forward pass for a single input sample x. Uses internal parameters."""
+        # pass from input to second-last layer (use activation)
+        for W, b in self.params[:-1]:
+            x = jnp.tanh(W @ x + b)
+        # last layer: no activation
+        W, b = self.params[-1]
+        out = W @ x + b
+        return out
+    
     @staticmethod
     @eqx.filter_jit
     def forward_single(params: Params, x: Array) -> Array:
@@ -72,28 +84,17 @@ class MLP(eqx.Module):
         return out
     
     @eqx.filter_jit
-    def _forward_single(self, x: Array) -> Array:
-        """Forward pass for a single input sample x. Uses internal parameters."""
-        # pass from input to second-last layer (use activation)
-        for W, b in self.params[:-1]:
-            x = jnp.tanh(W @ x + b)
-        # last layer: no activation
-        W, b = self.params[-1]
-        out = W @ x + b
-        return out
+    def _forward_batch(self, x_batch: Array) -> Array:
+        """Forward pass for a batch of input samples. Uses internal parameters."""
+        batched_forward = jax.vmap(self._forward_single)
+        out_batch = batched_forward(x_batch)
+        return out_batch
     
     @eqx.filter_jit
     def forward_batch(self, params: Params, x_batch: Array) -> Array:
         """Forward pass for a batch of input samples. Uses external parameters."""
         batched_forward = jax.vmap(self.forward_single, in_axes=(None,0))
         out_batch = batched_forward(params, x_batch)
-        return out_batch
-    
-    @eqx.filter_jit
-    def _forward_batch(self, x_batch: Array) -> Array:
-        """Forward pass for a batch of input samples. Uses internal parameters."""
-        batched_forward = jax.vmap(self._forward_single)
-        out_batch = batched_forward(x_batch)
         return out_batch
 
     @eqx.filter_jit

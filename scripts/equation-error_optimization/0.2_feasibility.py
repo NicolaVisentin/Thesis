@@ -167,7 +167,7 @@ params_optimiz = mlp_approximator.params
 # If required, simulate approximator and compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified.npz')
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified_a.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'])
     y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
@@ -212,7 +212,7 @@ if show_simulations:
     ax.set_ylabel('y')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_time_before', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
@@ -224,7 +224,7 @@ if show_simulations:
     ax.set_ylabel(r'$\dot{y}$')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_phaseplane_before', bbox_inches='tight')
     plt.show()
 else:
     print('[simulation skipped]')
@@ -479,7 +479,7 @@ if show_simulations:
     ax.set_ylabel('y')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_time_after', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
@@ -491,7 +491,7 @@ if show_simulations:
     ax.set_ylabel(r'$\dot{y}$')
     ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_phaseplane_after', bbox_inches='tight')
     plt.show()
 else:
     print('[simulation skipped]')
