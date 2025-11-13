@@ -303,7 +303,7 @@ def Loss(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset1e5_y_yd_u_ydd.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_withInput.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 u = dataset["u"]     # input of the RON oscillators. Shape (m, n_input)
@@ -382,7 +382,7 @@ robot = RobotModel(
 # If required, simulate robot and compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_withInput.npz')
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_withInput.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'])
     y_RONsaved = jnp.array(RON_evolution_data['y'])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'])
@@ -558,7 +558,7 @@ exit()
 #########
 
 # !! Check "possible desired solution" !!
-RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_withInput.npz')
+RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_withInput.npz')
 time_RONsaved = jnp.array(RON_evolution_data['time'])
 y_RONsaved = jnp.array(RON_evolution_data['y'])
 
@@ -766,7 +766,7 @@ print(f'L_opt={L_opt}\n'
       f'd_opt={d_opt}')
 
 # onp.savez(
-#     data_folder/'optimal_data', 
+#     data_folder/'optimal_data.npz', 
 #     L=onp.array(L_opt), 
 #     D=onp.array(D_opt), 
 #     E=onp.array(E_opt), 

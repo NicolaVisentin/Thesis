@@ -357,7 +357,7 @@ def Loss(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset1e4_y_yd_ydd.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e4_N6_noInput.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -589,7 +589,7 @@ print(f'L_opt={L_opt}\n'
       f'A_opt={onp.diag(A_opt)}\n'
       f'c_opt={c_opt}')
 
-#onp.savez(data_folder/'optimal_data', L=onp.array(L_opt), D=onp.array(D_opt), A=onp.array(A_opt), c=onp.array(c_opt))
+#onp.savez(data_folder/'optimal_data.npz', L=onp.array(L_opt), D=onp.array(D_opt), A=onp.array(A_opt), c=onp.array(c_opt))
 
 # Visualization
 fig, ax1 = plt.subplots()

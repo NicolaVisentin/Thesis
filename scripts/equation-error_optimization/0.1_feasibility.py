@@ -124,7 +124,7 @@ def Loss(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_feasibility_1.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_N6_simplified.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -169,7 +169,7 @@ params_optimiz = (p1, p2)
 # If required, simulate approximator and compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_feasibility_1a.npz')
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified_a.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'])
     y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
@@ -426,7 +426,7 @@ if True:
         f'p2_opt={p2_opt}'
     )
     # onp.savez(
-    #     data_folder/'optimal_data', 
+    #     data_folder/'optimal_data.npz', 
     #     p1=p1, 
     #     p2=p2, 
     # )
