@@ -121,7 +121,7 @@ def forward_for_diffrax(mlp: MLP, z: Array) -> Array:
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_N6_simplified.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_simplified.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
