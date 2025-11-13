@@ -41,9 +41,9 @@ main_folder = curr_folder.parent.parent                           # main folder 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                           # folder with the dataset
 saved_data_folder = main_folder/'saved data'                      # folder for saved data
-# data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
+#data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
 
-# data_folder.mkdir(parents=True, exist_ok=True)
+#data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 
@@ -121,15 +121,10 @@ def forward_for_diffrax(mlp: MLP, z: Array) -> Array:
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_N6_simplified.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_simplified.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
-
-# Extract only 1st oscillator (all of them are decoupled)
-y = y[:,0,None]
-yd = yd[:,0,None]
-ydd = ydd[:,0,None]
 
 # Convert into jax
 y_dataset = jnp.array(y)
@@ -150,7 +145,7 @@ train_set, val_set, test_set = split_dataset(
     train_ratio=0.7,
     test_ratio=0.2,
 )
-train_size = len(train_set["y"])
+train_size, n_ron = train_set["y"].shape
 
 
 # =====================================================
@@ -160,25 +155,25 @@ print('--- BEFORE OPTIMIZATION ---')
 
 # Initialize approximator
 key, subkey = jax.random.split(key)
-mlp_sizes = [2, 16, 16, 1]  # [input, hidden1, hidden2, output]
+mlp_sizes = [2*n_ron, 32, 32, n_ron]  # [input, hidden1, hidden2, output]
 mlp_approximator = MLP(key=subkey, layer_sizes=mlp_sizes)
 params_optimiz = mlp_approximator.params
 
 # If required, simulate approximator and compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified.npz')
-    time_RONsaved = jnp.array(RON_evolution_data['time'])
-    y_RONsaved = jnp.array(RON_evolution_data['y'][:,0,None])
-    yd_RONsaved = jnp.array(RON_evolution_data['yd'][:,0,None])
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified_a.npz')
+    time_RONsaved = jnp.array(RON_evolution_data['time']) # spahe (n_steps,)
+    y_RONsaved = jnp.array(RON_evolution_data['y'])       # shape (n_steps, n_RON)
+    yd_RONsaved = jnp.array(RON_evolution_data['yd'])     # shape (n_steps, n_RON)
 
     # Simulate current approximator
     z0 = jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]])
 
     t0 = time_RONsaved[0]
     t1 = time_RONsaved[-1]
-    dt = 1e-4
-    saveat = np.arange(time_RONsaved[0], time_RONsaved[-1], 1*(time_RONsaved[1]-time_RONsaved[0]))
+    dt = 1e-3
+    saveat = np.arange(t0, t1, 1e-2)
     solver = Tsit5()
     step_size = ConstantStepSize()
     max_steps = int(1e6)
@@ -204,27 +199,31 @@ if show_simulations:
     y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
 
     # Plot y(t) and y_hat(t)
-    fig, ax = plt.subplots(1,1)
-    ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
-    ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-    ax.grid(True)
-    ax.set_xlabel('t [s]')
-    ax.set_ylabel('y')
-    ax.legend()
+    fig, axs = plt.subplots(3,2, figsize=(12,9))
+    for i, ax in enumerate(axs.flatten()):
+        ax.plot(saveat, y_hat[:,i], 'b', label='approximator')
+        ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label='RON')
+        ax.grid(True)
+        ax.set_xlabel('t [s]')
+        ax.set_ylabel('y')
+        ax.set_title(f'Component {i+1}')
+        ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_time_before', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
-    fig, ax = plt.subplots(1,1)
-    ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
-    ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-    ax.grid(True)
-    ax.set_xlabel(r'$y$')
-    ax.set_ylabel(r'$\dot{y}$')
-    ax.legend()
+    fig, axs = plt.subplots(3,2, figsize=(12,9))
+    for i, ax in enumerate(axs.flatten()):
+        ax.plot(y_hat[:, i], yd_hat[:, i], 'b', label='approximator')
+        ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label='RON')
+        ax.grid(True)
+        ax.set_xlabel(r'$y$')
+        ax.set_ylabel(r'$\dot{y}$')
+        ax.set_title(f'Component {i+1}')
+        ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_phaseplane_before', bbox_inches='tight')
     plt.show()
 else:
     print('[simulation skipped]')
@@ -249,12 +248,13 @@ print(f'Example:\n'
 ##### SOME CHECKS ##########################################################
 """
 # !! Check (jitted) loss computation !!
+print('\n\nCHECK: (jitted) loss computation')
 start = time.perf_counter() # warm-up
 loss, metrics = Loss(
     params_optimiz,
     test_set,
 )
-print(loss) 
+print('loss: ', loss) 
 end = time.perf_counter()
 print(f'time (warmup): {end-start} s')
 
@@ -263,7 +263,7 @@ loss, metrics = Loss(
     params_optimiz,
     test_set,
 )
-print(loss) 
+print('loss: ', loss) 
 end = time.perf_counter()
 print(f'time (already compiled): {end-start} s')
 #exit()
@@ -272,13 +272,15 @@ print(f'time (already compiled): {end-start} s')
 #########
 
 # !! Check loss + gradients computation !!
+print('\n\nCHECK: (jitted) loss + gradients computation')
 loss_and_grad = jax.jit(jax.value_and_grad(Loss, argnums=(0,), has_aux=True))
 start = time.perf_counter()  # warm-up
 (loss, metrics), grads = loss_and_grad(
     params_optimiz,
     test_set,
 )
-print(loss, grads)
+print('loss: ', loss)
+print('grads: ', grads)
 end = time.perf_counter()
 print(f'time (warmup): {end-start} s')
 
@@ -287,7 +289,8 @@ start = time.perf_counter()
     params_optimiz,
     test_set,
 )
-print(loss, grads)
+print('loss: ', loss)
+print('grads: ', grads)
 end = time.perf_counter()
 print(f'time (already compiled): {end-start} s')
 exit()
@@ -471,27 +474,31 @@ if show_simulations:
     y_hat, yd_hat = jnp.split(z_hat, 2, axis=1)
 
     # Plot y(t) and y_hat(t)
-    fig, ax = plt.subplots(1,1)
-    ax.plot(saveat, y_hat, 'b', label=r'$\hat{y}(t)$')
-    ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-    ax.grid(True)
-    ax.set_xlabel('t [s]')
-    ax.set_ylabel('y')
-    ax.legend()
+    fig, axs = plt.subplots(3,2, figsize=(12,9))
+    for i, ax in enumerate(axs.flatten()):
+        ax.plot(saveat, y_hat[:,i], 'b', label='approximator')
+        ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label='RON')
+        ax.grid(True)
+        ax.set_xlabel('t [s]')
+        ax.set_ylabel('y')
+        ax.set_title(f'Component {i+1}')
+        ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_time_after', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
-    fig, ax = plt.subplots(1,1)
-    ax.plot(y_hat, yd_hat, 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
-    ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-    ax.grid(True)
-    ax.set_xlabel(r'$y$')
-    ax.set_ylabel(r'$\dot{y}$')
-    ax.legend()
+    fig, axs = plt.subplots(3,2, figsize=(12,9))
+    for i, ax in enumerate(axs.flatten()):
+        ax.plot(y_hat[:, i], yd_hat[:, i], 'b', label='approximator')
+        ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label='RON')
+        ax.grid(True)
+        ax.set_xlabel(r'$y$')
+        ax.set_ylabel(r'$\dot{y}$')
+        ax.set_title(f'Component {i+1}')
+        ax.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
+    plt.savefig(plots_folder/'RONvsMLP_phaseplane_after', bbox_inches='tight')
     plt.show()
 else:
     print('[simulation skipped]')
