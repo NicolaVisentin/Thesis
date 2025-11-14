@@ -60,7 +60,7 @@ show_simulations = True # choose whether to perform time simulations of the appr
 
 # Approximator dynamics
 @jax.jit
-def approximator_fd(t, z, params):
+def approximator_fd(z, params):
     y, yd = jnp.split(z, 2)
     p1, p2 = params
     ydd = -p1 * yd - p2 * y
@@ -101,8 +101,8 @@ def Loss(
     # predictions
     z = jnp.concatenate([y_batch, yd_batch], axis=1)
 
-    forward_dynamics_vmap = jax.vmap(approximator_fd, in_axes=(None,0,None))
-    zd = forward_dynamics_vmap(0, z, params_optimiz)
+    forward_dynamics_vmap = jax.vmap(approximator_fd, in_axes=(0,None))
+    zd = forward_dynamics_vmap(z, params_optimiz)
     _, ydd_hat_batch = jnp.split(zd, 2, axis=1) 
 
     # compute loss
@@ -184,21 +184,22 @@ if show_simulations:
     solver = Tsit5()
     step_size = ConstantStepSize()
     max_steps = int(1e6)
+    term = lambda t, z, args: approximator_fd(z, params_optimiz)
 
     # Simulate approximator
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
-            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz)),
-            t0=t0,
-            t1=t1,
-            dt0=dt,
-            y0=z0,
-            solver=solver,
-            stepsize_controller=step_size,
-            max_steps=max_steps,
-            saveat=diffrax.SaveAt(ts=saveat),
-        )
+        terms=diffrax.ODETerm(term),
+        t0=t0,
+        t1=t1,
+        dt0=dt,
+        y0=z0,
+        solver=solver,
+        stepsize_controller=step_size,
+        max_steps=max_steps,
+        saveat=diffrax.SaveAt(ts=saveat),
+    )
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 
@@ -481,16 +482,16 @@ if show_simulations:
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
-            diffrax.ODETerm(lambda t, z, args: approximator_fd(t, z, params_optimiz_opt)),
-            t0=t0,
-            t1=t1,
-            dt0=dt,
-            y0=z0,
-            solver=solver,
-            stepsize_controller=step_size,
-            max_steps=max_steps,
-            saveat=diffrax.SaveAt(ts=saveat),
-        )
+        diffrax.ODETerm(lambda t, z, args: approximator_fd(z, params_optimiz_opt)),
+        t0=t0,
+        t1=t1,
+        dt0=dt,
+        y0=z0,
+        solver=solver,
+        stepsize_controller=step_size,
+        max_steps=max_steps,
+        saveat=diffrax.SaveAt(ts=saveat),
+    )
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 

@@ -187,16 +187,16 @@ if show_simulations:
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
-            diffrax.ODETerm(lambda t, z, args: forward_for_diffrax(mlp_approximator, z)),
-            t0=t0,
-            t1=t1,
-            dt0=dt,
-            y0=z0,
-            solver=solver,
-            stepsize_controller=step_size,
-            max_steps=max_steps,
-            saveat=diffrax.SaveAt(ts=saveat),
-        )
+        diffrax.ODETerm(lambda t, z, args: forward_for_diffrax(mlp_approximator, z)),
+        t0=t0,
+        t1=t1,
+        dt0=dt,
+        y0=z0,
+        solver=solver,
+        stepsize_controller=step_size,
+        max_steps=max_steps,
+        saveat=diffrax.SaveAt(ts=saveat),
+    )
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 
@@ -454,16 +454,16 @@ if show_simulations:
     print('Simulating...')
     start = time.perf_counter()
     solution = diffrax.diffeqsolve(
-            diffrax.ODETerm(lambda t, z, args: forward_for_diffrax(mlp_approximator_opt, z)),
-            t0=t0,
-            t1=t1,
-            dt0=dt,
-            y0=z0,
-            solver=solver,
-            stepsize_controller=step_size,
-            max_steps=max_steps,
-            saveat=diffrax.SaveAt(ts=saveat),
-        )
+        diffrax.ODETerm(lambda t, z, args: forward_for_diffrax(mlp_approximator_opt, z)),
+        t0=t0,
+        t1=t1,
+        dt0=dt,
+        y0=z0,
+        solver=solver,
+        stepsize_controller=step_size,
+        max_steps=max_steps,
+        saveat=diffrax.SaveAt(ts=saveat),
+    )
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 
