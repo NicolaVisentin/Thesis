@@ -27,6 +27,7 @@ import sys
 
 from soromox.systems.planar_pcs import PlanarPCS
 from soromox.systems.planar_pcs_simplified import PlanarPCS_simple
+from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -235,18 +236,17 @@ if show_simulations:
     #step_size = PIDController(rtol=1e-6, atol=1e-6, dtmin=1e-4, force_dtmin=True) # ConstantStepSize(), PIDController(rtol=, atol=)
     step_size = ConstantStepSize()
     max_steps = int(1e6)
+    initial_state = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
     # Simulate robot
     print('Simulating robot...')
     start = time.perf_counter()
-    ts, q_ts, _ = robot.resolve_upon_time(
-        q0 = q0, 
-        qd0 = qd0,
+    sim_out = robot.rollout_to(
+        initial_state = initial_state,
         u = u, 
-        t0 = t0, 
         t1 = t1, 
-        dt = dt, 
-        saveat_ts = saveat,
+        solver_dt = dt, 
+        save_ts = saveat,
         solver = solver,
         stepsize_controller = step_size,
         max_steps = max_steps
@@ -254,6 +254,11 @@ if show_simulations:
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 
+    # Extract results
+    ts = sim_out.t
+    q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
+
+    # Show animation
     animate_robot_matplotlib(
         robot = robot,
         t_list = saveat,
@@ -638,18 +643,17 @@ robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
 if show_simulations:
     # Simulate robot
     print('Simulating robot...')
-    _, q_ts, _ = robot_opt.resolve_upon_time(
-        q0 = q0, 
-        qd0 = qd0,
+    sim_out = robot_opt.rollout_to(
+        initial_state = initial_state,
         u = u, 
-        t0 = t0, 
         t1 = t1, 
-        dt = dt, 
-        saveat_ts = saveat,
+        solver_dt = dt, 
+        save_ts = saveat,
         solver = solver,
         stepsize_controller = step_size,
         max_steps = max_steps
     )
+    q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
 
     animate_robot_matplotlib(
         robot = robot_opt,

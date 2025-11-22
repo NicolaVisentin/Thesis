@@ -22,6 +22,7 @@ import time
 from evosax.algorithms.distribution_based.cma_es import CMA_ES
 from soromox.systems.planar_pcs import PlanarPCS 
 from soromox.systems.planar_pcs_simplified import PlanarPCS_simple
+from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent))
@@ -249,18 +250,17 @@ solver = Euler() # Tsit5(), Euler(), Heun(), Midpoint(), Ralston(), Bosh3(), Dop
 #step_size = PIDController(rtol=1e-6, atol=1e-6, dtmin=1e-4, force_dtmin=True) # ConstantStepSize(), PIDController(rtol=, atol=)
 step_size = ConstantStepSize()
 max_steps = int(1e6)
+initial_state = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
 # Simulation
 print('Simulating robot...')
 start = time.perf_counter()
-ts, q_ts, _ = robot.resolve_upon_time(
-    q0 = q0, 
-    qd0 = qd0,
+sim_out = robot.rollout_to(
+    initial_state = initial_state,
     u = u, 
-    t0 = t0, 
     t1 = t1, 
-    dt = dt, 
-    saveat_ts = save_at,
+    solver_dt = dt, 
+    save_ts = save_at,
     solver = solver,
     stepsize_controller = step_size,
     max_steps = max_steps
@@ -269,6 +269,8 @@ end = time.perf_counter()
 print(f'Elapsed time (simulation): {end-start} s')
 
 # Extract end effector x coordinate in time
+ts = sim_out.t
+q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
 chi_ee_ts = jax.vmap(robot.forward_kinematics, in_axes=(0,None))(q_ts, jnp.sum(L)) # chi = [th, x, y]. Shape (n_steps, 3)
 x_ee_ts = chi_ee_ts[:,1]
 
@@ -327,19 +329,18 @@ def Loss(params):
     D = D_default * D_scale
     robot_updated = robot.update_params({"L": L, "D": D})
     # simulation
-    _, q_ts, _ = robot_updated.resolve_upon_time(
-        q0 = q0, 
-        qd0 = qd0,
+    sim_out = robot_updated.rollout_to(
+        initial_state = initial_state,
         u = u, 
-        t0 = t0, 
         t1 = t1, 
-        dt = dt, 
-        saveat_ts = save_at,
+        solver_dt = dt, 
+        save_ts = save_at,
         solver = solver,
         stepsize_controller = step_size,
         max_steps = max_steps
     )
     # extract end effector x coordinate in time
+    q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
     chi_ee_ts = jax.vmap(robot_updated.forward_kinematics, in_axes=(0,None))(q_ts, jnp.sum(L)) # chi = [th, x, y]. Shape (n_steps, 3)
     x_ee_ts = chi_ee_ts[:,1]
     # loss
@@ -569,20 +570,19 @@ robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
 
 # Simulation
 print('Simulating robot...')
-_, q_ts, _ = robot_opt.resolve_upon_time(
-    q0 = q0, 
-    qd0 = qd0,
+sim_out = robot_opt.rollout_to(
+    initial_state = initial_state,
     u = u, 
-    t0 = t0, 
     t1 = t1, 
-    dt = dt, 
-    saveat_ts = save_at,
+    solver_dt = dt, 
+    save_ts = save_at,
     solver = solver,
     stepsize_controller = step_size,
     max_steps = max_steps
 )
 
 # Extract end effector x coordinate in time
+q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
 chi_ee_ts = jax.vmap(robot_opt.forward_kinematics, in_axes=(0,None))(q_ts, jnp.sum(L_opt)) # chi = [th, x, y]. Shape (n_steps, 3)
 x_ee_ts = chi_ee_ts[:,1]
 

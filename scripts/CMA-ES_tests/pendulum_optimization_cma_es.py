@@ -18,6 +18,7 @@ import time
 
 from evosax.algorithms.distribution_based.cma_es import CMA_ES
 from soromox.systems.pendulum import Pendulum
+from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent))
@@ -82,23 +83,24 @@ dt = 1e-3
 t0 = 0.0
 t1 = 15.0
 save_dt = 100*dt # time resolution for saving results
+initial_state = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
 # Simulation
 print('Simulating robot...')
 start = time.perf_counter()
-ts_out, q_ts, _ = robot.resolve_upon_time(
-    q0=q0,
-    qd0=qd0,
+sim_out = robot.rollout_to(
+    initial_state=initial_state,
     u=u,
-    t0=t0,
     t1=t1,
-    dt=dt,
+    solver_dt=dt,
     save_dt=save_dt,
 )
 end = time.perf_counter()
 print(f'Elapsed time (simulation): {end-start} s')
 
 # Extract end effector coordinates chi = [th, x, y]
+ts_out = sim_out.t
+q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
 chi_ee_ts = jax.vmap(robot.forward_kinematics_tips,)(q_ts)[:, -1, :] # shape (n_steps, 3)
 
 # Error
@@ -147,16 +149,15 @@ def Loss(params):
         params = jax.nn.softplus(params)
     robot_updated = robot.update_params({"L": params})
     # simulation
-    _, q_ts, _ = robot_updated.resolve_upon_time(
-        q0=q0,
-        qd0=qd0,
+    sim_out = robot_updated.rollout_to(
+        initial_state=initial_state,
         u=u,
-        t0=t0,
         t1=t1,
-        dt=dt,
+        solver_dt=dt,
         save_dt=save_dt,
         max_steps=int(1e5)
     )
+    q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
     ee_final = robot_updated.forward_kinematics_tips(q_ts[-1,:])[-1, 1:]
     # loss
     J = (ee_final-target).T @ (ee_final-target)
@@ -382,17 +383,17 @@ robot_opt = robot.update_params({"L": L_opt})
 
 # Simulation
 print('Simulating robot...')
-ts_out, q_ts, _ = robot_opt.resolve_upon_time(
-    q0=q0,
-    qd0=qd0,
+sim_out = robot_opt.rollout_to(
+    initial_state=initial_state,
     u=u,
-    t0=t0,
     t1=t1,
-    dt=dt,
+    solver_dt=dt,
     save_dt=save_dt,
 )
 
 # Extract end effector coordinates chi = [th, x, y]
+ts = sim_out.t
+q_ts, _ = jnp.split(sim_out.y, 2, axis=1)
 chi_ee_ts = jax.vmap(robot_opt.forward_kinematics_tips,)(q_ts)[:, -1, :] # shape (n_steps, 3)
 
 # Error

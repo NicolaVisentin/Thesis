@@ -27,6 +27,7 @@ import sys
 
 from soromox.systems.planar_pcs import PlanarPCS
 from soromox.systems.planar_pcs_simplified import PlanarPCS_simple
+from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -192,7 +193,7 @@ ydd_hat_loss = True     # if True, computes the loss comparing ydd (requires inv
 
 
 # =====================================================
-# Functions for optimization
+# Functions
 # =====================================================
 
 # Loss function
@@ -391,14 +392,16 @@ if show_simulations:
     # Simulation parameters
     q0 = A0 @ y_RONsaved[0] + c0
     qd0 = A0 @ yd_RONsaved[0]
-    def u_pcs(t, u, time_u, B, d):
-        dt = time_u[1] - time_u[0]
-        idx = jnp.clip(jnp.floor((t-time_u[0])/dt).astype(int), 0, len(time_u)-1)
-        u_t = u[idx]                      # shape (1,)
-        return (B @ u_t).reshape(-1) + d  # shape (6,)
-    u_pcs = partial(u_pcs, u=u_RONsaved, time_u=time_RONsaved, B=B0, d=d0) # for simulation
-    u_pcs_plot = jax.vmap(u_pcs)                                           # for plotting
-
+    def u_lookup(system_state, u_table, t_table, B, d):
+        """Implements user-defined, time-varying, feedforward control u_t = u(t) from a lookup table."""
+        t = system_state.t
+        idx = jnp.searchsorted(t_table, t, side="right") - 1
+        idx = jnp.clip(idx, 0, len(u)-1)
+        u_t = u_table[idx]               # u_ron(t). Shape (1,)
+        u_t = (B @ u_t).reshape(-1) + d  # u_pcs(t). Shape (6,)
+        return u_t, None
+    u_pcs = jax.jit(partial(u_lookup, u_table=u_RONsaved, t_table=time_RONsaved, B=B0, d=d0)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+    
     t0 = time_RONsaved[0]
     t1 = time_RONsaved[-1]
     dt = 1e-4
@@ -407,24 +410,28 @@ if show_simulations:
     #step_size = PIDController(rtol=1e-6, atol=1e-6, dtmin=1e-4, force_dtmin=True) # ConstantStepSize(), PIDController(rtol=, atol=)
     step_size = ConstantStepSize()
     max_steps = int(1e6)
+    initial_state = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
     # Simulate robot
     print('Simulating robot...')
     start = time.perf_counter()
-    timePCS, q_PCS, qd_PCS = robot.resolve_upon_time(
-        q0 = q0, 
-        qd0 = qd0,
-        u = u_pcs, 
-        t0 = t0, 
+    sim_out = robot.rollout_closed_loop_to(
+        initial_state = initial_state,
+        controller = u_pcs,
         t1 = t1, 
-        dt = dt, 
-        saveat_ts = saveat,
+        solver_dt = dt, 
+        save_ts = saveat,
         solver = solver,
         stepsize_controller = step_size,
         max_steps = max_steps
     )
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
+
+    # Extract simulation results
+    timePCS = sim_out.t
+    q_PCS, qd_PCS = jnp.split(sim_out.y, 2, axis=1)
+    u_pcs_plot = sim_out.u
 
     # Plot y(t), y_hat(t) and q(t)
     y_hat = (jnp.linalg.pinv(A0) @ (q_PCS - c0).T).T # y_hat(t) = inv(A) * ( q(t) - c )
@@ -445,7 +452,7 @@ if show_simulations:
     # Plot u(t) and u_pcs(t)
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
-        u_pcs_line, = ax.plot(timePCS, u_pcs_plot(timePCS)[:,i], 'b', label=r'$u_{PCS}(t)$')
+        u_pcs_line, = ax.plot(timePCS, u_pcs_plot[:,i], 'b', label=r'$u_{PCS}(t)$')
         ax2 = ax.twinx()
         u_line, = ax2.plot(time_RONsaved, u_RONsaved[:-2,1], color='gray', label=r'$u_{RON}(t)$', lw=0.5)
         ax2.set_ylabel(r'$u_{RON}$', color='gray')
@@ -836,26 +843,28 @@ if show_simulations:
     # Simulation parameters
     q0 = A_opt @ y_RONsaved[0] + c_opt
     qd0 = A_opt @ yd_RONsaved[0]
-    u_pcs = partial(u_pcs, u=u_RONsaved, time_u=time_RONsaved, B=B_opt, d=d_opt) # for simulation
-    u_pcs_plot = jax.vmap(u_pcs)                                                 # for plotting
+    u_pcs = jax.jit(partial(u_lookup, u_table=u_RONsaved, t_table=time_RONsaved, B=B_opt, d=d_opt)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
 
     # Simulate robot
     print('Simulating robot...')
     start = time.perf_counter()
-    timePCS, q_PCS, qd_PCS = robot_opt.resolve_upon_time(
-        q0 = q0, 
-        qd0 = qd0,
-        u = u_pcs, 
-        t0 = t0, 
+    sim_out = robot_opt.rollout_closed_loop_to(
+        initial_state = initial_state,
+        controller = u_pcs,
         t1 = t1, 
-        dt = dt, 
-        saveat_ts = saveat,
+        solver_dt = dt, 
+        save_ts = saveat,
         solver = solver,
         stepsize_controller = step_size,
         max_steps = max_steps
     )
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
+
+    # Extract simulation results
+    timePCS = sim_out.t
+    q_PCS, qd_PCS = jnp.split(sim_out.y, 2, axis=1)
+    u_pcs_plot = sim_out.u
 
     # Plot y(t), y_hat(t) and q(t)
     y_hat = (jnp.linalg.pinv(A_opt) @ (q_PCS - c_opt).T).T # y_hat(t) = inv(A) * ( q(t) - c )
@@ -876,7 +885,7 @@ if show_simulations:
     # Plot u(t) and u_pcs(t)
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
-        u_pcs_line, = ax.plot(timePCS, u_pcs_plot(timePCS)[:,i], 'b', label=r'$u_{PCS}(t)$')
+        u_pcs_line, = ax.plot(timePCS, u_pcs_plot[:,i], 'b', label=r'$u_{PCS}(t)$')
         ax2 = ax.twinx()
         u_line, = ax2.plot(time_RONsaved, u_RONsaved[:-2,1], color='gray', label=r'$u_{RON}(t)$', lw=0.5)
         ax2.set_ylabel(r'$u_{RON}$', color='gray')
