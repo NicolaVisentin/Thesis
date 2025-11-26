@@ -21,7 +21,7 @@ import time
 
 from evosax.algorithms.distribution_based.cma_es import CMA_ES
 from soromox.systems.planar_pcs import PlanarPCS 
-from soromox.systems.planar_pcs_simplified import PlanarPCS_simple
+from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent # current folder
