@@ -11,7 +11,6 @@ import numpy as onp
 import jax
 import jax.numpy as jnp
 import optax
-import diffrax
 from diffrax import Tsit5, ConstantStepSize
 
 import matplotlib.pyplot as plt
@@ -182,7 +181,7 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = True         # choose whether to use normal for loop or lax.scan
+use_scan = False         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
