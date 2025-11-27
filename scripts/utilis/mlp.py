@@ -13,7 +13,7 @@ Params = List[Tuple[Array, Array]]  # [(W1, b1), (W2, b2), ...] for all layers
 # Class
 class MLP(eqx.Module):
     """
-    Simple class for fully-connected MLP.
+    Simple class for fully-connected MLP with tanh activations.
 
     Attributes
     ----------
@@ -27,7 +27,7 @@ class MLP(eqx.Module):
 
     def __init__(self, key: jax.random.key, layer_sizes: Sequence[int]):
         """
-        Initializes an MLP with given layer sizes.
+        Initializes an MLP (tanh activations) with given layer sizes.
 
         Args
         ----
@@ -38,13 +38,14 @@ class MLP(eqx.Module):
         """
         self.layer_sizes = layer_sizes
         self.params = self._init_params(key)
-
+    
     def _init_params(self, key: jax.random.key) -> Params:
-        """He-initialization of weights and null biases."""
+        """Glorot/Xavier initialization of weights and null biases."""
         keys = jax.random.split(key, len(self.layer_sizes) - 1)
         params = []
         for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
-            W = jax.random.normal(k, (n, m)) * jnp.sqrt(2.0 / m)
+            limit = jnp.sqrt(6.0 / (m + n))
+            W = jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
             b = jnp.zeros((n,))
             params.append((W, b))
         return params
@@ -61,7 +62,7 @@ class MLP(eqx.Module):
         return updated_self
     
     @eqx.filter_jit
-    def _forward_single(self, x: Array) -> Array:
+    def forward_single(self, x: Array) -> Array:
         """Forward pass for a single input sample x. Uses internal parameters."""
         # pass from input to second-last layer (use activation)
         for W, b in self.params[:-1]:
@@ -73,7 +74,7 @@ class MLP(eqx.Module):
     
     @staticmethod
     @eqx.filter_jit
-    def forward_single(params: Params, x: Array) -> Array:
+    def _forward_single(params: Params, x: Array) -> Array:
         """Forward pass for a single input sample x. Uses external parameters."""
         # pass from input to second-last layer (use activation)
         for W, b in params[:-1]:
@@ -84,26 +85,26 @@ class MLP(eqx.Module):
         return out
     
     @eqx.filter_jit
-    def _forward_batch(self, x_batch: Array) -> Array:
+    def forward_batch(self, x_batch: Array) -> Array:
         """Forward pass for a batch of input samples. Uses internal parameters."""
-        batched_forward = jax.vmap(self._forward_single)
+        batched_forward = jax.vmap(self.forward_single)
         out_batch = batched_forward(x_batch)
         return out_batch
     
     @eqx.filter_jit
-    def forward_batch(self, params: Params, x_batch: Array) -> Array:
+    def _forward_batch(self, params: Params, x_batch: Array) -> Array:
         """Forward pass for a batch of input samples. Uses external parameters."""
-        batched_forward = jax.vmap(self.forward_single, in_axes=(None,0))
+        batched_forward = jax.vmap(self._forward_single, in_axes=(None,0))
         out_batch = batched_forward(params, x_batch)
         return out_batch
 
     @eqx.filter_jit
-    def __call__(self, x_batch: Array) -> Array:
+    def __call__(self, x: Array) -> Array:
         """
-        __call__ that implements _forward_batch, i.e. forward pass of the network for a 
-        batch of inputs, using internal parameters.
+        __call__ that implements `forward` method, i.e. forward pass of the network for a single
+        input, using internal parameters.
         """
-        return self._forward_batch(x_batch)
+        return self.forward_single(x)
     
     def save_params(self, path: str):
         """Saves the parameters of the network in the specified path as a .npz file."""
