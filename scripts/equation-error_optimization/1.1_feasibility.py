@@ -231,7 +231,7 @@ def Loss(
     A_softplus, c = Phi
     L_softplus, D_softplus = phi
 
-    # comvert parameters
+    # convert parameters
     A = A_thresh + jax.nn.softplus(A_softplus)
     L = jax.nn.softplus(L_softplus)
     D = jnp.diag(jax.nn.softplus(D_softplus))
@@ -239,7 +239,7 @@ def Loss(
     # update robot
     robot_updated = robot.update_params({"L": L, "D": D})
 
-    # covert variables
+    # convert variables
     q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
     qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, 3*n_pcs)
 

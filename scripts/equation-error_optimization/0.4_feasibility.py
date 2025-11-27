@@ -97,7 +97,7 @@ def Loss(
 
     # predictions
     z_batch = jnp.concatenate([y_batch, yd_batch, u_batch], axis=1)
-    ydd_hat_batch = mlp_approximator.forward_batch(params_optimiz, z_batch)
+    ydd_hat_batch = mlp_approximator._forward_batch(params_optimiz, z_batch)
 
     # compute loss
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
@@ -125,7 +125,7 @@ def forward_for_diffrax(mlp: MLP, t: float, z: Array, input_args: Optional[Tuple
         u = jnp.array([0])
     # create input for MLP (x=(y,yd,u)) and compute output (ydd)
     x = jnp.concatenate([z, u])
-    ydd = mlp._forward_single(x)
+    ydd = mlp.forward_single(x)
     # re-create "diffrax state" derivative
     _, yd = jnp.split(z, 2)
     zd = jnp.concatenate([yd, ydd])

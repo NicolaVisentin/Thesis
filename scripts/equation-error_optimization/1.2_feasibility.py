@@ -229,7 +229,7 @@ def Loss(
     phi, = params_optimiz
     L_softplus, D_softplus = phi
 
-    # comvert parameters
+    # convert parameters
     L = jax.nn.softplus(L_softplus)
     D = jnp.diag(jax.nn.softplus(D_softplus))
 
@@ -299,7 +299,6 @@ print('--- BEFORE OPTIMIZATION ---')
 
 # Initialize parameters
 n_pcs = 2
-key, key_A, key_c = jax.random.split(key, 3)
 
 L0 = jnp.array([1.0e-1, 1.0e-1])
 D0 = jnp.diag(jnp.array([1.0e-4, 1.0e-1, 1.0e-1,
