@@ -181,7 +181,7 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = False         # choose whether to use normal for loop or lax.scan
+use_scan = True         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
@@ -466,8 +466,8 @@ if show_simulations:
     # Plot y(t) and y_hat(t)
     fig, ax = plt.subplots(1,1)
     ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-    ax.plot(saveat, y_hat_pcs, 'r', label=r'$\hat{y}_{PCS}(t)$')
-    ax.plot(saveat, y_hat_approx, 'b', label=r'$\hat{y}_{appr}(t)$')
+    ax.plot(saveat, y_hat_pcs, 'b', label=r'$\hat{y}_{PCS}(t)$')
+    ax.plot(saveat, y_hat_approx, 'r', alpha=0.5, label=r'$\hat{y}_{appr}(t)$')
     ax.grid(True)
     ax.set_xlabel('t [s]')
     ax.set_ylabel('y')
@@ -479,8 +479,8 @@ if show_simulations:
     # Plot phase planes
     fig, ax = plt.subplots(1,1)
     ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-    ax.plot(y_hat_pcs, yd_hat_pcs, 'r', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
-    ax.plot(y_hat_approx, yd_hat_approx, 'b', label=r'$(\hat{y}_{appr}, \, \hat{\dot{y}}_{appr})$')
+    ax.plot(y_hat_pcs, yd_hat_pcs, 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+    ax.plot(y_hat_approx, yd_hat_approx, 'r', alpha=0.5, label=r'$(\hat{y}_{appr}, \, \hat{\dot{y}}_{appr})$')
     ax.grid(True)
     ax.set_xlabel(r'$y$')
     ax.set_ylabel(r'$\dot{y}$')
@@ -829,8 +829,8 @@ if show_simulations:
     # Plot y(t) and y_hat(t)
     fig, ax = plt.subplots(1,1)
     ax.plot(time_RONsaved, y_RONsaved, 'b--', label=r'$y_{RON}(t)$')
-    ax.plot(saveat, y_hat_pcs, 'r', label=r'$\hat{y}_{PCS}(t)$')
-    ax.plot(saveat, y_hat_approx, 'b', label=r'$\hat{y}_{appr}(t)$')
+    ax.plot(saveat, y_hat_pcs, 'b', label=r'$\hat{y}_{PCS}(t)$')
+    ax.plot(saveat, y_hat_approx, 'r', alpha=0.5, label=r'$\hat{y}_{appr}(t)$')
     ax.grid(True)
     ax.set_xlabel('t [s]')
     ax.set_ylabel('y')
@@ -842,8 +842,8 @@ if show_simulations:
     # Plot phase planes
     fig, ax = plt.subplots(1,1)
     ax.plot(y_RONsaved, yd_RONsaved, 'b--', label=r'RON $(y, \, \dot{y})$')
-    ax.plot(y_hat_pcs, yd_hat_pcs, 'r', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
-    ax.plot(y_hat_approx, yd_hat_approx, 'b', label=r'$(\hat{y}_{appr}, \, \hat{\dot{y}}_{appr})$')
+    ax.plot(y_hat_pcs, yd_hat_pcs, 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+    ax.plot(y_hat_approx, yd_hat_approx, 'r', alpha=0.5, label=r'$(\hat{y}_{appr}, \, \hat{\dot{y}}_{appr})$')
     ax.grid(True)
     ax.set_xlabel(r'$y$')
     ax.set_ylabel(r'$\dot{y}$')

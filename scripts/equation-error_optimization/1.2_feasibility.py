@@ -23,7 +23,7 @@ from tqdm import tqdm
 import time
 import sys
 
-from soromox.systems.my_systems import PlanarPCS_simple
+from soromox.systems.my_systems import PlanarPCS_simple, PlanarPCS_simple_modified
 from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
@@ -45,9 +45,9 @@ main_folder = curr_folder.parent.parent                           # main folder 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                           # folder with the dataset
 saved_data_folder = main_folder/'saved data'                      # folder for saved data
-data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
+# data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
 
-data_folder.mkdir(parents=True, exist_ok=True)
+# data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 # Functions for plotting
@@ -181,7 +181,7 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
-use_scan = False         # choose whether to use normal for loop or lax.scan
+use_scan = True         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 
@@ -199,14 +199,14 @@ def Loss(
     Computes loss function over a batch of data for certain parameters. In this case:
     Takes a batch of datapoints (y, yd), computes the forward dynamics ydd_hat = f_approximator(y,yd)
     and computes the loss as the MSE in the batch between predictions ydd_hat and labels ydd. In particular,
-    our approximator here is: ydd_hat = qdd_hat = f_pcs(y,yd) (which does not make much sense, btw). 
-
-    !! This works only for n_ron = 3*n_pcs !!
+    our approximator here is: f_approximator = T_out( f_pcs( T_in(y,yd) ) ), where T_in: (q, qd)=(A*y+c, A*yd)
+    and T_out: ydd_hat=A*qdd.
 
     Args
     ----
     params_optimiz : Sequence
         Parameters for the opimization. In this case a list with:
+        - **Phi**: Tuple (A_softplus, c). A.shape=(3*n_pcs, n_ron), c.shape=(3*n_pcs,)
         - **phi**: Tuple with pcs params (L_softplus, D_softplus). L.shape=(n_pcs,), D.shape=(3*n_pcs,)
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
@@ -226,27 +226,80 @@ def Loss(
     yd_batch = data_batch["yd"]
     ydd_batch = data_batch["ydd"]
 
-    phi, = params_optimiz
+    Phi, phi = params_optimiz
+
+    A_softplus, c = Phi
     L_softplus, D_softplus = phi
 
     # convert parameters
+    A = jnp.diag( A_thresh + jax.nn.softplus(A_softplus) )
     L = jax.nn.softplus(L_softplus)
     D = jnp.diag(jax.nn.softplus(D_softplus))
 
     # update robot
     robot_updated = robot.update_params({"L": L, "D": D})
 
+    # convert variables
+    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
+    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, 3*n_pcs)
+
     # predictions
-    q_batch = y_batch
-    qd_batch = yd_batch
     z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
 
     forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0))
     zd_batch = forward_dynamics_vmap(0, z_batch) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
     _, qdd_batch = jnp.split(zd_batch, 2, axis=1) 
 
-    # compute loss (compare predictions ydd_hat=qdd with labels ydd)
-    ydd_hat_batch = qdd_batch
+    # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
+    ydd_hat_batch = qdd_batch @ jnp.transpose(jnp.linalg.pinv(A)) # convert predictions from qdd to ydd
+    MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
+    loss = MSE
+
+    # store metrics
+    metrics = {
+        "MSE": MSE,
+        "predictions": ydd_hat_batch,
+        "labels": ydd_batch,
+    }
+
+    return loss, metrics
+
+# Loss defined using the approximator (for comparison)
+def Loss_approx(
+        approx : PlanarPCS_simple_modified, 
+        data_batch : Dict, 
+) -> Tuple[float, Dict]:
+    """
+    Args
+    ----
+    approx : PlanarPCS_simple_modified
+        Approximator instance.
+    data_batch : Dict
+        Dictionary with datapoints and labels to compute the loss. In this case has keys:
+        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
+        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
+
+    Returns
+    -------
+    loss : float
+        Scalar loss computed as MSE in the batch between predictions and labels.
+    metrics : Dict[float, Dict]
+        Dictionary of useful metrics.
+    """
+    # extract everything
+    y_batch = data_batch["y"]
+    yd_batch = data_batch["yd"]
+    ydd_batch = data_batch["ydd"]
+
+    # predictions
+    r_batch = jnp.concatenate([y_batch, yd_batch], axis=1) # state r=[y^T, yd^T]. Shape (batch_size, 2*n_ron)
+
+    forward_dynamics_vmap = jax.vmap(approx.forward_dynamics, in_axes=(None,0))
+    rd_batch = forward_dynamics_vmap(0, r_batch) # state derivative rd=[yd^T, ydd^T]. Shape (batch_size, 2*n_ron)
+    _, ydd_hat_batch = jnp.split(rd_batch, 2, axis=1) 
+
+    # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
     loss = MSE
 
@@ -265,7 +318,7 @@ def Loss(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_simplified.npz') # ! 6 decoupled oscillators
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_simplified.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -299,16 +352,23 @@ print('--- BEFORE OPTIMIZATION ---')
 
 # Initialize parameters
 n_pcs = 2
+key, key_A, key_c = jax.random.split(key, 3)
 
+A_thresh = 0.001
+A0 = jnp.diag(jnp.array([1, 0.3, 0.01, 1, 0.3, 0.01]))
+c0 = jnp.array([0, -0.1, 0, 0, 0.05, 0])
 L0 = jnp.array([1.0e-1, 1.0e-1])
 D0 = jnp.diag(jnp.array([1.0e-4, 1.0e-1, 1.0e-1,
                          1.0e-4, 1.0e-1, 1.0e-1]))
 
 L_softplus = InverseSoftplus(L0)
 D_softplus = InverseSoftplus(jnp.diag(D0))
+A_softplus = InverseSoftplus(jnp.diag(A0) - A_thresh)
+c = c0
 
+Phi = (A_softplus, c)
 phi = (L_softplus, D_softplus)
-params_optimiz = [phi]
+params_optimiz = [Phi, phi]
 
 # Initialize robot
 parameters = {
@@ -327,8 +387,15 @@ robot = PlanarPCS_simple(
     params = parameters,
     order_gauss = 5
 )
+approximator = PlanarPCS_simple_modified(
+    num_segments = n_pcs,
+    params = parameters,
+    order_gauss = 5,
+    A = A0,
+    c = c0
+)
 
-# If required, simulate robot and compare its behaviour in time with the RON's one
+# If required, simulate robot, approximator and compare their behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
     RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified_a.npz')
@@ -346,14 +413,14 @@ if show_simulations:
     max_steps = int(1e6)
 
     # Simulate robot
-    q0 = y_RONsaved[0]
-    qd0 = yd_RONsaved[0]
-    initial_state = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
+    q0 = A0 @ y_RONsaved[0] + c0
+    qd0 = A0 @ yd_RONsaved[0]
+    initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
     print('Simulating robot...')
     start = time.perf_counter()
-    sim_out = robot.rollout_to(
-        initial_state = initial_state,
+    sim_out_pcs = robot.rollout_to(
+        initial_state = initial_state_pcs,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -364,18 +431,39 @@ if show_simulations:
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 
-    # Extract results
-    timePCS = sim_out.t
-    q_PCS, qd_PCS = jnp.split(sim_out.y, 2, axis=1)
+    # Simulate approximator
+    initial_state_approx = SystemState(t=t0, y=jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]]))
 
-    y_hat = q_PCS
-    yd_hat = qd_PCS
+    print('Simulating approximator...')
+    start = time.perf_counter()
+    sim_out_approx = approximator.rollout_to(
+        initial_state = initial_state_approx,
+        t1 = t1, 
+        solver_dt = dt, 
+        save_ts = saveat,
+        solver = solver,
+        stepsize_controller = step_size,
+        max_steps = max_steps
+    )
+    end = time.perf_counter()
+    print(f'Elapsed time (simulation): {end-start} s')
+
+    # Extract results (robot)
+    timePCS = sim_out_pcs.t
+    q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
+
+    y_hat_pcs = (jnp.linalg.pinv(A0) @ (q_PCS - c0).T).T # y_hat(t) = inv(A) * ( q(t) - c )
+    yd_hat_pcs = (jnp.linalg.pinv(A0) @ qd_PCS.T).T      # yd_hat(t) = inv(A) * qd(t)
+
+    # Extract results (approximator)
+    y_hat_approx, yd_hat_approx = jnp.split(sim_out_approx.y, 2, axis=1)
     
     # Plot y(t) and y_hat(t)
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
-        ax.plot(timePCS, y_hat[:,i], 'b', label=r'$\hat{y}(t)$')
         ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
+        ax.plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+        ax.plot(saveat, y_hat_approx[:,i], 'r', alpha=0.5, label=r'$\hat{y}_{appr}(t)$')
         ax.grid(True)
         ax.set_xlabel('t [s]')
         ax.set_ylabel('y, q')
@@ -388,8 +476,9 @@ if show_simulations:
     # Plot phase planes
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
-        lin_pcs = ax.plot(y_hat[:, i], yd_hat[:, i], 'b', label=r'PCS $(\hat{y}, \, \hat{\dot{y}})$')
-        lin_ron = ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+        ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+        ax.plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+        ax.plot(y_hat_approx[:, i], yd_hat_approx[:, i], 'r', alpha=0.5, label=r'$(\hat{y}_{appr}, \, \hat{\dot{y}}_{appr})$')
         ax.grid(True)
         ax.set_xlabel(r'$y$')
         ax.set_ylabel(r'$\dot{y}$')
@@ -421,12 +510,19 @@ RMSE = onp.sqrt(metrics["MSE"])
 pred = onp.array(metrics["predictions"])
 labels = onp.array(metrics["labels"])
 
-print(f'Test accuracy: RMSE = {RMSE:.6e}')
+_, metrics = Loss_approx(
+    approx=approximator, 
+    data_batch=test_set,
+)
+RMSE_approx = onp.sqrt(metrics["MSE"])
+pred_approx = onp.array(metrics["predictions"])
+
+print(f'Test accuracy: RMSE = {RMSE:.6e} | RMSE approx (comparison) = {RMSE_approx:.6e}')
 print(f'Example:\n'
       f'    (y, yd) = ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])})\n'
-      f'    prediction: ydd_hat = {pred[69]}\n'
+      f'    prediction: ydd_hat = {pred[69]} | ydd_hat_approx (comparison) = {pred_approx[69]}\n'
       f'    label: ydd = {labels[69]}\n'
-      f'    error: |e| = {onp.abs( labels[69] - pred[69] )}'
+      f'    error: |e| = {onp.abs( labels[69] - pred[69] )} | |e_approx| (comparison) = {onp.abs( labels[69] - pred_approx[69] )}'
 )
 
 ############################################################################
@@ -491,21 +587,20 @@ if True:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
-    n_iter = 200 # number of epochs
+    n_iter = 120 # number of epochs
     batch_size = 2**6
 
     key, subkey = jax.random.split(key)
     batches_per_epoch = batch_indx_generator(subkey, train_size, batch_size).shape[0]
 
     # Setup optimizer
-    # lr = optax.warmup_cosine_decay_schedule(
-    #     init_value=1e-6,
-    #     peak_value=1e-3,
-    #     warmup_steps=20*batches_per_epoch,
-    #     decay_steps=n_iter*batches_per_epoch,
-    #     end_value=1e-6
-    # )
-    lr = optax.piecewise_constant_schedule(1e-1, {75*batches_per_epoch: 0.1, 120*batches_per_epoch: 0.1})
+    lr = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=1e-3,
+        warmup_steps=15*batches_per_epoch,
+        decay_steps=n_iter*batches_per_epoch,
+        end_value=1e-5
+    )
     optimizer = optax.adam(learning_rate=lr)
     optimiz_state = optimizer.init(params_optimiz) # initialize optimizer
 
@@ -591,25 +686,35 @@ if True:
 
     jax.block_until_ready(params_optimiz)
     end = time.perf_counter()
-    print(f'Elapsed time (optimization): {end-start} s')
+    elatime_optimiz = end - start
+    print(f'Elapsed time (optimization): {elatime_optimiz} s')
 
     # Print optimal parameters (and save them)
     params_optimiz_opt = params_optimiz
 
-    phi_opt, = params_optimiz_opt
+    Phi_opt, phi_opt = params_optimiz_opt
+    A_softplus_opt, c_opt = Phi_opt
     L_softplus_opt, D_softplus_opt = phi_opt
 
+    A_opt = jnp.diag( A_thresh + jax.nn.softplus(A_softplus_opt) )
     L_opt = jax.nn.softplus(L_softplus_opt)
     D_opt = jnp.diag(jax.nn.softplus(D_softplus_opt))
 
-    print(f'L_opt={L_opt}\n'
-        f'D_opt={onp.diag(D_opt)}')
-
-    onp.savez(
-        data_folder/'optimal_data.npz', 
-        L=onp.array(L_opt), 
-        D=onp.array(D_opt)
+    print(
+        f'L_opt={L_opt}\n'
+        f'D_opt={onp.diag(D_opt)}\n'
+        f'A_opt={onp.diag(A_opt)}\n'
+        f'A_opt={A_opt}\n'
+        f'c_opt={c_opt}'
     )
+
+    # onp.savez(
+    #     data_folder/'optimal_data.npz', 
+    #     L=onp.array(L_opt), 
+    #     D=onp.array(D_opt), 
+    #     A=onp.array(A_opt), 
+    #     c=onp.array(c_opt)
+    # )
 
     # Visualization
     fig, ax1 = plt.subplots()
@@ -632,11 +737,13 @@ if True:
     labels = ['train loss', 'validation loss', 'train MSE', 'validation MSE', 'learning rate']
     ax1.legend(lines, labels, loc='center right')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
-    plt.title('Loss curve')
+    plt.title(f'Loss curve (elapsed time: {elatime_optimiz:.2f} s)')
     plt.figtext(
         0.5, -0.05, 
         f"L_opt={onp.array(L_opt)} m\n"
-        f"D_opt={onp.diag(D_opt)} Pa*s",
+        f"D_opt={onp.diag(D_opt)} Pa*s\n"
+        f"A_opt={onp.diag(A_opt)}\n"
+        f"c_opt={onp.array(c_opt)}",
         ha="center", va="top"
     )
     plt.tight_layout()
@@ -653,21 +760,38 @@ print('\n--- AFTER OPTIMIZATION ---')
 # data_opt = onp.load(data_folder/'optimal_data.npz')
 # L_opt = jnp.array(data_opt['L'])
 # D_opt = jnp.array(data_opt['D'])
+# A_opt = jnp.array(data_opt['A'])
+# c_opt = jnp.array(data_opt['c'])
 # L_softplus_opt = InverseSoftplus(L_opt)
 # D_softplus_opt = InverseSoftplus(jnp.diag(D_opt))
+# A_softplus_opt = InverseSoftplus(jnp.diag(A_opt) - A_thresh)
+# Phi_opt = (A_softplus_opt, c_opt)
 # phi_opt = (L_softplus_opt, D_softplus_opt)
-# params_optimiz_opt = [phi_opt]
+# params_optimiz_opt = [Phi_opt, phi_opt]
 
-# Update robot with optimal parameters
+# Update robot and approximator with optimal parameters
 robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
 
-# If required, simulate robot and compare its behaviour in time with the RON's one
+approximator = PlanarPCS_simple_modified(
+    num_segments = n_pcs,
+    params = parameters,
+    order_gauss = 5,
+    A = A_opt,
+    c = c_opt
+)
+approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt})
+
+# If required, simulate robot, approximator and compare their behaviour in time with the RON's one
 if show_simulations:
     # Simulate robot
+    q0 = A_opt @ y_RONsaved[0] + c_opt
+    qd0 = A_opt @ yd_RONsaved[0]
+    initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
+
     print('Simulating robot...')
     start = time.perf_counter()
-    sim_out = robot_opt.rollout_to(
-        initial_state = initial_state,
+    sim_out_pcs = robot_opt.rollout_to(
+        initial_state = initial_state_pcs,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -678,18 +802,39 @@ if show_simulations:
     end = time.perf_counter()
     print(f'Elapsed time (simulation): {end-start} s')
 
-    # Extract results
-    timePCS = sim_out.t
-    q_PCS, qd_PCS = jnp.split(sim_out.y, 2, axis=1)
+    # Simulate approximator
+    initial_state_approx = SystemState(t=t0, y=jnp.concatenate([y_RONsaved[0], yd_RONsaved[0]]))
 
-    y_hat = q_PCS
-    yd_hat = qd_PCS
+    print('Simulating approximator...')
+    start = time.perf_counter()
+    sim_out_approx = approximator_opt.rollout_to(
+        initial_state = initial_state_approx,
+        t1 = t1, 
+        solver_dt = dt, 
+        save_ts = saveat,
+        solver = solver,
+        stepsize_controller = step_size,
+        max_steps = max_steps
+    )
+    end = time.perf_counter()
+    print(f'Elapsed time (simulation): {end-start} s')
+
+    # Extract results (robot)
+    timePCS = sim_out_pcs.t
+    q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
+
+    y_hat_pcs = (jnp.linalg.pinv(A_opt) @ (q_PCS - c_opt).T).T # y_hat(t) = inv(A) * ( q(t) - c )
+    yd_hat_pcs = (jnp.linalg.pinv(A_opt) @ qd_PCS.T).T         # yd_hat(t) = inv(A) * qd(t)
+
+    # Extract results (approximator)
+    y_hat_approx, yd_hat_approx = jnp.split(sim_out_approx.y, 2, axis=1)
     
     # Plot y(t) and y_hat(t)
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
-        ax.plot(timePCS, y_hat[:,i], 'b', label=r'$\hat{y}(t)$')
         ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
+        ax.plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+        ax.plot(saveat, y_hat_approx[:,i], 'r', alpha=0.5, label=r'$\hat{y}_{appr}(t)$')
         ax.grid(True)
         ax.set_xlabel('t [s]')
         ax.set_ylabel('y, q')
@@ -702,8 +847,9 @@ if show_simulations:
     # Plot phase planes
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
-        lin_pcs = ax.plot(y_hat[:, i], yd_hat[:, i], 'b', label=r'PCS $(\hat{y}, \, \hat{\dot{y}})$')
-        lin_ron = ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+        ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+        ax.plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+        ax.plot(y_hat_approx[:, i], yd_hat_approx[:, i], 'r', alpha=0.5, label=r'$(\hat{y}_{appr}, \, \hat{\dot{y}}_{appr})$')
         ax.grid(True)
         ax.set_xlabel(r'$y$')
         ax.set_ylabel(r'$\dot{y}$')
@@ -735,10 +881,17 @@ RMSE = onp.sqrt(metrics["MSE"])
 pred = onp.array(metrics["predictions"])
 labels = onp.array(metrics["labels"])
 
-print(f'Test accuracy: RMSE = {RMSE:.6e}')
+_, metrics = Loss_approx(
+    approx=approximator_opt, 
+    data_batch=test_set,
+)
+RMSE_approx = onp.sqrt(metrics["MSE"])
+pred_approx = onp.array(metrics["predictions"])
+
+print(f'Test accuracy: RMSE = {RMSE:.6e} | RMSE approx (comparison) = {RMSE_approx:.6e}')
 print(f'Example:\n'
       f'    (y, yd) = ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])})\n'
-      f'    prediction: ydd_hat = {pred[69]}\n'
+      f'    prediction: ydd_hat = {pred[69]} | ydd_hat_approx (comparison) = {pred_approx[69]}\n'
       f'    label: ydd = {labels[69]}\n'
-      f'    error: |e| = {onp.abs( labels[69] - pred[69] )}'
+      f'    error: |e| = {onp.abs( labels[69] - pred[69] )} | |e_approx| (comparison) = {onp.abs( labels[69] - pred_approx[69] )}'
 )

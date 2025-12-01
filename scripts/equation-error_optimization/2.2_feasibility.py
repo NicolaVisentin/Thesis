@@ -45,9 +45,9 @@ main_folder = curr_folder.parent.parent                           # main folder 
 plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                           # folder with the dataset
 saved_data_folder = main_folder/'saved data'                      # folder for saved data
-data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
+# data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
 
-data_folder.mkdir(parents=True, exist_ok=True)
+# data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 # Functions for plotting
@@ -625,13 +625,13 @@ if True:
         f'W_opt={W_opt}\n'
         f'b_opt={b_opt}')
 
-    onp.savez(
-        data_folder/'optimal_data.npz', 
-        L=onp.array(L_opt), 
-        D=onp.array(D_opt),
-        W=onp.array(W_opt),
-        b=onp.array(b_opt),
-    )
+    # onp.savez(
+    #     data_folder/'optimal_data.npz', 
+    #     L=onp.array(L_opt), 
+    #     D=onp.array(D_opt),
+    #     W=onp.array(W_opt),
+    #     b=onp.array(b_opt),
+    # )
 
     # Visualization
     fig, ax1 = plt.subplots()
