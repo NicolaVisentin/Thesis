@@ -380,8 +380,7 @@ n_pcs = 1
 
 A_thresh = 0.0001 # threshold on the singular values
 key, subkey = jax.random.split(key)
-A0 = A_thresh + jax.random.uniform(subkey, (n_ron,n_ron))
-A0 = A0.at[0,0].set(15)
+A0 = A_thresh + 0.01*jax.random.uniform(subkey, (n_ron,n_ron))
 c0 = jnp.array([0.0, 0.0, 0.0])
 L0 = jnp.array([1e-1])
 D0 = jnp.diag(jnp.array([5e-6, 5e-3, 5e-3]))
