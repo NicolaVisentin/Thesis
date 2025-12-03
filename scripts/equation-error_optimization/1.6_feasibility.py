@@ -446,7 +446,7 @@ if show_simulations:
 
     # Define controller
     def tau_law(system_state: SystemState, controller: MLP):
-        """Implements user-defined feedback control tau(t) = MLP(q(t))."""
+        """Implements user-defined feedback control tau(t) = MLP(q(t),qd(t))."""
         #q, _ = jnp.split(system_state.y, 2)
         tau = controller(system_state.y)
         return tau, None
