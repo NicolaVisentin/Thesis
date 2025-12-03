@@ -21,11 +21,14 @@ class MLP(eqx.Module):
         List with the sizes of the layers, i.e. [in_size, hid1, hid2, ..., out_size].
     params : Params
         List of tuples with the layers weights and biases, i.e. [(W1,b1), (W2,b2), ...].
+    scale_init : float
+        Scaling factor for the initialization of the parameters.
     """
     layer_sizes: Sequence[int]
     params: Params
+    scale_init: float
 
-    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int]):
+    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: int=1.0):
         """
         Initializes an MLP (tanh activations) with given layer sizes.
 
@@ -35,17 +38,20 @@ class MLP(eqx.Module):
             Random key for parameters initialization.
         layer_sizes : list[int]
             List with the sizes of the layers, i.e. [in_size, hid1, hid2, ..., out_size].
+        scale_init : float
+            Optional scaling factor for the initialization of the weights (default: 1.0).
         """
         self.layer_sizes = layer_sizes
+        self.scale_init = scale_init
         self.params = self._init_params(key)
     
     def _init_params(self, key: jax.random.key) -> Params:
-        """Glorot/Xavier initialization of weights and null biases."""
+        """Glorot/Xavier initialization of weights and null biases, with optional scaling factor."""
         keys = jax.random.split(key, len(self.layer_sizes) - 1)
         params = []
         for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
             limit = jnp.sqrt(6.0 / (m + n))
-            W = jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
+            W = self.scale_init*jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
             b = jnp.zeros((n,))
             params.append((W, b))
         return params
