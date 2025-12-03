@@ -476,6 +476,17 @@ if show_simulations:
     # Extract results (robot)
     timePCS = sim_out_pcs.t
     q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
+    
+    plt.figure()
+    plt.plot(timePCS, q_PCS[:,0], label='q1')
+    plt.plot(timePCS, q_PCS[:,1], label='q2')
+    plt.plot(timePCS, q_PCS[:,2], label='q3')
+    plt.grid(True)
+    plt.xlabel('t [s]')
+    plt.ylabel('q')
+    plt.title('Strain components')
+    plt.legend()
+    #plt.show()
 
     y_hat_pcs = jnp.linalg.solve(A0, (q_PCS - c0).T).T # y_hat(t) = inv(A) * ( q(t) - c )
     yd_hat_pcs = jnp.linalg.solve(A0, qd_PCS.T).T      # yd_hat(t) = inv(A) * qd(t)
@@ -846,6 +857,17 @@ if show_simulations:
     # Extract results (robot)
     timePCS = sim_out_pcs.t
     q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
+
+    plt.figure()
+    plt.plot(timePCS, q_PCS[:,0], label='q1')
+    plt.plot(timePCS, q_PCS[:,1], label='q2')
+    plt.plot(timePCS, q_PCS[:,2], label='q3')
+    plt.grid(True)
+    plt.xlabel('t [s]')
+    plt.ylabel('q')
+    plt.title('Strain components')
+    plt.legend()
+    #plt.show()
 
     y_hat_pcs = jnp.linalg.solve(A_opt, (q_PCS - c_opt).T).T # y_hat(t) = inv(A) * ( q(t) - c )
     yd_hat_pcs = jnp.linalg.solve(A_opt, qd_PCS.T).T         # yd_hat(t) = inv(A) * qd(t)
