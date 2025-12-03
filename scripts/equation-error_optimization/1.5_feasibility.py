@@ -440,8 +440,6 @@ if show_simulations:
     # Simulate robot
     q0 = A0 @ y_RONsaved[0] + c0
     qd0 = A0 @ yd_RONsaved[0]
-    print(q0,qd0)
-    exit()
     initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
     print('Simulating robot...')
@@ -768,7 +766,7 @@ if True:
         0.5, -0.05, 
         f"L_opt={onp.array(L_opt)} m\n"
         f"D_opt={onp.diag(D_opt)} Pa*s\n"
-        f"A_opt={onp.diag(A_opt)}\n"
+        f"A_opt={onp.array(A_opt)}\n"
         f"c_opt={onp.array(c_opt)}",
         ha="center", va="top"
     )
