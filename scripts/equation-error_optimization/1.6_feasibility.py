@@ -320,11 +320,16 @@ def Loss_approx(
     yd_batch = data_batch["yd"]
     ydd_batch = data_batch["ydd"]
 
-    # predictions
-    r_batch = jnp.concatenate([y_batch, yd_batch], axis=1) # state r=[y^T, yd^T]. Shape (batch_size, 2*n_ron)
-    tau_batch = controller.forward_batch(r_batch)
+    # Controller works as tau = MLP(q,qd), so it needs (q,qd), not (y,yd)
+    A, c = approx.A_Tin, approx.c_Tin
+    q_batch = y_batch @ A.T + c
+    qd_batch = yd_batch @ A.T
+    z_batch = jnp.concatenate([q_batch, qd_batch], axis=1)
+    tau_batch = controller.forward_batch(z_batch)
     actuation_arg = (tau_batch,)
 
+    # predictions
+    r_batch = jnp.concatenate([y_batch, yd_batch], axis=1) # state r=[y^T, yd^T]. Shape (batch_size, 2*n_ron)
     forward_dynamics_vmap = jax.vmap(approx.forward_dynamics, in_axes=(None,0,0))
     rd_batch = forward_dynamics_vmap(0, r_batch, actuation_arg) # state derivative rd=[yd^T, ydd^T]. Shape (batch_size, 2*n_ron)
     _, ydd_hat_batch = jnp.split(rd_batch, 2, axis=1) 
@@ -452,6 +457,16 @@ if show_simulations:
         return tau, None
     tau_fb = jax.jit(partial(tau_law, controller=mlp_controller)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
 
+    # Define controller for the approximator
+    def tau_law_approx(system_state: SystemState, controller: MLP, A: Array, c: Array):
+        """Implements user-defined feedback control tau(t) = MLP(y(t),yd(t))."""
+        y, yd = jnp.split(system_state.y, 2) # approximator state is (y,yd) not (q,qd)...
+        q = A @ y + c # ...but controller must operate in (q,qd)
+        qd = A @ yd
+        tau = controller(jnp.concatenate([q, qd]))
+        return tau, None
+    tau_fb_approx = jax.jit(partial(tau_law_approx, controller=mlp_controller, A=A0, c=c0)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+
     # Simulation parameters
     t0 = time_RONsaved[0]
     t1 = time_RONsaved[-1]
@@ -488,7 +503,7 @@ if show_simulations:
     start = time.perf_counter()
     sim_out_approx = approximator.rollout_closed_loop_to(
         initial_state = initial_state_approx,
-        controller = tau_fb,
+        controller = tau_fb_approx,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -879,7 +894,8 @@ if False:
 # If required, simulate robot, approximator and compare their behaviour in time with the RON's one
 if show_simulations:
     # Update control law
-    tau_fb_opt = jax.jit(partial(tau_law, controller=mlp_controller_opt)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+    tau_fb_opt = jax.jit(partial(tau_law, controller=mlp_controller_opt))                                 # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+    tau_fb_approx_opt = jax.jit(partial(tau_law_approx, controller=mlp_controller_opt, A=A_opt, c=c_opt)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
     
     # Simulate robot
     q0 = A_opt @ y_RONsaved[0] + c_opt
@@ -908,7 +924,7 @@ if show_simulations:
     start = time.perf_counter()
     sim_out_approx = approximator_opt.rollout_closed_loop_to(
         initial_state = initial_state_approx,
-        controller = tau_fb_opt,
+        controller = tau_fb_approx_opt,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
