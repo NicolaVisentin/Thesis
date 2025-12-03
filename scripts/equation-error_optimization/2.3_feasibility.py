@@ -622,13 +622,13 @@ if True:
         f'D_opt={onp.diag(D_opt)}'
     )
 
+    mlp_controller_opt = mlp_controller.update_params(Phi_opt)
+    mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
     onp.savez(
         data_folder/'optimal_data_robot.npz', 
         L=onp.array(L_opt), 
         D=onp.array(D_opt)
     )
-    mlp_controller_opt = mlp_controller.update_params(Phi_opt)
-    mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
 
     # Visualization
     fig, ax1 = plt.subplots()
