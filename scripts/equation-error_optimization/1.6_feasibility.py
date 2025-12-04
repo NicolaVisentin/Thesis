@@ -396,7 +396,8 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
-A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (n_ron,n_ron))
+#A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (n_ron,n_ron))
+A0 = init_A_svd(key_A, n_ron, A_thresh)
 c0 = jnp.array([0.0, 0.0, 0.0])
 # ...robot
 L0 = jnp.array([1e-1])
