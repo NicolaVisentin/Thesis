@@ -18,6 +18,39 @@ def InverseSoftplus(x):
     """
     return jnp.log(jnp.exp(x)-1)
 
+# Initialize a square matrix with singular values strictly greater than a threshold
+def init_A_svd(key, n: int, s_thresh: float=0.0) -> Array:
+    """
+    Initialize an n-by-n matrix A such that its singular values are all 
+    strictly greater than a given thrashold.
+    
+    Args
+    ----
+    key : jax.random.PRNGKey
+    n : int
+        Matrix dimension.
+    s_thres : float
+        Threshold such that s_i > thresh, with s=diag(S), A = U*S*V.T (default: 0)
+    
+    Returns
+    -------
+    A : Array
+        Randomly generated matrix with s_i > 0 fora all i.
+    """
+    key, keyU, keyV, keyS = jax.random.split(key, 4)
+    
+    # Sample orthogonal matrices
+    Gu = jax.random.normal(keyU, (n,n))
+    Gv = jax.random.normal(keyV, (n,n))
+    U, _ = jnp.linalg.qr(Gu)
+    V, _ = jnp.linalg.qr(Gv)
+
+    # Sample singular values > thresh
+    s = s_thresh + jax.random.uniform(keyS, (n,)) + 1e-6
+    
+    return U @ jnp.diag(s) @ V.T
+
+
 
 # =====================================================
 # Dataset handling
