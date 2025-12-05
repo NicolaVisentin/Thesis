@@ -16,7 +16,7 @@ def InverseSoftplus(x):
     """
     Inverse softplus function.
     """
-    return jnp.log(jnp.exp(x)-1)
+    return jnp.where(x<50, jnp.log(jnp.exp(x)-1), x)
 
 # Initialize a square matrix with singular values strictly greater than a threshold
 def init_A_svd(key, n: int, s_thresh: float=0.0) -> Array:
@@ -49,7 +49,6 @@ def init_A_svd(key, n: int, s_thresh: float=0.0) -> Array:
     s = s_thresh + jax.random.uniform(keyS, (n,)) + 1e-6
     
     return U @ jnp.diag(s) @ V.T
-
 
 
 # =====================================================
