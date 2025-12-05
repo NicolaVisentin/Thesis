@@ -183,31 +183,47 @@ def animate_robot_matplotlib(
 # =====================================================
 use_scan = True         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
+train_A_diag = False          # train diagonal A. Otherwise SVD
 
 
 # =====================================================
 # Functions for optimization
 # =====================================================
 
-# Converts A -> A_raw
-@partial(jax.jit, static_argnums=(1,))
-def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
-    """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
-    s_raw = InverseSoftplus(s - s_thresh) # convert singular values
-    A_raw = (U, s_raw, Vt.T)
-    return A_raw
+if train_A_diag:
+    # Converts A -> A_raw
+    @partial(jax.jit, static_argnums=(1,))
+    def A2Araw(A: Array, a_thresh: float=0.0) -> Tuple:
+        A_flat = jnp.diag(A)
+        A_raw = InverseSoftplus(A_flat - a_thresh) # convert singular values
+        return A_raw
 
-# Converts A_raw -> A
-@partial(jax.jit, static_argnums=(1,))
-def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
-    """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s_raw, V = A_raw
-    s = jax.nn.softplus(s_raw) + s_thresh
-    A = U @ jnp.diag(s) @ V.T
-    return A
+    # Converts A_raw -> A
+    @partial(jax.jit, static_argnums=(1,))
+    def Araw2A(A_raw: Tuple, a_thresh: float=0.0) -> Array:
+        A_flat = jax.nn.softplus(A_raw) + a_thresh
+        A = jnp.diag(A_flat)
+        return A
+else:
+    # Converts A -> A_raw
+    @partial(jax.jit, static_argnums=(1,))
+    def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
+        """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+        to ensure s_i > thresh >= 0 for all i."""
+        U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
+        s_raw = InverseSoftplus(s - s_thresh) # convert singular values
+        A_raw = (U, s_raw, Vt.T)
+        return A_raw
+
+    # Converts A_raw -> A
+    @partial(jax.jit, static_argnums=(1,))
+    def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
+        """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+        to ensure s_i > thresh >= 0 for all i."""
+        U, s_raw, V = A_raw
+        s = jax.nn.softplus(s_raw) + s_thresh
+        A = U @ jnp.diag(s) @ V.T
+        return A
 
 # Loss function
 @jax.jit
@@ -395,8 +411,11 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
-#A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
-A0 = init_A_svd(key_A, n_ron, A_thresh)
+if train_A_diag:
+    A0 = jnp.eye(n_ron)
+else:
+    #A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
+    A0 = init_A_svd(key_A, n_ron, A_thresh)
 c0 = jnp.zeros(3*n_pcs)
 # ...robot
 L0 = 1e-1*jnp.ones(n_pcs)
@@ -421,7 +440,7 @@ c = c0
 MAP = (A_raw, c)
 CONTR = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 Phi = (MAP, CONTR)
-phi = (L_raw, D_raw, r_raw, rho_raw, E_raw,G_raw)
+phi = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
 params_optimiz = [Phi, phi]
 
 # Initialize robot
