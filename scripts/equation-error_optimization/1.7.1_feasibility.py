@@ -244,7 +244,7 @@ def Loss(
         Parameters for the opimization. In this case a list with:
         - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
                    with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
-        - **phi**: Tuple with pcs params (L_raw, D_raw). L_raw.shape=(n_pcs,), D_raw.shape=(3*n_pcs,)
+        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -415,7 +415,7 @@ if train_A_diag:
     A0 = jnp.eye(n_ron)
 else:
     #A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
-    A0 = init_A_svd(key_A, n_ron, A_thresh)
+    A0 = init_A_svd(key_A, n_ron, A_thresh+1e-6)
 c0 = jnp.zeros(3*n_pcs)
 # ...robot
 L0 = 1e-1*jnp.ones(n_pcs)
