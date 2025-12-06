@@ -611,7 +611,6 @@ if True:
         results = train_with_scan(
             key=subkey,
             optimizer=optimizer,
-            optimiz_state=optimiz_state,
             params_optimiz=params_optimiz,
             loss_fn=Loss,
             train_set=train_set,
