@@ -19,35 +19,59 @@ def InverseSoftplus(x):
     return jnp.where(x<50, jnp.log(jnp.exp(x)-1), x)
 
 # Initialize a square matrix with singular values strictly greater than a threshold
-def init_A_svd(key, n: int, s_thresh: float=0.0) -> Array:
+def init_A_svd(
+        key, n: int, 
+        s_min: float=0.0, 
+        s_max: float=1.0, 
+        log_space_sampling: bool=False
+) -> Array:
     """
-    Initialize an n-by-n matrix A such that its singular values are all 
-    strictly greater than a given thrashold.
+    Initialize an n-by-n matrix A such that its singular values s_i are all in a given
+    range: s_min <= s_i <= s_max for i = 1, ..., n.
     
     Args
     ----
     key : jax.random.PRNGKey
     n : int
         Matrix dimension.
-    s_thres : float
-        Threshold such that s_i > thresh, with s=diag(S), A = U*S*V.T (default: 0)
-    
+    s_min : float
+        Optional threshold such that s_i >= s_min, with s=diag(S), A = U*S*V.T (default: 0.0).
+    s_max : float
+        Optional threshold such that s_i <= s_max, with s=diag(S), A = U*S*V.T (default: 1.0).
+    log_space_sampling : bool
+        If True, samples [s_min, s_max] in the log space (default: False). In this case s_min
+        must be > 0.
     Returns
     -------
     A : Array
-        Randomly generated matrix with s_i > 0 fora all i.
+        Randomly generated matrix.
     """
+    if log_space_sampling and s_min == 0:
+        raise ValueError("If log_space_sampling, then s_min must be > 0!")
+    
     key, keyU, keyV, keyS = jax.random.split(key, 4)
     
     # Sample orthogonal matrices
     Gu = jax.random.normal(keyU, (n,n))
     Gv = jax.random.normal(keyV, (n,n))
-    U, _ = jnp.linalg.qr(Gu)
-    V, _ = jnp.linalg.qr(Gv)
+    U, RU = jnp.linalg.qr(Gu)
+    U = U * jnp.sign(jnp.diag(RU))
+    V, RV = jnp.linalg.qr(Gv)
+    V = V * jnp.sign(jnp.diag(RV))
 
-    # Sample singular values > thresh
-    s = s_thresh + jax.random.uniform(keyS, (n,)) + 1e-6
-    
+    # Sample singular values > thresh. Samples from [s_min, s_max] 
+    if log_space_sampling:
+        s_min = jnp.log10(s_min)
+        s_max = jnp.log10(s_max)
+    s = jax.random.uniform(
+        key=keyS, 
+        shape=(n,), 
+        minval=s_min, 
+        maxval=s_max
+    )
+    if log_space_sampling:
+        s = 10 ** s
+        
     return U @ jnp.diag(s) @ V.T
 
 
@@ -234,14 +258,13 @@ def train_step(
 def train_with_scan(
         key: Array,
         optimizer,
-        optimiz_state,
         params_optimiz : Tuple,
         loss_fn: Callable,
         train_set: Dict,
         val_set: Dict,
         n_iter: int,
         batch_size: int,
-    ):
+    ) -> Dict:
     """
     Perform a full training loop (epochs + batches) using jax.lax.scan. This function performs:
     - inner loop: iterating over batches within an epoch
@@ -253,9 +276,7 @@ def train_with_scan(
     key : Array
         Random key for shuffling training data.
     optimizer
-        Optimizer instance from optax (must have .update method).
-    optimiz_state
-        Initial optimizer state.
+        Optimizer instance from optax (must have .update and .init methods).
     params_optimiz : Tuple
         Initial parameters to be optimized.
     loss_fn : Callable
@@ -331,6 +352,7 @@ def train_with_scan(
         return (key, optimiz_state, params_optimiz), (train_loss_epoch, train_MSE_epoch, val_loss_epoch, val_metrics["MSE"])
 
     # Run scan on outer loop (epochs)
+    optimiz_state = optimizer.init(params_optimiz)
     (_, optimiz_state, params_optimiz), (train_loss_ts, train_MSE_ts, val_loss_ts, val_MSE_ts) = jax.lax.scan(
         epoch_step,
         (key, optimiz_state, params_optimiz),
