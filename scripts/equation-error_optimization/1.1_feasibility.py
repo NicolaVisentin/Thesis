@@ -41,13 +41,13 @@ seed = 123
 key = jax.random.key(seed)
 
 # Folders
-main_folder = curr_folder.parent.parent                           # main folder "codes"
-plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
-dataset_folder = main_folder/'datasets'                           # folder with the dataset
-saved_data_folder = main_folder/'saved data'                      # folder for saved data
-data_folder = saved_data_folder/Path(__file__).stem               # folder for saving data
+main_folder = curr_folder.parent.parent                                            # main folder "codes"
+plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
+dataset_folder = main_folder/'datasets'                                            # folder with the dataset
+saved_data_folder = main_folder/'saved data'                                       # folder for saved data
+# data_folder = saved_data_folder/curr_folder.stem/Path(__file__).stem               # folder for saving data
 
-data_folder.mkdir(parents=True, exist_ok=True)
+# data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 # Functions for plotting

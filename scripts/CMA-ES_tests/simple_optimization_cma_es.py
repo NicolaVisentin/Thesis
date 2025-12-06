@@ -33,12 +33,12 @@ jnp.set_printoptions(
 )
 
 # Folders
-main_folder = curr_folder.parent.parent                           # main folder "codes"
+main_folder = curr_folder.parent.parent                                            # main folder "codes"
 
-plots_folder = main_folder/'plots and videos'/Path(__file__).stem # folder for plots and videos
+plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 plots_folder.mkdir(parents=True, exist_ok=True)
 
-# data_folder = main_folder/'saved data'/Path(__file__).stem        # folder for saving data and results
+# data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem      # folder for saving data and results
 # data_folder.mkdir(parents=True, exist_ok=True)
 
 

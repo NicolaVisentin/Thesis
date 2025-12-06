@@ -83,7 +83,7 @@ def animate_robot_matplotlib(
             "Cannot use both animation and slider at the same time. Choose one."
         )
 
-    width = jnp.linalg.norm(robot.L) * 3
+    width = jnp.sum(robot.L) * 10
     height = width
 
     if target is not None:
@@ -189,6 +189,26 @@ show_simulations = True # choose whether to perform time simulations of the appr
 # Functions for optimization
 # =====================================================
 
+# Converts A -> A_raw
+@partial(jax.jit, static_argnums=(1,))
+def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
+    """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+    to ensure s_i > thresh >= 0 for all i."""
+    U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
+    s_raw = InverseSoftplus(s - s_thresh) # convert singular values
+    A_raw = (U, s_raw, Vt.T)
+    return A_raw
+
+# Converts A_raw -> A
+@partial(jax.jit, static_argnums=(1,))
+def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
+    """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+    to ensure s_i > thresh >= 0 for all i."""
+    U, s_raw, V = A_raw
+    s = jax.nn.softplus(s_raw) + s_thresh
+    A = U @ jnp.diag(s) @ V.T
+    return A
+
 # Loss function
 @jax.jit
 def Loss(
@@ -206,8 +226,9 @@ def Loss(
     ----
     params_optimiz : Sequence
         Parameters for the opimization. In this case a list with:
-        - **Phi**: Tuple (A_softplus, c). A.shape=(3*n_pcs, n_ron), c.shape=(3*n_pcs,)
-        - **phi**: Tuple with pcs params (L_softplus, D_softplus). L.shape=(n_pcs,), D.shape=(3*n_pcs,)
+        - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
+                   with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
+        - **phi**: Tuple with pcs params (L_raw, D_raw). L_raw.shape=(n_pcs,), D_raw.shape=(3*n_pcs,)
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -228,16 +249,22 @@ def Loss(
 
     Phi, phi = params_optimiz
 
-    A_softplus, c = Phi
-    L_softplus, D_softplus = phi
+    MAP, CONTR = Phi
+    A_raw, c = MAP
+    L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw = phi
 
     # convert parameters
-    A = jnp.diag( A_thresh + jax.nn.softplus(A_softplus) )
-    L = jax.nn.softplus(L_softplus)
-    D = jnp.diag(jax.nn.softplus(D_softplus))
+    A = Araw2A(A_raw, A_thresh)
+    L = jax.nn.softplus(L_raw)
+    D = jnp.diag(jax.nn.softplus(D_raw))
+    r = jax.nn.softplus(r_raw)
+    rho = jax.nn.softplus(rho_raw)
+    E = jax.nn.softplus(E_raw)
+    G = jax.nn.softplus(G_raw)
 
-    # update robot
-    robot_updated = robot.update_params({"L": L, "D": D})
+    # update robot and controller
+    robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
+    controller_updated = mlp_controller.update_params(CONTR)
 
     # convert variables
     q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
@@ -245,13 +272,15 @@ def Loss(
 
     # predictions
     z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
+    tau_batch = controller_updated.forward_batch(z_batch)
+    actuation_arg = (tau_batch,)
 
-    forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0))
-    zd_batch = forward_dynamics_vmap(0, z_batch) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
+    forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0,0))
+    zd_batch = forward_dynamics_vmap(0, z_batch, actuation_arg) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
     _, qdd_batch = jnp.split(zd_batch, 2, axis=1) 
 
     # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
-    ydd_hat_batch = qdd_batch @ jnp.transpose(jnp.linalg.pinv(A)) # convert predictions from qdd to ydd
+    ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # convert predictions from qdd to ydd
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
     loss = MSE
 
@@ -267,6 +296,7 @@ def Loss(
 # Loss defined using the approximator (for comparison)
 def Loss_approx(
         approx : PlanarPCS_simple_modified, 
+        controller : MLP,
         data_batch : Dict, 
 ) -> Tuple[float, Dict]:
     """
@@ -274,6 +304,8 @@ def Loss_approx(
     ----
     approx : PlanarPCS_simple_modified
         Approximator instance.
+    controller : MLP
+        MLP fb controller.
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -292,11 +324,18 @@ def Loss_approx(
     yd_batch = data_batch["yd"]
     ydd_batch = data_batch["ydd"]
 
+    # Controller works as tau = MLP(q,qd), so it needs (q,qd), not (y,yd)
+    A, c = approx.A_Tin, approx.c_Tin
+    q_batch = y_batch @ A.T + c
+    qd_batch = yd_batch @ A.T
+    z_batch = jnp.concatenate([q_batch, qd_batch], axis=1)
+    tau_batch = controller.forward_batch(z_batch)
+    actuation_arg = (tau_batch,)
+
     # predictions
     r_batch = jnp.concatenate([y_batch, yd_batch], axis=1) # state r=[y^T, yd^T]. Shape (batch_size, 2*n_ron)
-
-    forward_dynamics_vmap = jax.vmap(approx.forward_dynamics, in_axes=(None,0))
-    rd_batch = forward_dynamics_vmap(0, r_batch) # state derivative rd=[yd^T, ydd^T]. Shape (batch_size, 2*n_ron)
+    forward_dynamics_vmap = jax.vmap(approx.forward_dynamics, in_axes=(None,0,0))
+    rd_batch = forward_dynamics_vmap(0, r_batch, actuation_arg) # state derivative rd=[yd^T, ydd^T]. Shape (batch_size, 2*n_ron)
     _, ydd_hat_batch = jnp.split(rd_batch, 2, axis=1) 
 
     # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
@@ -318,7 +357,7 @@ def Loss_approx(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_simplified.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_noInput.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -352,33 +391,48 @@ print('--- BEFORE OPTIMIZATION ---')
 
 # Initialize parameters
 n_pcs = 2
-key, key_A, key_c = jax.random.split(key, 3)
+key, key_A, key_mlp = jax.random.split(key, 3)
 
-A_thresh = 0.001
-A0 = jnp.diag(jnp.array([1, 0.3, 0.01, 1, 0.3, 0.01]))
-c0 = jnp.array([0, -0.1, 0, 0, 0.05, 0])
-L0 = jnp.array([1.0e-1, 1.0e-1])
-D0 = jnp.diag(jnp.array([1.0e-4, 1.0e-1, 1.0e-1,
-                         1.0e-4, 1.0e-1, 1.0e-1]))
+# ...mapping
+A_thresh = 1e-4 # threshold on the singular values
+#A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
+A0 = init_A_svd(key_A, n_ron, A_thresh)
+c0 = jnp.zeros(3*n_pcs)
+# ...robot
+L0 = 1e-1*jnp.ones(n_pcs)
+D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs))
+r0 = 2e-2*jnp.ones(n_pcs)
+rho0 = 1070*jnp.ones(n_pcs)
+E0 = 2e3*jnp.ones(n_pcs)
+G0 = 1e3*jnp.ones(n_pcs)
+# ...controller
+mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]                                # [input, hidden1, hidden2, output]
+mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.01) # initialize MLP feedback control law
 
-L_softplus = InverseSoftplus(L0)
-D_softplus = InverseSoftplus(jnp.diag(D0))
-A_softplus = InverseSoftplus(jnp.diag(A0) - A_thresh)
+L_raw = InverseSoftplus(L0)
+D_raw = InverseSoftplus(jnp.diag(D0))
+r_raw = InverseSoftplus(r0)
+rho_raw = InverseSoftplus(rho0)
+E_raw = InverseSoftplus(E0)
+G_raw = InverseSoftplus(G0)
+A_raw = A2Araw(A0, A_thresh)
 c = c0
 
-Phi = (A_softplus, c)
-phi = (L_softplus, D_softplus)
+MAP = (A_raw, c)
+CONTR = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
+Phi = (MAP, CONTR)
+phi = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
 params_optimiz = [Phi, phi]
 
 # Initialize robot
 parameters = {
     "th0": jnp.array(jnp.pi/2),
     "L": L0,
-    "r": jnp.array([2e-2, 2e-2]),
-    "rho": jnp.array([1070, 1070]),
+    "r": r0,
+    "rho": rho0,
     "g": jnp.array([0.0, 9.81]), # !! gravity UP !!
-    "E": jnp.array([2e3, 2e3]),
-    "G": 1e3 * jnp.ones((n_pcs,)),
+    "E": E0,
+    "G": G0,
     "D": D0
 }
 
@@ -398,10 +452,27 @@ approximator = PlanarPCS_simple_modified(
 # If required, simulate robot, approximator and compare their behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_simplified_a.npz')
+    RON_evolution_data = onp.load(saved_data_folder/'RON_evolution_N6_noInput.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'])
     y_RONsaved = jnp.array(RON_evolution_data['y'])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'])
+
+    # Define controller
+    def tau_law(system_state: SystemState, controller: MLP):
+        """Implements user-defined feedback control tau(t) = MLP(q(t),qd(t))."""
+        tau = controller(system_state.y)
+        return tau, None
+    tau_fb = jax.jit(partial(tau_law, controller=mlp_controller)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+
+    # Define controller for the approximator
+    def tau_law_approx(system_state: SystemState, controller: MLP, A: Array, c: Array):
+        """Implements user-defined feedback control tau(t) = MLP(y(t),yd(t))."""
+        y, yd = jnp.split(system_state.y, 2) # approximator state is (y,yd) not (q,qd)...
+        q = A @ y + c                        # ...but controller must operate in (q,qd)
+        qd = A @ yd
+        tau = controller(jnp.concatenate([q, qd]))
+        return tau, None
+    tau_fb_approx = jax.jit(partial(tau_law_approx, controller=mlp_controller, A=A0, c=c0)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
 
     # Simulation parameters
     t0 = time_RONsaved[0]
@@ -419,8 +490,9 @@ if show_simulations:
 
     print('Simulating robot...')
     start = time.perf_counter()
-    sim_out_pcs = robot.rollout_to(
+    sim_out_pcs = robot.rollout_closed_loop_to(
         initial_state = initial_state_pcs,
+        controller = tau_fb,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -436,8 +508,9 @@ if show_simulations:
 
     print('Simulating approximator...')
     start = time.perf_counter()
-    sim_out_approx = approximator.rollout_to(
+    sim_out_approx = approximator.rollout_closed_loop_to(
         initial_state = initial_state_approx,
+        controller = tau_fb_approx,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -452,12 +525,37 @@ if show_simulations:
     timePCS = sim_out_pcs.t
     q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
 
-    y_hat_pcs = (jnp.linalg.pinv(A0) @ (q_PCS - c0).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-    yd_hat_pcs = (jnp.linalg.pinv(A0) @ qd_PCS.T).T      # yd_hat(t) = inv(A) * qd(t)
+    y_hat_pcs = jnp.linalg.solve(A0, (q_PCS - c0).T).T # y_hat(t) = inv(A) * ( q(t) - c )
+    yd_hat_pcs = jnp.linalg.solve(A0, qd_PCS.T).T      # yd_hat(t) = inv(A) * qd(t)
 
     # Extract results (approximator)
     y_hat_approx, yd_hat_approx = jnp.split(sim_out_approx.y, 2, axis=1)
-    
+
+    # Plot PCS strains
+    fig, axs = plt.subplots(3,1, figsize=(12,9))
+    for i in range(n_pcs):
+        axs[0].plot(timePCS, q_PCS[:,i], label=f'segment {i+1}')
+        axs[0].grid(True)
+        axs[0].set_xlabel('t [s]')
+        axs[0].set_ylabel(r"$\kappa_\mathrm{be}$ [rad/m]")
+        axs[0].set_title('Bending strain')
+        axs[0].legend()
+        axs[1].plot(timePCS, q_PCS[:,i+1], label=f'segment {i+1}')
+        axs[1].grid(True)
+        axs[1].set_xlabel('t [s]')
+        axs[1].set_ylabel(r"$\sigma_\mathrm{ax}$ [-]")
+        axs[1].set_title('Axial strain')
+        axs[1].legend()
+        axs[2].plot(timePCS, q_PCS[:,i+2], label=f'segment {i+1}')
+        axs[2].grid(True)
+        axs[2].set_xlabel('t [s]')
+        axs[2].set_ylabel(r"$\sigma_\mathrm{sh}$ [-]")
+        axs[2].set_title('Shear strain')
+        axs[2].legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'Strains_before', bbox_inches='tight')
+    #plt.show()
+
     # Plot y(t) and y_hat(t)
     fig, axs = plt.subplots(3,2, figsize=(12,9))
     for i, ax in enumerate(axs.flatten()):
@@ -468,6 +566,7 @@ if show_simulations:
         ax.set_xlabel('t [s]')
         ax.set_ylabel('y, q')
         ax.set_title(f'Component {i+1}')
+        #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         ax.legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
@@ -483,6 +582,8 @@ if show_simulations:
         ax.set_xlabel(r'$y$')
         ax.set_ylabel(r'$\dot{y}$')
         ax.set_title(f'Component {i+1}')
+        #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+        #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
         ax.legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -511,7 +612,8 @@ pred = onp.array(metrics["predictions"])
 labels = onp.array(metrics["labels"])
 
 _, metrics = Loss_approx(
-    approx=approximator, 
+    approx=approximator,
+    controller=mlp_controller, 
     data_batch=test_set,
 )
 RMSE_approx = onp.sqrt(metrics["MSE"])
@@ -520,9 +622,10 @@ pred_approx = onp.array(metrics["predictions"])
 print(f'Test accuracy: RMSE = {RMSE:.6e} | RMSE approx (comparison) = {RMSE_approx:.6e}')
 print(f'Example:\n'
       f'    (y, yd) = ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])})\n'
-      f'    prediction: ydd_hat = {pred[69]} | ydd_hat_approx (comparison) = {pred_approx[69]}\n'
+      f'    prediction: ydd_hat = {pred[69]}\n'
+      f'    prediction: ydd_hat = {pred_approx[69]} (approximator, comparison)\n'
       f'    label: ydd = {labels[69]}\n'
-      f'    error: |e| = {onp.abs( labels[69] - pred[69] )} | |e_approx| (comparison) = {onp.abs( labels[69] - pred_approx[69] )}'
+      f'    error: |e| = {onp.abs( labels[69] - pred[69] )}'
 )
 
 ############################################################################
@@ -587,7 +690,7 @@ if True:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
-    n_iter = 120 # number of epochs
+    n_iter = 150 # number of epochs
     batch_size = 2**6
 
     key, subkey = jax.random.split(key)
@@ -689,32 +792,59 @@ if True:
     elatime_optimiz = end - start
     print(f'Elapsed time (optimization): {elatime_optimiz} s')
 
-    # Print optimal parameters (and save them)
+    # Print optimal parameters
     params_optimiz_opt = params_optimiz
 
     Phi_opt, phi_opt = params_optimiz_opt
-    A_softplus_opt, c_opt = Phi_opt
-    L_softplus_opt, D_softplus_opt = phi_opt
+    MAP_opt, CONTR_opt = Phi_opt
+    A_raw_opt, c_opt = MAP_opt
+    L_raw_opt, D_raw_opt, r_raw_opt, rho_raw_opt, E_raw_opt, G_raw_opt = phi_opt
 
-    A_opt = jnp.diag( A_thresh + jax.nn.softplus(A_softplus_opt) )
-    L_opt = jax.nn.softplus(L_softplus_opt)
-    D_opt = jnp.diag(jax.nn.softplus(D_softplus_opt))
+    A_opt = Araw2A(A_raw_opt, A_thresh)
+    L_opt = jax.nn.softplus(L_raw_opt)
+    D_opt = jnp.diag(jax.nn.softplus(D_raw_opt))
+    r_opt = jax.nn.softplus(r_raw_opt)
+    rho_opt = jax.nn.softplus(rho_raw_opt)
+    E_opt = jax.nn.softplus(E_raw_opt)
+    G_opt = jax.nn.softplus(G_raw_opt)
 
     print(
-        f'L_opt={L_opt}\n'
-        f'D_opt={onp.diag(D_opt)}\n'
-        f'A_opt={onp.diag(A_opt)}\n'
-        f'A_opt={A_opt}\n'
-        f'c_opt={c_opt}'
+        f'L_opt: \n{L_opt}\n'
+        f'D_opt: \n{D_opt}\n'
+        f'r_opt: \n{r_opt}\n'
+        f'rho_opt: \n{rho_opt}\n'
+        f'E_opt: \n{E_opt}\n'
+        f'G_opt: \n{G_opt}\n'
+        f'A_opt: \n{A_opt}\n'
+        f'c_opt: \n{c_opt}'
     )
 
+    # Update optimal controller, robot and approximator
+    mlp_controller_opt = mlp_controller.update_params(CONTR_opt)
+
+    robot_opt = robot.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
+
+    approximator = PlanarPCS_simple_modified(
+        num_segments = n_pcs,
+        params = parameters,
+        order_gauss = 5,
+        A = A_opt,
+        c = c_opt
+    )
+    approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
+
+    # # Save optimal parameters
     # onp.savez(
-    #     data_folder/'optimal_data.npz', 
+    #     data_folder/'optimal_data_robot.npz', 
     #     L=onp.array(L_opt), 
-    #     D=onp.array(D_opt), 
+    #     D=onp.array(D_opt)
+    # )
+    # onp.savez(
+    #     data_folder/'optimal_data_map.npz', 
     #     A=onp.array(A_opt), 
     #     c=onp.array(c_opt)
     # )
+    # mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
 
     # Visualization
     fig, ax1 = plt.subplots()
@@ -742,7 +872,7 @@ if True:
         0.5, -0.05, 
         f"L_opt={onp.array(L_opt)} m\n"
         f"D_opt={onp.diag(D_opt)} Pa*s\n"
-        f"A_opt={onp.diag(A_opt)}\n"
+        f"A_opt={onp.array(A_opt)}\n"
         f"c_opt={onp.array(c_opt)}",
         ha="center", va="top"
     )
@@ -756,33 +886,45 @@ if True:
 # =====================================================
 print('\n--- AFTER OPTIMIZATION ---')
 
-# # Load optimal parameters
-# data_opt = onp.load(data_folder/'optimal_data.npz')
-# L_opt = jnp.array(data_opt['L'])
-# D_opt = jnp.array(data_opt['D'])
-# A_opt = jnp.array(data_opt['A'])
-# c_opt = jnp.array(data_opt['c'])
-# L_softplus_opt = InverseSoftplus(L_opt)
-# D_softplus_opt = InverseSoftplus(jnp.diag(D_opt))
-# A_softplus_opt = InverseSoftplus(jnp.diag(A_opt) - A_thresh)
-# Phi_opt = (A_softplus_opt, c_opt)
-# phi_opt = (L_softplus_opt, D_softplus_opt)
-# params_optimiz_opt = [Phi_opt, phi_opt]
+# Load optimal parameters
+if False:
+    CONTR_opt = mlp_controller.load_params(data_folder/'optimal_data_controller.npz')
+    mlp_controller_opt = mlp_controller.update_params(CONTR_opt)
+    data_robot_opt = onp.load(data_folder/'optimal_data_robot.npz')
 
-# Update robot and approximator with optimal parameters
-robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
+    L_opt = jnp.array(data_robot_opt['L'])
+    D_opt = jnp.array(data_robot_opt['D'])
+    data_map_opt = onp.load(data_folder/'optimal_data_map.npz')
+    A_opt = jnp.array(data_map_opt['A'])
+    c_opt = jnp.array(data_map_opt['c'])
 
-approximator = PlanarPCS_simple_modified(
-    num_segments = n_pcs,
-    params = parameters,
-    order_gauss = 5,
-    A = A_opt,
-    c = c_opt
-)
-approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt})
+    L_raw_opt = InverseSoftplus(L_opt)
+    D_raw_opt = InverseSoftplus(jnp.diag(D_opt))
+    A_raw_opt = A2Araw(A_opt, A_thresh)
+
+    MAP_opt = (A_raw_opt, c_opt)
+    Phi_opt = (MAP_opt, CONTR_opt)
+    phi_opt = (L_raw_opt, D_raw_opt)
+    params_optimiz_opt = [Phi_opt, phi_opt]
+
+    robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
+    mlp_controller_opt = mlp_controller.update_params(CONTR_opt)
+    robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
+    approximator = PlanarPCS_simple_modified(
+        num_segments = n_pcs,
+        params = parameters,
+        order_gauss = 5,
+        A = A_opt,
+        c = c_opt
+    )
+    approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt})
 
 # If required, simulate robot, approximator and compare their behaviour in time with the RON's one
 if show_simulations:
+    # Update control law
+    tau_fb_opt = jax.jit(partial(tau_law, controller=mlp_controller_opt))                                 # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+    tau_fb_approx_opt = jax.jit(partial(tau_law_approx, controller=mlp_controller_opt, A=A_opt, c=c_opt)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+    
     # Simulate robot
     q0 = A_opt @ y_RONsaved[0] + c_opt
     qd0 = A_opt @ yd_RONsaved[0]
@@ -790,8 +932,9 @@ if show_simulations:
 
     print('Simulating robot...')
     start = time.perf_counter()
-    sim_out_pcs = robot_opt.rollout_to(
+    sim_out_pcs = robot_opt.rollout_closed_loop_to(
         initial_state = initial_state_pcs,
+        controller = tau_fb_opt,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -807,8 +950,9 @@ if show_simulations:
 
     print('Simulating approximator...')
     start = time.perf_counter()
-    sim_out_approx = approximator_opt.rollout_to(
+    sim_out_approx = approximator_opt.rollout_closed_loop_to(
         initial_state = initial_state_approx,
+        controller = tau_fb_approx_opt,
         t1 = t1, 
         solver_dt = dt, 
         save_ts = saveat,
@@ -823,11 +967,36 @@ if show_simulations:
     timePCS = sim_out_pcs.t
     q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
 
-    y_hat_pcs = (jnp.linalg.pinv(A_opt) @ (q_PCS - c_opt).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-    yd_hat_pcs = (jnp.linalg.pinv(A_opt) @ qd_PCS.T).T         # yd_hat(t) = inv(A) * qd(t)
+    y_hat_pcs = jnp.linalg.solve(A_opt, (q_PCS - c_opt).T).T # y_hat(t) = inv(A) * ( q(t) - c )
+    yd_hat_pcs = jnp.linalg.solve(A_opt, qd_PCS.T).T         # yd_hat(t) = inv(A) * qd(t)
 
     # Extract results (approximator)
     y_hat_approx, yd_hat_approx = jnp.split(sim_out_approx.y, 2, axis=1)
+
+    # Plot PCS strains
+    fig, axs = plt.subplots(3,1, figsize=(12,9))
+    for i in range(n_pcs):
+        axs[0].plot(timePCS, q_PCS[:,i], label=f'segment {i+1}')
+        axs[0].grid(True)
+        axs[0].set_xlabel('t [s]')
+        axs[0].set_ylabel(r"$\kappa_\mathrm{be}$ [rad/m]")
+        axs[0].set_title('Bending strain')
+        axs[0].legend()
+        axs[1].plot(timePCS, q_PCS[:,i+1], label=f'segment {i+1}')
+        axs[1].grid(True)
+        axs[1].set_xlabel('t [s]')
+        axs[1].set_ylabel(r"$\sigma_\mathrm{ax}$ [-]")
+        axs[1].set_title('Axial strain')
+        axs[1].legend()
+        axs[2].plot(timePCS, q_PCS[:,i+2], label=f'segment {i+1}')
+        axs[2].grid(True)
+        axs[2].set_xlabel('t [s]')
+        axs[2].set_ylabel(r"$\sigma_\mathrm{sh}$ [-]")
+        axs[2].set_title('Shear strain')
+        axs[2].legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'Strains_after', bbox_inches='tight')
+    #plt.show()
     
     # Plot y(t) and y_hat(t)
     fig, axs = plt.subplots(3,2, figsize=(12,9))
@@ -839,6 +1008,7 @@ if show_simulations:
         ax.set_xlabel('t [s]')
         ax.set_ylabel('y, q')
         ax.set_title(f'Component {i+1}')
+        ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         ax.legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
@@ -854,6 +1024,8 @@ if show_simulations:
         ax.set_xlabel(r'$y$')
         ax.set_ylabel(r'$\dot{y}$')
         ax.set_title(f'Component {i+1}')
+        ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+        ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
         ax.legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
@@ -883,6 +1055,7 @@ labels = onp.array(metrics["labels"])
 
 _, metrics = Loss_approx(
     approx=approximator_opt, 
+    controller=mlp_controller_opt,
     data_batch=test_set,
 )
 RMSE_approx = onp.sqrt(metrics["MSE"])
