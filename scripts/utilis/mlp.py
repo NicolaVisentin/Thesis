@@ -132,3 +132,12 @@ class MLP(eqx.Module):
                 b = jnp.array(data[f"b_{i}"])
                 params.append((W, b))
         return params
+    
+    def init_params_batch(self, key, batch_size: int) -> Params:
+        """"
+        Gives params as a list of tuples with batches of parameters, i.e.:
+        params_batch = [(W1_batch, b1_batch), (W2_batch, b2_batch), ...] where
+        W1.shape = (batch_size, dim(W1)), b1_shape = (batch_size, dim(b1)), etc.
+        """
+        keys = jax.random.split(key, batch_size)
+        return jax.vmap(self._init_params)(keys)
