@@ -192,21 +192,21 @@ show_simulations = True # choose whether to perform time simulations of the appr
 # Converts A -> A_raw
 @partial(jax.jit, static_argnums=(1,))
 def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
-    """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*Vt, where s vector is parametrized with softplus
     to ensure s_i > thresh >= 0 for all i."""
     U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
     s_raw = InverseSoftplus(s - s_thresh) # convert singular values
-    A_raw = (U, s_raw, Vt.T)
+    A_raw = (U, s_raw, Vt)
     return A_raw
 
 # Converts A_raw -> A
 @partial(jax.jit, static_argnums=(1,))
 def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
-    """A_raw is tuple (U,s,V) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
     to ensure s_i > thresh >= 0 for all i."""
-    U, s_raw, V = A_raw
+    U, s_raw, Vt = A_raw
     s = jax.nn.softplus(s_raw) + s_thresh
-    A = U @ jnp.diag(s) @ V.T
+    A = U @ jnp.diag(s) @ Vt
     return A
 
 # Loss function
