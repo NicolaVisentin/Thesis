@@ -141,3 +141,26 @@ class MLP(eqx.Module):
         """
         keys = jax.random.split(key, batch_size)
         return jax.vmap(self._init_params)(keys)
+    
+    @staticmethod
+    def extract_params_from_batch(params_batch: Params, idx: int) -> Params:
+        """
+        If params_batch is a Params list that contains tuples of batched parameters, this
+        method extracts a Params list with tuples of the parameters in position idx within
+        the batches.
+
+        Args
+        ----
+        params_batch : Params
+            List of tuples with batches of parameters, i.e.:
+            params_batch = [(W1, b1), (W2, b2), ...] where Wi.shape=(batch_size, ...) and
+            bi.shape=(batch_size, ...).     
+        idx : int
+            Position in the batch of the parameters to extract.
+
+        Returns
+        -------
+        params : Params
+            List of desired parameters.
+        """
+        return [(W[idx], b[idx]) for (W, b) in params_batch]
