@@ -164,6 +164,11 @@ def Loss(
     
     return loss, metrics
 
+# Some useful vmapped functions
+Loss_vmap = jax.vmap(Loss, in_axes=(0,None,None,None,None))
+A2Araw_vmap = jax.vmap(A2Araw, in_axes=(0,None))
+Araw2A_vmap = jax.vmap(Araw2A, in_axes=(0,None))
+
 
 # =====================================================
 # Prepare datasets
@@ -202,7 +207,7 @@ train_size, n_ron = train_set["y"].shape
 # =====================================================
 
 # Epochs and batches
-n_epochs = 150   # number of epochs
+n_epochs = 16   # number of epochs
 batch_size = 2**6 # batch size
 
 batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
@@ -218,7 +223,7 @@ lr = optax.warmup_cosine_decay_schedule(
 optimizer = optax.adam(learning_rate=lr)
 
 # Number of samples (optimizations to run in parallel)
-n_samples = 1
+n_samples = 5
 
 
 # =====================================================
@@ -264,19 +269,19 @@ init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,None,None,None))
 A0 = init_A_svd_batch(keysA, n_ron, s_min, s_max, sample_logscale)
 c0 = jnp.zeros((n_samples, 3*n_pcs))
 
-A0_raw = A2Araw(A0, s_thresh)
+A0_raw = A2Araw_vmap(A0, s_thresh)
 
-MAP = (A0_raw, c0)
+MAP0 = (A0_raw, c0)
 
 # MLP fb controller
 key, keyController = jax.random.split(key)
 mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
 mlp_controller = MLP(key=keyController, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
-CONTR = mlp_controller.init_params_batch(keyController, n_samples)               # generates as many params as the number of samples
+CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
 
 # Collect all parameters
-Phi0 = (MAP, CONTR)
+Phi0 = (MAP0, CONTR0)
 params_optimiz0 = (Phi0, phi0)
 
 # "Dummy" instantiation of robot class
@@ -300,8 +305,7 @@ robot = PlanarPCS_simple(
 Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thresh=s_thresh))
 
 # Compute RMSE on the test set before optimization for the various guesses
-Loss_vmap = jax.vmap(Loss, in_axes=(0,None))
-_, metrics = Loss_vmap(params_optimiz0, test_set)
+_, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
 RMSE_before = onp.sqrt(metrics["MSE"])
 
 
@@ -331,25 +335,109 @@ results = train_in_parallel(
     n_epochs,
     batch_size,
 )
-params_optimiz = results["params_optimiz"]
+params_optimiz_after = results["params_optimiz"]
 train_loss_ts = results["train_loss_ts"]
 train_MSE_ts = results["train_MSE_ts"]
 val_loss_ts = results["val_loss_ts"]
 val_MSE_ts = results["val_MSE_ts"]
 
-jax.block_until_ready(params_optimiz)
+jax.block_until_ready(params_optimiz_after)
 end = time.perf_counter()
 elatime_optimiz = end - start
 print(f'Elapsed time: {elatime_optimiz} s')
 
 
 # =====================================================
-# Results
+# Save results
 # =====================================================
 
+# Extract (raw) parameters
+Phi_after, phi_after = params_optimiz_after
+
+MAP_after, CONTR_after = Phi_after
+A_raw_after, c_after = MAP_after
+L_raw_after, D_raw_after, r_raw_after, rho_raw_after, E_raw_after, G_raw_after = phi_after
+
+# Convert parameters
+A_after = Araw2A_vmap(A_raw_after, s_thresh)
+L_after = jax.nn.softplus(L_raw_after)
+D_after = jax.nn.softplus(D_raw_after)
+r_after = jax.nn.softplus(r_raw_after)
+rho_after = jax.nn.softplus(rho_raw_after)
+E_after = jax.nn.softplus(E_raw_after)
+G_after = jax.nn.softplus(G_raw_after)
+
+# Find best result and update controller
+idx_best = jnp.argmin(val_MSE_ts[:,-1])
+CONTR_best = mlp_controller.extract_params_from_batch(CONTR_after, idx_best)
+mlp_controller_best = mlp_controller.update_params(CONTR_best)
+
 # Compute RMSE on the test set after optimization for the various guesses
-_, metrics = Loss_vmap(params_optimiz, test_set)
+_, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
 RMSE_after = onp.sqrt(metrics["MSE"])
+
+# Save hyperparameters
+with open(data_folder/'hyperparameters.txt', 'w') as file:
+    file.write(f"Optimizer: adam\n")
+    file.write(f"learning rate: cosine (max=1e-3, min=1e-5) + linear warmup (start=1e-6, duration=15)\n")
+    file.write(f"Epochs: {n_epochs}\n")
+
+# Save all n_samples sets of parameters before training
+onp.savez(
+    data_folder/'all_data_robot_before.npz', 
+    L_before=onp.array(L0), 
+    D_before=onp.array(D0),
+    r_before=onp.array(r0),
+    rho_before=onp.array(rho0),
+    E_before=onp.array(E0),
+    G_before=onp.array(G0),
+)
+onp.savez(
+    data_folder/'all_data_map_before.npz', 
+    A_before=onp.array(A0), 
+    c_before=onp.array(c0)
+)
+"""Note: controller data before training are not saved"""
+onp.savez(
+    data_folder/'all_rmse_before.npz', 
+    RMSE_before=onp.array(RMSE_before)
+)
+
+# Save all n_samples sets of parameters after training
+onp.savez(
+    data_folder/'all_data_robot_after.npz', 
+    L_after=onp.array(L_after), 
+    D_after=onp.array(D_after),
+    r_after=onp.array(r_after),
+    rho_after=onp.array(rho_after),
+    E_after=onp.array(E_after),
+    G_after=onp.array(G_after),
+)
+onp.savez(
+    data_folder/'all_data_map_after.npz', 
+    A_after=onp.array(A_after), 
+    c_after=onp.array(c_after)
+)
+"""Note: only BEST controller data after training is saved"""
+mlp_controller_best.save_params(data_folder/'best_data_controller_after.npz') 
+onp.savez(
+    data_folder/'all_rmse_after.npz', 
+    RMSE_after=onp.array(RMSE_after)
+)
+
+# Save all loss curves
+onp.savez(
+    data_folder/'all_loss_curves.npz', 
+    train_losses_ts = train_loss_ts,
+    train_MSEs_ts = train_MSE_ts,
+    val_losses_ts = val_loss_ts,
+    val_MSEs_ts = val_MSE_ts
+)
+
+
+# =====================================================
+# Visualize results
+# =====================================================
 
 # Visualize results of multiple optimizations
 plt.figure()
@@ -369,8 +457,6 @@ plt.savefig(plots_folder/'All_results', bbox_inches='tight')
 #plt.show()
 
 # Visualize best result
-idx_best = jnp.argmin(val_MSE_ts[:,-1])
-
 fig, ax1 = plt.subplots()
 
 train_loss_line, = ax1.plot(range(n_epochs), train_loss_ts[idx_best,:n_epochs], 'r', label='train loss')
