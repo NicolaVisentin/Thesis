@@ -228,7 +228,7 @@ def Loss(
         Parameters for the opimization. In this case a list with:
         - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
                    with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
-        - **phi**: Tuple with pcs params (L_raw, D_raw). L_raw.shape=(n_pcs,), D_raw.shape=(3*n_pcs,)
+        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -396,7 +396,7 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
 #A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
-A0 = init_A_svd(key_A, n_ron, A_thresh)
+A0 = init_A_svd(key_A, n_ron, A_thresh + 1e-6)
 c0 = jnp.zeros(3*n_pcs)
 # ...robot
 L0 = 1e-1*jnp.ones(n_pcs)
@@ -406,8 +406,8 @@ rho0 = 1070*jnp.ones(n_pcs)
 E0 = 2e3*jnp.ones(n_pcs)
 G0 = 1e3*jnp.ones(n_pcs)
 # ...controller
-mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]                                # [input, hidden1, hidden2, output]
-mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.01) # initialize MLP feedback control law
+mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]                                  # [input, hidden1, hidden2, output]
+mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.001) # initialize MLP feedback control law
 
 L_raw = InverseSoftplus(L0)
 D_raw = InverseSoftplus(jnp.diag(D0))
