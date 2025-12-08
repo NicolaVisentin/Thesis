@@ -27,6 +27,7 @@ sys.path.append(str(curr_folder.parent)) # scripts folder
 from utilis import *
 
 # Jax settings
+print(f"\nAvailable devices: {jax.devices()}\n")
 jax.config.update("jax_enable_x64", True)  # double precision
 jnp.set_printoptions(
     threshold=jnp.inf,
@@ -206,7 +207,7 @@ train_size, n_ron = train_set["y"].shape
 # =====================================================
 
 # Epochs and batches
-n_epochs = 16   # number of epochs
+n_epochs = 150   # number of epochs
 batch_size = 2**6 # batch size
 
 batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
@@ -222,7 +223,7 @@ lr = optax.warmup_cosine_decay_schedule(
 optimizer = optax.adam(learning_rate=lr)
 
 # Number of samples (optimizations to run in parallel)
-n_samples = 5
+n_samples = 20
 
 
 # =====================================================
