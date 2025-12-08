@@ -40,8 +40,7 @@ key = jax.random.key(seed)
 main_folder = curr_folder.parent.parent                                            # main folder "codes"
 plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-saved_data_folder = main_folder/'saved data'                                       # folder for saved data
-data_folder = saved_data_folder/curr_folder.stem/Path(__file__).stem               # folder for saving data
+data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -175,7 +174,7 @@ Araw2A_vmap = jax.vmap(Araw2A, in_axes=(0,None))
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/dataset_m1e5_N6_simplified.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
