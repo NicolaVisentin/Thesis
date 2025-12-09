@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
+os.environ["JAX_PLATFORM_NAME"] = "gpu"
 
 # Imports
 import numpy as onp
@@ -207,7 +207,7 @@ train_size, n_ron = train_set["y"].shape
 # =====================================================
 
 # Epochs and batches
-n_epochs = 150   # number of epochs
+n_epochs = 300    # number of epochs
 batch_size = 2**6 # batch size
 
 batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
@@ -223,7 +223,7 @@ lr = optax.warmup_cosine_decay_schedule(
 optimizer = optax.adam(learning_rate=lr)
 
 # Number of samples (optimizations to run in parallel)
-n_samples = 20
+n_samples = 30
 
 
 # =====================================================
@@ -258,15 +258,16 @@ G0_raw = InverseSoftplus(G0)
 phi0 = (L0_raw, D0_raw, r0_raw, rho0_raw, E0_raw, G0_raw)
 
 # Mapping
-keys = jax.random.split(key, n_samples+1)
-key, keysA = keys[0], keys[1:]
+keys = jax.random.split(key, 1+1+n_samples)
+key, keyOOM, keysA = keys[0], keys[1], keys[2:]
+s_thresh = 1e-4              # min threshold for s_i during optimization
+min_oom_s, max_oom_s = -3, 1 # each sample A0 has all singular values with same order of magnitude sampled between 10^(min_oom_s) and 10^(max_oom_s)
 
-s_thresh = 1e-4                   # min threshold for s_i during optimization
-s_min, s_max = s_thresh+1e-6, 1.0 # samples s0_i in [s_min, s_max]
-sample_logscale = False           # samples using log10 scale
+oom_s = jax.random.uniform(keyOOM, (n_samples,), minval=min_oom_s, maxval=max_oom_s) # sample different order of magnitudes for the singular values
+s_value = s_thresh + 10**oom_s                                                       # defines values for s_i: s_i = 10^(oom_s) for all s_i in one sample
 
-init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,None,None,None))
-A0 = init_A_svd_batch(keysA, n_ron, s_min, s_max, sample_logscale)
+init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,0,0,None))
+A0 = init_A_svd_batch(keysA, n_ron, s_value, s_value + 1e-6, False) # this function samples each A0 with DIFFERENT s_i in [s_min, s_max], that's why we chose s_max = s_min + eps
 c0 = jnp.zeros((n_samples, 3*n_pcs))
 
 A0_raw = A2Araw_vmap(A0, s_thresh)
@@ -367,10 +368,12 @@ rho_after = jax.nn.softplus(rho_raw_after)
 E_after = jax.nn.softplus(E_raw_after)
 G_after = jax.nn.softplus(G_raw_after)
 
-# Find best result and update controller
+# Find best result and update controller (also pick corresponding controller before optimization)
 idx_best = jnp.argmin(val_MSE_ts[:,-1])
-CONTR_best = mlp_controller.extract_params_from_batch(CONTR_after, idx_best)
-mlp_controller_best = mlp_controller.update_params(CONTR_best)
+CONTR_after_best = mlp_controller.extract_params_from_batch(CONTR_after, idx_best)
+CONTR_before_best = mlp_controller.extract_params_from_batch(CONTR0, idx_best)
+mlp_controller_after_best = mlp_controller.update_params(CONTR_after_best)
+mlp_controller_before_best = mlp_controller.update_params(CONTR_before_best)
 
 # Compute RMSE on the test set after optimization for the various guesses
 _, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
@@ -381,6 +384,8 @@ with open(data_folder/'hyperparameters.txt', 'w') as file:
     file.write(f"Optimizer: adam\n")
     file.write(f"learning rate: cosine (max=1e-3, min=1e-5) + linear warmup (start=1e-6, duration=15)\n")
     file.write(f"Epochs: {n_epochs}\n")
+    file.write(f"Batch size: {batch_size}\n")
+    file.write(f"Samples: {n_samples}\n")
 
 # Save all n_samples sets of parameters before training
 onp.savez(
@@ -397,7 +402,8 @@ onp.savez(
     A_before=onp.array(A0), 
     c_before=onp.array(c0)
 )
-"""Note: controller data before training are not saved"""
+"""Note: only controller_before cooresponding to the BEST case after training is saved"""
+mlp_controller_before_best.save_params(data_folder/'best_data_controller_before.npz') 
 onp.savez(
     data_folder/'all_rmse_before.npz', 
     RMSE_before=onp.array(RMSE_before)
@@ -418,8 +424,8 @@ onp.savez(
     A_after=onp.array(A_after), 
     c_after=onp.array(c_after)
 )
-"""Note: only BEST controller data after training is saved"""
-mlp_controller_best.save_params(data_folder/'best_data_controller_after.npz') 
+"""Note: only BEST case controller after training is saved"""
+mlp_controller_after_best.save_params(data_folder/'best_data_controller_after.npz') 
 onp.savez(
     data_folder/'all_rmse_after.npz', 
     RMSE_after=onp.array(RMSE_after)
