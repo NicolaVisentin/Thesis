@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 # Imports
 import numpy as onp
@@ -45,6 +45,13 @@ data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem     
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
+
+
+# =====================================================
+# Script settings
+# =====================================================
+train_samples = False       # if True, short training on many samples. If False, long training on the best sample
+load_case_prefix = '1_oomA' # if train_samples is False, choose prefix of the experiment to load
 
 
 # =====================================================
@@ -206,80 +213,142 @@ train_size, n_ron = train_set["y"].shape
 # Optimization hyperparameters
 # =====================================================
 
-# Epochs and batches
-n_epochs = 300    # number of epochs
-batch_size = 2**6 # batch size
+if train_samples:
+    # Epochs and batches
+    n_epochs = 300    # number of epochs
+    batch_size = 2**6 # batch size
 
-batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
+    batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
 
-# Optimizer and learning rate
-lr = optax.warmup_cosine_decay_schedule(
-    init_value=1e-6,
-    peak_value=1e-3,
-    warmup_steps=15*batches_per_epoch,
-    decay_steps=n_epochs*batches_per_epoch,
-    end_value=1e-5
-)
-optimizer = optax.adam(learning_rate=lr)
+    # Optimizer and learning rate
+    lr = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=1e-3,
+        warmup_steps=15*batches_per_epoch,
+        decay_steps=n_epochs*batches_per_epoch,
+        end_value=1e-5
+    )
+    optimizer = optax.adam(learning_rate=lr)
 
-# Number of samples (optimizations to run in parallel)
-n_samples = 30
+    # Number of samples (optimizations to run in parallel)
+    n_samples = 30
+else:
+    # Epochs and batches
+    n_epochs = 1500   # number of epochs
+    batch_size = 2**6 # batch size
+
+    batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
+
+    # Optimizer and learning rate
+    lr = optax.warmup_cosine_decay_schedule(
+        init_value=1e-6,
+        peak_value=1e-3,
+        warmup_steps=15*batches_per_epoch,
+        decay_steps=n_epochs*batches_per_epoch,
+        end_value=1e-5
+    )
+    optimizer = optax.adam(learning_rate=lr)
+
+    # Number of samples (optimizations to run in parallel)
+    n_samples = 1
 
 
 # =====================================================
 # Initial guesses for parameters
 # =====================================================
 
-# PCS robot
-n_pcs = 2
-key, keyL, keyD, keyr, keyrho, keyE, keyG = jax.random.split(key, 7)
+if train_samples:
+    # PCS robot
+    n_pcs = 2
+    key, keyL, keyD, keyr, keyrho, keyE, keyG = jax.random.split(key, 7)
 
-L_min, L_max = 0.05, 1.0
-D_min, D_max = jnp.tile(jnp.array([1e-6, 1e-4, 1e-4]), n_pcs), jnp.tile(jnp.array([1e-3, 1e-1, 1e-1]), n_pcs)
-r_min, r_max = 5e-3, 1e-1
-rho_min, rho_max = 900, 1300
-E_min, E_max = 1e3, 1e4
-G_min, G_max = 1e3/3, 1e4/3
+    L_min, L_max = 0.05, 1.0
+    D_min, D_max = jnp.tile(jnp.array([1e-6, 1e-4, 1e-4]), n_pcs), jnp.tile(jnp.array([1e-3, 1e-1, 1e-1]), n_pcs)
+    r_min, r_max = 5e-3, 1e-1
+    rho_min, rho_max = 900, 1300
+    E_min, E_max = 1e3, 1e4
+    G_min, G_max = 1e3/3, 1e4/3
 
-L0 = jax.random.uniform(keyL, (n_samples,n_pcs), minval=L_min, maxval=L_max)
-D0 = jax.random.uniform(keyD, (n_samples,3*n_pcs), minval=D_min, maxval=D_max)
-r0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=r_min, maxval=r_max)
-rho0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=rho_min, maxval=rho_max)
-E0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=E_min, maxval=E_max)
-G0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=G_min, maxval=G_max)
+    L0 = jax.random.uniform(keyL, (n_samples,n_pcs), minval=L_min, maxval=L_max)
+    D0 = jax.random.uniform(keyD, (n_samples,3*n_pcs), minval=D_min, maxval=D_max)
+    r0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=r_min, maxval=r_max)
+    rho0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=rho_min, maxval=rho_max)
+    E0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=E_min, maxval=E_max)
+    G0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=G_min, maxval=G_max)
 
-L0_raw = InverseSoftplus(L0)
-D0_raw = InverseSoftplus(D0)
-r0_raw = InverseSoftplus(r0)
-rho0_raw = InverseSoftplus(rho0)
-E0_raw = InverseSoftplus(E0)
-G0_raw = InverseSoftplus(G0)
+    L0_raw = InverseSoftplus(L0)
+    D0_raw = InverseSoftplus(D0)
+    r0_raw = InverseSoftplus(r0)
+    rho0_raw = InverseSoftplus(rho0)
+    E0_raw = InverseSoftplus(E0)
+    G0_raw = InverseSoftplus(G0)
 
-phi0 = (L0_raw, D0_raw, r0_raw, rho0_raw, E0_raw, G0_raw)
+    phi0 = (L0_raw, D0_raw, r0_raw, rho0_raw, E0_raw, G0_raw)
 
-# Mapping
-keys = jax.random.split(key, 1+1+n_samples)
-key, keyOOM, keysA = keys[0], keys[1], keys[2:]
-s_thresh = 1e-4              # min threshold for s_i during optimization
-min_oom_s, max_oom_s = -3, 1 # each sample A0 has all singular values with same order of magnitude sampled between 10^(min_oom_s) and 10^(max_oom_s)
+    # Mapping
+    keys = jax.random.split(key, 1+1+n_samples)
+    key, keyOOM, keysA = keys[0], keys[1], keys[2:]
+    s_thresh = 1e-4              # min threshold for s_i during optimization
+    min_oom_s, max_oom_s = -3, 1 # each sample A0 has all singular values with same order of magnitude sampled between 10^(min_oom_s) and 10^(max_oom_s)
 
-oom_s = jax.random.uniform(keyOOM, (n_samples,), minval=min_oom_s, maxval=max_oom_s) # sample different order of magnitudes for the singular values
-s_value = s_thresh + 10**oom_s                                                       # defines values for s_i: s_i = 10^(oom_s) for all s_i in one sample
+    oom_s = jax.random.uniform(keyOOM, (n_samples,), minval=min_oom_s, maxval=max_oom_s) # sample different order of magnitudes for the singular values
+    s_value = s_thresh + 10**oom_s                                                       # defines values for s_i: s_i = 10^(oom_s) for all s_i in one sample
 
-init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,0,0,None))
-A0 = init_A_svd_batch(keysA, n_ron, s_value, s_value + 1e-6, False) # this function samples each A0 with DIFFERENT s_i in [s_min, s_max], that's why we chose s_max = s_min + eps
-c0 = jnp.zeros((n_samples, 3*n_pcs))
+    init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,0,0,None))
+    A0 = init_A_svd_batch(keysA, n_ron, s_value, s_value + 1e-6, False) # this function samples each A0 with DIFFERENT s_i in [s_min, s_max], that's why we chose s_max = s_min + eps
+    c0 = jnp.zeros((n_samples, 3*n_pcs))
 
-A0_raw = A2Araw_vmap(A0, s_thresh)
+    A0_raw = A2Araw_vmap(A0, s_thresh)
 
-MAP0 = (A0_raw, c0)
+    MAP0 = (A0_raw, c0)
 
-# MLP fb controller
-key, keyController = jax.random.split(key)
-mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
-mlp_controller = MLP(key=keyController, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
+    # MLP fb controller
+    key, keyController = jax.random.split(key)
+    mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
+    mlp_controller = MLP(key=keyController, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
-CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
+    CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
+else:
+    # Load data
+    all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                            # load all RMSE on the test set after parallel training
+    idx_best = onp.argmin(all_rmse["RMSE_after"])                                                        # index of the best sample
+    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz')             # load all robot data before training
+    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')                 # load all map data beofre training
+
+    # PCS robot
+    n_pcs = 2
+
+    L0 = all_robot_before["L_before"][idx_best,:][None,:]
+    D0 = all_robot_before["D_before"][idx_best,:][None,:]
+    r0 = all_robot_before["r_before"][idx_best,:][None,:]
+    rho0 = all_robot_before["rho_before"][idx_best,:][None,:]
+    E0 = all_robot_before["E_before"][idx_best,:][None,:]
+    G0 = all_robot_before["G_before"][idx_best,:][None,:]
+
+    L0_raw = InverseSoftplus(L0)
+    D0_raw = InverseSoftplus(D0)
+    r0_raw = InverseSoftplus(r0)
+    rho0_raw = InverseSoftplus(rho0)
+    E0_raw = InverseSoftplus(E0)
+    G0_raw = InverseSoftplus(G0)
+
+    phi0 = (L0_raw, D0_raw, r0_raw, rho0_raw, E0_raw, G0_raw)
+
+    # Mapping
+    s_thresh = 1e-4 # min threshold for s_i during optimization
+    A0 = all_map_before["A_before"][idx_best,:][None,:]
+    c0 = all_map_before["c_before"][idx_best,:][None,:]
+
+    A0_raw = A2Araw_vmap(A0, s_thresh)
+
+    MAP0 = (A0_raw, c0)
+
+    # MLP fb controller
+    key, subkey = jax.random.split(key)
+    mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
+    mlp_controller = MLP(key=key, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
+
+    CONTR0 = mlp_controller.load_params(data_folder/f'{load_case_prefix}_best_data_controller_before.npz')
 
 # Collect all parameters
 Phi0 = (MAP0, CONTR0)
