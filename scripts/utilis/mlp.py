@@ -121,15 +121,20 @@ class MLP(eqx.Module):
         np.savez(path, **flat_params)
     
     @staticmethod
-    def load_params(path: str) -> Params:
-        """Load parameters of the network from a .npz file."""
+    def load_params(path: str, load_as_batch: bool=False) -> Params:
+        """Load parameters of the network from a .npz file. If load_as_batch is True, then loads
+        the parameters as they were a batch of 1 element (i.e. adds a dimension to each parameter)."""
         with np.load(path) as data:
             keys = sorted(data.files)  # sorted to ensure correct order: W_0, b_0, ...
             num_layers = len(keys) // 2
             params = []
             for i in range(num_layers):
-                W = jnp.array(data[f"W_{i}"])
-                b = jnp.array(data[f"b_{i}"])
+                if load_as_batch:
+                    W = jnp.array(data[f"W_{i}"][None,:])
+                    b = jnp.array(data[f"b_{i}"][None,:])
+                else:
+                    W = jnp.array(data[f"W_{i}"])
+                    b = jnp.array(data[f"b_{i}"])
                 params.append((W, b))
         return params
     
