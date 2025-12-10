@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
+os.environ["JAX_PLATFORM_NAME"] = "gpu"
 
 # Imports
 import numpy as onp
@@ -50,8 +50,8 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-train_samples = False       # if True, short training on many samples. If False, long training on the best sample
-load_case_prefix = '1_oomA' # if train_samples is False, choose prefix of the experiment to load
+train_samples = True       # if True, short training on many samples. If False, long training on the best sample
+load_case_prefix = 'SAMPLES' # if train_samples is False, choose prefix of the experiment to load
 
 
 # =====================================================
@@ -318,12 +318,12 @@ else:
     # PCS robot
     n_pcs = 2
 
-    L0 = all_robot_before["L_before"][idx_best,:][None,:]
-    D0 = all_robot_before["D_before"][idx_best,:][None,:]
-    r0 = all_robot_before["r_before"][idx_best,:][None,:]
-    rho0 = all_robot_before["rho_before"][idx_best,:][None,:]
-    E0 = all_robot_before["E_before"][idx_best,:][None,:]
-    G0 = all_robot_before["G_before"][idx_best,:][None,:]
+    L0 = jnp.array(all_robot_before["L_before"][idx_best,:][None,:])
+    D0 = jnp.array(all_robot_before["D_before"][idx_best,:][None,:])
+    r0 = jnp.array(all_robot_before["r_before"][idx_best,:][None,:])
+    rho0 = jnp.array(all_robot_before["rho_before"][idx_best,:][None,:])
+    E0 = jnp.array(all_robot_before["E_before"][idx_best,:][None,:])
+    G0 = jnp.array(all_robot_before["G_before"][idx_best,:][None,:])
 
     L0_raw = InverseSoftplus(L0)
     D0_raw = InverseSoftplus(D0)
@@ -336,8 +336,8 @@ else:
 
     # Mapping
     s_thresh = 1e-4 # min threshold for s_i during optimization
-    A0 = all_map_before["A_before"][idx_best,:][None,:]
-    c0 = all_map_before["c_before"][idx_best,:][None,:]
+    A0 = jnp.array(all_map_before["A_before"][idx_best,:][None,:])
+    c0 = jnp.array(all_map_before["c_before"][idx_best,:][None,:])
 
     A0_raw = A2Araw_vmap(A0, s_thresh)
 
@@ -348,7 +348,10 @@ else:
     mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
     mlp_controller = MLP(key=key, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
-    CONTR0 = mlp_controller.load_params(data_folder/f'{load_case_prefix}_best_data_controller_before.npz')
+    CONTR0 = mlp_controller.load_params(
+        path=data_folder/f'{load_case_prefix}_best_data_controller_before.npz', 
+        load_as_batch=True
+    )
 
 # Collect all parameters
 Phi0 = (MAP0, CONTR0)
