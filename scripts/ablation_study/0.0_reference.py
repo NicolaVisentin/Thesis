@@ -381,6 +381,17 @@ Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thres
 _, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
 RMSE_before = onp.sqrt(metrics["MSE"])
 
+# Compute actuation RMS value on the test set before optimization for the various guesses
+norms_tau_before = []
+for i in range(n_samples):
+    params_i = mlp_controller.extract_params_from_batch(CONTR0, i)
+    q = test_set["y"] @ A0[i].T + c0[i]                # shape (testset_size, 3*n_pcs)
+    qd = test_set["yd"] @ A0[i].T                      # shape (testset_size, 3*n_pcs)
+    z = jnp.concatenate([q, qd], axis=1)               # shape (testset_size, 2*3*n_pcs)
+    tau_i = mlp_controller._forward_batch(params_i, z) # shape (testset_size, 3*n_pcs)
+    norms_tau_i = jnp.sqrt(jnp.mean(tau_i**2, axis=0)) # shape (3*n_pcs,)
+    norms_tau_before.append(norms_tau_i)
+norms_tau_before = jnp.stack(norms_tau_before, axis=0) # shape (n_samples, 3*n_pcs)
 
 # =====================================================
 # Optimizations
@@ -451,6 +462,18 @@ mlp_controller_before_best = mlp_controller.update_params(CONTR_before_best)
 _, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
 RMSE_after = onp.sqrt(metrics["MSE"])
 
+# Compute actuation RMS value on the test set after optimization for the various guesses
+norms_tau_after = []
+for i in range(n_samples):
+    params_i = mlp_controller.extract_params_from_batch(CONTR_after, i)
+    q = test_set["y"] @ A_after[i].T + c_after[i]      # shape (testset_size, 3*n_pcs)
+    qd = test_set["yd"] @ A_after[i].T                 # shape (testset_size, 3*n_pcs)
+    z = jnp.concatenate([q, qd], axis=1)               # shape (testset_size, 2*3*n_pcs)
+    tau_i = mlp_controller._forward_batch(params_i, z) # shape (testset_size, 3*n_pcs)
+    norms_tau_i = jnp.sqrt(jnp.mean(tau_i**2, axis=0)) # shape (3*n_pcs,)
+    norms_tau_after.append(norms_tau_i)
+norms_tau_after = jnp.stack(norms_tau_after, axis=0)   # shape (n_samples, 3*n_pcs)
+
 # Save hyperparameters
 with open(data_folder/'hyperparameters.txt', 'w') as file:
     file.write(f"Optimizer: adam\n")
@@ -480,6 +503,10 @@ onp.savez(
     data_folder/'all_rmse_before.npz', 
     RMSE_before=onp.array(RMSE_before)
 )
+onp.savez(
+    data_folder/'all_norms_tau_before.npz', 
+    norms_tau_before=onp.array(norms_tau_before)
+)
 
 # Save all n_samples sets of parameters after training
 onp.savez(
@@ -501,6 +528,10 @@ mlp_controller_after_best.save_params(data_folder/'best_data_controller_after.np
 onp.savez(
     data_folder/'all_rmse_after.npz', 
     RMSE_after=onp.array(RMSE_after)
+)
+onp.savez(
+    data_folder/'all_norms_tau_after.npz', 
+    norms_tau_after=onp.array(norms_tau_after)
 )
 
 # Save all loss curves
