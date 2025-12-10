@@ -9,11 +9,21 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 # Imports
 import sys
 from pathlib import Path
+import time
+
 import numpy as onp
 import jax
 import jax.numpy as jnp
+from diffrax import Tsit5, ConstantStepSize
+
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
+from matplotlib.animation import FuncAnimation
+from matplotlib.animation import PillowWriter
+from matplotlib.widgets import Slider
+
+from soromox.systems.my_systems import PlanarPCS_simple
+from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -39,28 +49,238 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 
 
 # =====================================================
-# 0.0 REFERENCE CASE
+# Utilis
 # =====================================================
 
-# Choose data
-test_case = '0.0_reference' # choose test case
-prefix = '1_oomA'           # choose prefix for data to load
+# Functions for plotting robot
+def draw_robot(
+        robot: PlanarPCS_simple, 
+        q: Array, 
+        num_points: int = 50
+):
+    L_max = jnp.sum(robot.L)
+    s_ps = jnp.linspace(0, L_max, num_points)
 
-# Show comparison of all different samplings (short training)
+    chi_ps = robot.forward_kinematics_batched(q, s_ps)  # (N,3)
+    curve = jnp.array(chi_ps[:, 1:], dtype=jnp.float64) # (N,2)
+    pos_tip = curve[-1]                                 # [x_tip, y_tip]
+
+    return curve, pos_tip
+
+def animate_robot_matplotlib(
+    robot: PlanarPCS_simple,
+    t_list: Array,  # shape (T,)
+    q_list: Array,  # shape (T, DOF)
+    target: Array = None,
+    num_points: int = 50,
+    interval: int = 50,
+    slider: bool = None,
+    animation: bool = None,
+    show: bool = True,
+    fps: float = None,
+    duration: float = None,
+    save_path: Path = None,
+):
+    if slider is None and animation is None:
+        raise ValueError("Either 'slider' or 'animation' must be set to True.")
+    if animation and slider:
+        raise ValueError(
+            "Cannot use both animation and slider at the same time. Choose one."
+        )
+
+    _, pos_tip_list = jax.vmap(draw_robot, in_axes=(None,0,None))(robot, q_list, num_points)
+    width = onp.max(pos_tip_list)
+    height = width
+
+    if target is not None:
+        t_old = onp.linspace(0, 1, len(target))
+        t_new = onp.linspace(0, 1, len(q_list))
+        target = onp.interp(t_new, t_old, target)
+
+    def draw_base(ax, robot, L=robot.L[0] / 2):
+        angle1 = robot.th0 - jnp.pi / 2
+        angle2 = robot.th0 + jnp.pi / 2
+        x1, y1 = L * jnp.cos(angle1), L * jnp.sin(angle1)
+        x2, y2 = L * jnp.cos(angle2), L * jnp.sin(angle2)
+        ax.plot([x1, x2], [y1, y2], color="black", linestyle="-", linewidth=2)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    draw_base(ax, robot, L=0.1)
+
+    if animation:
+        n_frames = len(q_list)
+        default_fps = 1000 / interval
+        default_duration = n_frames * (interval / 1000)
+        if fps is None and duration is None:
+            final_fps = default_fps
+            final_duration = default_duration
+            frame_skip = 1
+        elif fps is not None and duration is None:
+            final_fps = fps
+            final_duration = n_frames / save_fps
+            frame_skip = 1
+        elif fps is None and duration is not None:
+            final_duration = duration
+            final_fps = n_frames / duration
+            frame_skip = 1
+        else:
+            final_fps = fps
+            final_duration = duration
+            n_required_frames = int(final_duration * final_fps)
+            n_required_frames = max(1, n_required_frames)
+            frame_skip = max(1, n_frames // n_required_frames)
+
+        frame_indices = list(range(0, n_frames, frame_skip))
+
+        (line,) = ax.plot([], [], lw=4, color="blue")
+        (tip,) = ax.plot([], [], 'ro', markersize=5)
+        (targ,) = ax.plot([], [], color='r', alpha=0.5)
+        ax.set_xlim(-width / 2, width / 2)
+        ax.set_ylim(0, height)
+        ax.grid(True)
+        title_text = ax.set_title("t = 0.00 s")
+
+        def init():
+            line.set_data([], [])
+            tip.set_data([], [])
+            targ.set_data([], [])
+            title_text.set_text("t = 0.00 s")
+            return line, tip, targ, title_text
+
+        def update(frame_idx):
+            q = q_list[frame_idx]
+            t = t_list[frame_idx]
+            curve, tip_pos = draw_robot(robot, q, num_points)
+            line.set_data(curve[:, 0], curve[:, 1])
+            tip.set_data([tip_pos[0]], [tip_pos[1]])
+            if target is not None:
+                x_target = target[frame_idx]
+                targ.set_data([x_target,x_target], [0,height])
+            title_text.set_text(f"t = {t:.2f} s")
+            return (line, tip, title_text) + ((targ,) if target is not None else ())
+
+        ani = FuncAnimation(
+            fig,
+            update,
+            frames=frame_indices,
+            init_func=init,
+            blit=False,
+            interval=1000/final_fps,
+        )
+        if save_path is not None:
+            ani.save(save_path, writer=PillowWriter(fps=final_fps))
+
+    elif slider:
+
+        def update_plot(frame_idx):
+            ax.cla()  # Clear current axes
+            ax.set_xlim(-width / 2, width / 2)
+            ax.set_ylim(0, height)
+            ax.set_xlabel("X [m]")
+            ax.set_ylabel("Y [m]")
+            ax.set_title(f"t = {t_list[frame_idx]:.2f} s")
+            ax.grid(True)
+            q = q_list[frame_idx]
+            curve, tip_pos = draw_robot(robot, q, num_points)
+            ax.plot(curve[:, 0], curve[:, 1], lw=4, color="blue")
+            ax.plot([tip_pos[0]], [tip_pos[1]], 'ro', markersize=5)
+            if target is not None:
+                x_target = target[frame_idx]
+                ax.plot([x_target,x_target], [0,height], 'r', alpha=0.5)
+            fig.canvas.draw_idle()
+
+        # Create slider
+        ax_slider = fig.add_axes([0.2, 0.05, 0.6, 0.03])  # [left, bottom, width, height]
+        slider = Slider(
+            ax=ax_slider,
+            label="Frame",
+            valmin=0,
+            valmax=len(t_list) - 1,
+            valinit=0,
+            valstep=1,
+        )
+        slider.on_changed(update_plot)
+
+        update_plot(0)  # Initial plot
+
+    if show:
+        plt.show()
+
+    plt.close(fig)
+
+# Dummy instantiations
+n_pcs = 2
+parameters = {
+    "th0": jnp.array(jnp.pi/2),
+    "L": jnp.ones(n_pcs),
+    "r": jnp.ones(n_pcs),
+    "rho": jnp.ones(n_pcs),
+    "g": jnp.array([0.0, 9.81]), # !! gravity UP !!
+    "E": jnp.ones(n_pcs),
+    "G": jnp.ones(n_pcs),
+    "D": jnp.eye(3*n_pcs)
+}
+robot = PlanarPCS_simple(
+    num_segments = n_pcs,
+    params = parameters,
+    order_gauss = 5
+)
+
+key, subkey = jax.random.split(key)
+mlp_controller = MLP(key=subkey, layer_sizes=[2*3*n_pcs, 64, 64, 3*n_pcs])
+
+def tau_law(system_state: SystemState, controller: MLP):
+    """Implements user-defined feedback control tau(t) = MLP(q(t),qd(t))."""
+    tau = controller(system_state.y)
+    return tau, None
+
+# RON data
+RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
+time_RONsaved = jnp.array(RON_evolution_data['time'])
+y_RONsaved = jnp.array(RON_evolution_data['y'])
+yd_RONsaved = jnp.array(RON_evolution_data['yd'])
+
+# Simulation parameters
+t0 = time_RONsaved[0]
+t1 = time_RONsaved[-1]
+dt = 1e-4
+saveat = np.arange(t0, t1, 1e-2)
+solver = Tsit5()
+step_size = ConstantStepSize()
+max_steps = int(1e6)
+
+
+# =====================================================
+# 0.0 Reference case
+# =====================================================
+print(f'--- REFERENCE CASE ---')
+test_case = '0.0_reference'
+(plots_folder/test_case).mkdir(parents=True, exist_ok=True)
+
+##### ALL SAMPLES #####
+prefix = '_samples'
+
+# Load and extract data
 all_loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
 all_rmse_before = onp.load(data_folder/test_case/f'{prefix}_all_rmse_before.npz')
 all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
 
+all_train_loss_ts = all_loss_curves["train_losses_ts"]
+all_val_loss_ts = all_loss_curves["val_losses_ts"]
 all_train_mse_ts = all_loss_curves["train_MSEs_ts"]
 all_rmse_before = all_rmse_before["RMSE_before"]
 all_rmse_after = all_rmse_after["RMSE_after"]
 n_samples = all_rmse_before.shape[0]
+n_epochs_samples = all_train_mse_ts.shape[1]
 
-(plots_folder/test_case).mkdir(parents=True, exist_ok=True)
+# Plot comparison of all samples (RMSE)
+colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
+
 plt.figure()
-plt.plot(onp.arange(n_samples)+1, all_rmse_before, 'gx', label='test RMSE before')
-plt.plot(onp.arange(n_samples)+1, all_rmse_after, 'go', label='test RMSE after')
-plt.plot(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), 'ro', label='final train RMSE')
+plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
+plt.scatter(onp.arange(n_samples)+1, all_rmse_after, marker='o', c=colors, label='test RMSE after')
+plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
 plt.yscale('log')
 plt.grid(True)
 plt.xlabel('sample n.')
@@ -70,6 +290,347 @@ plt.legend()
 plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
 plt.tight_layout()
 plt.savefig(plots_folder/test_case/'samples_comparison', bbox_inches='tight')
+#plt.show()
+
+# Plot comparison of all samples (loss curves)
+plt.figure()
+for i in range(n_samples):
+    plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
+    plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
+plt.grid(True)
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.title('Results for all samples')
+plt.legend()
+plt.yscale('log')
+plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'samples_losses', bbox_inches='tight')
+#plt.show()
+
+##### BEST RESULT #####
+prefix = '_best'
+
+# Load and extract data (training)
+loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
+train_loss_ts = loss_curves["train_losses_ts"][0]
+val_loss_ts = loss_curves["val_losses_ts"][0]
+n_epochs = len(train_loss_ts)
+
+# Load and extract data (before training)
+CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
+controller_before = mlp_controller.update_params(CONTR_before)
+tau_norms_before = onp.load(data_folder/test_case/f'{prefix}_all_norms_tau_before.npz')
+tau_norms_before = tau_norms_before["norms_tau_before"][0]
+
+robot_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
+L_before = jnp.array(robot_data_before["L_before"][0])
+D_before = jnp.array(robot_data_before["D_before"][0])
+r_before = jnp.array(robot_data_before["r_before"][0])
+rho_before = jnp.array(robot_data_before["rho_before"][0])
+E_before = jnp.array(robot_data_before["E_before"][0])
+G_before = jnp.array(robot_data_before["G_before"][0])
+robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+
+map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
+A_before = jnp.array(map_data_before["A_before"][0])
+c_before = jnp.array(map_data_before["c_before"][0])
+
+# Load and extract data (after training)
+CONTR_after = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_after.npz')
+controller_after = mlp_controller.update_params(CONTR_after)
+tau_norms_after = onp.load(data_folder/test_case/f'{prefix}_all_norms_tau_after.npz')
+tau_norms_after = tau_norms_after["norms_tau_after"][0]
+
+robot_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+L_after = jnp.array(robot_data_after["L_after"][0])
+D_after = jnp.array(robot_data_after["D_after"][0])
+r_after = jnp.array(robot_data_after["r_after"][0])
+rho_after = jnp.array(robot_data_after["rho_after"][0])
+E_after = jnp.array(robot_data_after["E_after"][0])
+G_after = jnp.array(robot_data_after["G_after"][0])
+robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+
+map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
+A_after = jnp.array(map_data_after["A_after"][0])
+c_after = jnp.array(map_data_after["c_after"][0])
+
+# Simulation before training
+print('Simulating best case (before training)...')
+q0 = A_before @ y_RONsaved[0] + c_before
+qd0 = A_before @ yd_RONsaved[0]
+initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
+
+tau_fb = jax.jit(partial(tau_law, controller=controller_before)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+
+start = time.perf_counter()
+sim_out_pcs = robot_before.rollout_closed_loop_to(
+    initial_state = initial_state_pcs,
+    controller = tau_fb,
+    t1 = t1, 
+    solver_dt = dt, 
+    save_ts = saveat,
+    solver = solver,
+    stepsize_controller = step_size,
+    max_steps = max_steps
+)
+end = time.perf_counter()
+print(f'Elapsed time: {end-start} s')
+
+timePCS_before = sim_out_pcs.t
+q_PCS_before, qd_PCS_before = jnp.split(sim_out_pcs.y, 2, axis=1)
+u_pcs_before = sim_out_pcs.u
+y_hat_pcs_before = jnp.linalg.solve(A_before, (q_PCS_before - c_before).T).T # y_hat(t) = inv(A) * ( q(t) - c )
+yd_hat_pcs_before = jnp.linalg.solve(A_before, qd_PCS_before.T).T            # yd_hat(t) = inv(A) * qd(t)
+
+# Simulation after training
+print('Simulating best case (after training)...')
+q0 = A_after @ y_RONsaved[0] + c_after
+qd0 = A_after @ yd_RONsaved[0]
+initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
+
+tau_fb = jax.jit(partial(tau_law, controller=controller_after)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+
+start = time.perf_counter()
+sim_out_pcs = robot_after.rollout_closed_loop_to(
+    initial_state = initial_state_pcs,
+    controller = tau_fb,
+    t1 = t1, 
+    solver_dt = dt, 
+    save_ts = saveat,
+    solver = solver,
+    stepsize_controller = step_size,
+    max_steps = max_steps
+)
+end = time.perf_counter()
+print(f'Elapsed time: {end-start} s')
+
+timePCS_after = sim_out_pcs.t
+q_PCS_after, qd_PCS_after = jnp.split(sim_out_pcs.y, 2, axis=1)
+u_pcs_after = sim_out_pcs.u
+y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
+yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T            # yd_hat(t) = inv(A) * qd(t)
+
+# Show loss curve
+plt.figure()
+plt.plot(range(n_epochs), train_loss_ts, 'r', label='train loss')
+plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b', label='validation loss')
+plt.grid(True)
+plt.xlabel('epoch')
+plt.ylabel('loss')
+plt.title('Result for best initial guess')
+plt.legend()
+plt.yscale('log')
+plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_loss', bbox_inches='tight')
+#plt.show()
+
+# Show and save animation before training 
+animate_robot_matplotlib(
+    robot = robot_before,
+    t_list = saveat,
+    q_list = q_PCS_before,
+    interval = 1e-3, 
+    slider = False,
+    animation = True,
+    show = False,
+    duration = 10,
+    fps = 30,
+    save_path = plots_folder/test_case/'best_result_animation_before.gif',
+)
+
+# Show animation after training
+animate_robot_matplotlib(
+    robot = robot_after,
+    t_list = saveat,
+    q_list = q_PCS_after,
+    interval = 1e-3, 
+    slider = False,
+    animation = True,
+    show = False,
+    duration = 10,
+    fps = 30,
+    save_path = plots_folder/test_case/'best_result_animation_after.gif',
+)
+
+# Plot robot strains and control torque before training
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i in range(n_pcs):
+    axs[0,0].plot(timePCS_before, q_PCS_before[:,i], label=f'segment {i+1}')
+    axs[0,0].grid(True)
+    axs[0,0].set_xlabel('t [s]')
+    axs[0,0].set_ylabel(r"$\kappa_\mathrm{be}$ [rad/m]")
+    axs[0,0].set_title('Bending strain')
+    axs[0,0].legend()
+    axs[1,0].plot(timePCS_before, q_PCS_before[:,i+1], label=f'segment {i+1}')
+    axs[1,0].grid(True)
+    axs[1,0].set_xlabel('t [s]')
+    axs[1,0].set_ylabel(r"$\sigma_\mathrm{ax}$ [-]")
+    axs[1,0].set_title('Axial strain')
+    axs[1,0].legend()
+    axs[2,0].plot(timePCS_before, q_PCS_before[:,i+2], label=f'segment {i+1}')
+    axs[2,0].grid(True)
+    axs[2,0].set_xlabel('t [s]')
+    axs[2,0].set_ylabel(r"$\sigma_\mathrm{sh}$ [-]")
+    axs[2,0].set_title('Shear strain')
+    axs[2,0].legend()
+for i in range(n_pcs):
+    axs[0,1].plot(timePCS_before, u_pcs_before[:,i], label=f'segment {i+1}')
+    axs[0,1].grid(True)
+    axs[0,1].set_xlabel('t [s]')
+    axs[0,1].set_ylabel(r"$u_\mathrm{be}$ [rad/m]")
+    axs[0,1].set_title('Bending actuation')
+    axs[0,1].legend()
+    axs[1,1].plot(timePCS_before, u_pcs_before[:,i+1], label=f'segment {i+1}')
+    axs[1,1].grid(True)
+    axs[1,1].set_xlabel('t [s]')
+    axs[1,1].set_ylabel(r"$u_\mathrm{ax}$ [-]")
+    axs[1,1].set_title('Axial actuation')
+    axs[1,1].legend()
+    axs[2,1].plot(timePCS_before, u_pcs_before[:,i+2], label=f'segment {i+1}')
+    axs[2,1].grid(True)
+    axs[2,1].set_xlabel('t [s]')
+    axs[2,1].set_ylabel(r"$u_\mathrm{sh}$ [-]")
+    axs[2,1].set_title('Shear actuation')
+    axs[2,1].legend()
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_strains_before', bbox_inches='tight')
+#plt.show()
+
+# Plot robot strains and control torque after training
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i in range(n_pcs):
+    axs[0,0].plot(timePCS_after, q_PCS_after[:,i], label=f'segment {i+1}')
+    axs[0,0].grid(True)
+    axs[0,0].set_xlabel('t [s]')
+    axs[0,0].set_ylabel(r"$\kappa_\mathrm{be}$ [rad/m]")
+    axs[0,0].set_title('Bending strain')
+    axs[0,0].legend()
+    axs[1,0].plot(timePCS_after, q_PCS_after[:,i+1], label=f'segment {i+1}')
+    axs[1,0].grid(True)
+    axs[1,0].set_xlabel('t [s]')
+    axs[1,0].set_ylabel(r"$\sigma_\mathrm{ax}$ [-]")
+    axs[1,0].set_title('Axial strain')
+    axs[1,0].legend()
+    axs[2,0].plot(timePCS_after, q_PCS_after[:,i+2], label=f'segment {i+1}')
+    axs[2,0].grid(True)
+    axs[2,0].set_xlabel('t [s]')
+    axs[2,0].set_ylabel(r"$\sigma_\mathrm{sh}$ [-]")
+    axs[2,0].set_title('Shear strain')
+    axs[2,0].legend()
+for i in range(n_pcs):
+    axs[0,1].plot(timePCS_after, u_pcs_after[:,i], label=f'segment {i+1}')
+    axs[0,1].grid(True)
+    axs[0,1].set_xlabel('t [s]')
+    axs[0,1].set_ylabel(r"$u_\mathrm{be}$ [rad/m]")
+    axs[0,1].set_title('Bending actuation')
+    axs[0,1].legend()
+    axs[1,1].plot(timePCS_after, u_pcs_after[:,i+1], label=f'segment {i+1}')
+    axs[1,1].grid(True)
+    axs[1,1].set_xlabel('t [s]')
+    axs[1,1].set_ylabel(r"$u_\mathrm{ax}$ [-]")
+    axs[1,1].set_title('Axial actuation')
+    axs[1,1].legend()
+    axs[2,1].plot(timePCS_after, u_pcs_after[:,i+2], label=f'segment {i+1}')
+    axs[2,1].grid(True)
+    axs[2,1].set_xlabel('t [s]')
+    axs[2,1].set_ylabel(r"$u_\mathrm{sh}$ [-]")
+    axs[2,1].set_title('Shear actuation')
+    axs[2,1].legend()
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_strains_after', bbox_inches='tight')
+#plt.show()
+
+# Plot y(t) and y_hat(t) before training
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
+    ax.plot(timePCS_before, y_hat_pcs_before[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y, q')
+    ax.set_title(f'Component {i+1}')
+    #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+    ax.legend()
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
+#plt.show()
+
+# Plot y(t) and y_hat(t) after training
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
+    ax.plot(timePCS_after, y_hat_pcs_after[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y, q')
+    ax.set_title(f'Component {i+1}')
+    #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+    ax.legend()
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
+#plt.show()
+
+# Plot phase planes before training
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+    ax.plot(y_hat_pcs_before[:, i], yd_hat_pcs_before[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+    ax.grid(True)
+    ax.set_xlabel(r'$y$')
+    ax.set_ylabel(r'$\dot{y}$')
+    ax.set_title(f'Component {i+1}')
+    #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+    #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+    ax.legend()
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
+#plt.show()
+
+# Plot phase planes after training
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+    ax.plot(y_hat_pcs_after[:, i], yd_hat_pcs_after[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+    ax.grid(True)
+    ax.set_xlabel(r'$y$')
+    ax.set_ylabel(r'$\dot{y}$')
+    ax.set_title(f'Component {i+1}')
+    #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+    #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+    ax.legend()
+plt.tight_layout()
+plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
 plt.show()
 
-# Show BEST result among all samples (long training)
+# Save in a text file all the parameters before and after training
+with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
+    file.write(f'----------BEFORE TRAINING----------\n')
+    file.write(f'PCS:\n')
+    file.write(f'L = {L_before}\n')
+    file.write(f'D = {D_before}\n')
+    file.write(f'r = {r_before}\n')
+    file.write(f'rho = {rho_before}\n')
+    file.write(f'E = {E_before}\n')
+    file.write(f'G = {G_before}\n')
+    file.write(f'\nMAP:\n')
+    file.write(f'A = {A_before}\n')
+    file.write(f'A_inv = {onp.linalg.inv(A_before)}\n')
+    file.write(f'c = {c_before}\n')
+    file.write(f'\nCONTROLLER:\n')
+    file.write(f'test |u_i| = {tau_norms_before}\n')
+    file.write(f'\n\n----------AFTER TRAINING----------\n')
+    file.write(f'PCS:\n')
+    file.write(f'L = {L_after}\n')
+    file.write(f'D = {D_after}\n')
+    file.write(f'r = {r_after}\n')
+    file.write(f'rho = {rho_after}\n')
+    file.write(f'E = {E_after}\n')
+    file.write(f'G = {G_after}\n')
+    file.write(f'\nMAP:\n')
+    file.write(f'A = {A_after}\n')
+    file.write(f'A_inv = {onp.linalg.inv(A_after)}\n')
+    file.write(f'c = {c_after}\n')
+    file.write(f'\nCONTROLLER:\n')
+    file.write(f'test |u_i| = {tau_norms_after}\n')
