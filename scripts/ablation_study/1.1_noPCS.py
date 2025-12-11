@@ -50,7 +50,7 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-ref_data_prefix = 'BEST' # prefix of the REFERENCE data (for same initial condition)
+ref_data_prefix = 'BEST_REF' # prefix of the REFERENCE data (for same initial condition)
 
 
 # =====================================================
@@ -317,6 +317,7 @@ for i in range(n_samples):
     norms_tau_i = jnp.sqrt(jnp.mean(tau_i**2, axis=0)) # shape (3*n_pcs,)
     norms_tau_before.append(norms_tau_i)
 norms_tau_before = jnp.stack(norms_tau_before, axis=0) # shape (n_samples, 3*n_pcs)
+
 
 # =====================================================
 # Optimizations
