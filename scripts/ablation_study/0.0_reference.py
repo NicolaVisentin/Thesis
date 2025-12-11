@@ -50,7 +50,7 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # Script settings
 # =====================================================
 train_samples = True       # if True, short training on many samples. If False, long training on the best sample
-load_case_prefix = 'SAMPLES' # if train_samples is False, choose prefix of the experiment to load
+load_case_prefix = 'SAMPLES_REF' # if train_samples is False, choose prefix of the experiment to load
 
 
 # =====================================================
