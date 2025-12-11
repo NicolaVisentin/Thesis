@@ -450,16 +450,16 @@ rho_after = jax.nn.softplus(rho_raw_after)
 E_after = jax.nn.softplus(E_raw_after)
 G_after = jax.nn.softplus(G_raw_after)
 
+# Compute RMSE on the test set after optimization for the various guesses
+_, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
+RMSE_after = onp.sqrt(metrics["MSE"])
+
 # Find best result and update controller (also pick corresponding controller before optimization)
-idx_best = jnp.argmin(val_MSE_ts[:,-1])
+idx_best = jnp.argmin(RMSE_after)
 CONTR_after_best = mlp_controller.extract_params_from_batch(CONTR_after, idx_best)
 CONTR_before_best = mlp_controller.extract_params_from_batch(CONTR0, idx_best)
 mlp_controller_after_best = mlp_controller.update_params(CONTR_after_best)
 mlp_controller_before_best = mlp_controller.update_params(CONTR_before_best)
-
-# Compute RMSE on the test set after optimization for the various guesses
-_, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
-RMSE_after = onp.sqrt(metrics["MSE"])
 
 # Compute actuation RMS value on the test set after optimization for the various guesses
 norms_tau_after = []
