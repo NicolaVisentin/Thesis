@@ -163,7 +163,7 @@ def Loss(
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
 
     # add regularization on controller contribution
-    alpha = 1.0
+    alpha = 1e-1
     regul_controller = jnp.mean(jnp.sum(tau_batch**2, axis=1))
 
     # overall loss
