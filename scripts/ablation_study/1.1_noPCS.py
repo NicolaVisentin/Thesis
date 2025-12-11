@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 # Imports
 import numpy as onp
