@@ -392,6 +392,7 @@ for i in range(n_samples):
     norms_tau_before.append(norms_tau_i)
 norms_tau_before = jnp.stack(norms_tau_before, axis=0) # shape (n_samples, 3*n_pcs)
 
+
 # =====================================================
 # Optimizations
 # =====================================================
