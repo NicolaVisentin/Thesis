@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 # Imports
 import numpy as onp
@@ -333,7 +333,7 @@ train_in_parallel = jax.jit(
 keys = jax.random.split(key, n_samples+1)
 key, keysTrain = keys[0], keys[1:]
 
-print("Starting optimizations...")
+print(f"Starting optimizations ({n_samples} samples, {n_epochs} epochs)...")
 start = time.perf_counter()
 results = train_in_parallel(
     keysTrain,

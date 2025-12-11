@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 # Imports
 import numpy as onp
@@ -41,6 +41,7 @@ main_folder = curr_folder.parent.parent                                         
 plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
 data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
+data_folder_ref = main_folder/'saved data'/curr_folder.stem/'0.0_reference'        # folder with referenece saved data
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -49,8 +50,9 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-train_samples = True       # if True, short training on many samples. If False, long training on the best sample
-load_case_prefix = 'SAMPLES_REF' # if train_samples is False, choose prefix of the experiment to load
+train_samples = True                  # if True, short training on many samples. If False, long training on the best sample
+ref_data_prefix = 'SAMPLES_REF'       # prefix of the REFERENCE data (for same initial condition)
+load_case_prefix = 'SAMPLES_REGULMLP' # if train_samples is False, choose prefix of the experiment to load
 
 
 # =====================================================
@@ -159,7 +161,13 @@ def Loss(
     # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
     ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # convert predictions from qdd to ydd
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
-    loss = MSE
+
+    # add regularization on controller contribution
+    alpha = 1e-1
+    regul_controller = jnp.mean(jnp.sum(tau_batch**2, axis=1))
+
+    # overall loss
+    loss = MSE + alpha * regul_controller
 
     # store metrics
     metrics = {
@@ -214,7 +222,7 @@ train_size, n_ron = train_set["y"].shape
 
 if train_samples:
     # Epochs and batches
-    n_epochs = 300    # number of epochs
+    n_epochs = onp.load(data_folder_ref/f'{ref_data_prefix}_all_loss_curves.npz')["train_losses_ts"].shape[1] # number of epochs
     batch_size = 2**6 # batch size
 
     batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
@@ -230,7 +238,7 @@ if train_samples:
     optimizer = optax.adam(learning_rate=lr)
 
     # Number of samples (optimizations to run in parallel)
-    n_samples = 30
+    n_samples = onp.load(data_folder_ref/f'{ref_data_prefix}_all_loss_curves.npz')["train_losses_ts"].shape[0]
 else:
     # Epochs and batches
     n_epochs = 1500   # number of epochs
@@ -257,23 +265,20 @@ else:
 # =====================================================
 
 if train_samples:
+    # Load data (best reference case)
+    all_robot_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_robot_before.npz') # load all robot data before training
+    all_map_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_map_before.npz')     # load all map data before training
+
     # PCS robot
     n_pcs = 2
     key, keyL, keyD, keyr, keyrho, keyE, keyG = jax.random.split(key, 7)
 
-    L_min, L_max = 0.025, 0.4
-    D_min, D_max = jnp.tile(jnp.array([1e-5, 1e-2, 1e-2]), n_pcs), jnp.tile(jnp.array([4.5e-4, 4.5e-1, 4.5e-1]), n_pcs)
-    r_min, r_max = 0.005, 0.1
-    rho_min, rho_max = 900, 1300
-    E_min, E_max = 1e3, 1e4
-    G_min, G_max = 1e3/3, 1e4/3
-
-    L0 = jax.random.uniform(keyL, (n_samples,n_pcs), minval=L_min, maxval=L_max)
-    D0 = jax.random.uniform(keyD, (n_samples,3*n_pcs), minval=D_min, maxval=D_max)
-    r0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=r_min, maxval=r_max)
-    rho0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=rho_min, maxval=rho_max)
-    E0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=E_min, maxval=E_max)
-    G0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=G_min, maxval=G_max)
+    L0 = jnp.array(all_robot_before["L_before"])
+    D0 = jnp.array(all_robot_before["D_before"])
+    r0 = jnp.array(all_robot_before["r_before"])
+    rho0 = jnp.array(all_robot_before["rho_before"])
+    E0 = jnp.array(all_robot_before["E_before"])
+    G0 = jnp.array(all_robot_before["G_before"])
 
     L0_raw = InverseSoftplus(L0)
     D0_raw = InverseSoftplus(D0)
@@ -285,17 +290,9 @@ if train_samples:
     phi0 = (L0_raw, D0_raw, r0_raw, rho0_raw, E0_raw, G0_raw)
 
     # Mapping
-    keys = jax.random.split(key, 1+1+n_samples)
-    key, keyOOM, keysA = keys[0], keys[1], keys[2:]
-    s_thresh = 1e-4              # min threshold for s_i during optimization
-    min_oom_s, max_oom_s = -3, 1 # each sample A0 has all singular values with same order of magnitude sampled between 10^(min_oom_s) and 10^(max_oom_s)
-
-    oom_s = jax.random.uniform(keyOOM, (n_samples,), minval=min_oom_s, maxval=max_oom_s) # sample different order of magnitudes for the singular values
-    s_value = s_thresh + 10**oom_s                                                       # defines values for s_i: s_i = 10^(oom_s) for all s_i in one sample
-
-    init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,0,0,None))
-    A0 = init_A_svd_batch(keysA, n_ron, s_value, s_value + 1e-6, False) # this function samples each A0 with DIFFERENT s_i in [s_min, s_max], that's why we chose s_max = s_min + eps
-    c0 = jnp.zeros((n_samples, 3*n_pcs))
+    s_thresh = 1e-4 # min threshold for s_i during optimization
+    A0 = jnp.array(all_map_before["A_before"])
+    c0 = jnp.array(all_map_before["c_before"])
 
     A0_raw = A2Araw_vmap(A0, s_thresh)
 
@@ -306,7 +303,8 @@ if train_samples:
     mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
     mlp_controller = MLP(key=keyController, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
-    CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
+    """Note: controller is NOT initialized as the 0.0_reference samples cases, but it's basically null in both cases."""
+    CONTR0 = mlp_controller.init_params_batch(keyController, n_samples) # generates as many params as the number of samples
 else:
     # Load data
     all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                # load all RMSE on the test set after parallel training

@@ -41,6 +41,7 @@ main_folder = curr_folder.parent.parent                                         
 plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
 data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
+data_folder_ref = main_folder/'saved data'/curr_folder.stem/'0.0_reference'        # folder with referenece saved data
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -49,8 +50,9 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-train_samples = True       # if True, short training on many samples. If False, long training on the best sample
-load_case_prefix = 'SAMPLES_REF' # if train_samples is False, choose prefix of the experiment to load
+train_samples = True                 # if True, short training on many samples. If False, long training on the best sample
+ref_data_prefix = 'BEST_REF'         # prefix of the REFERENCE data (for same initial condition)
+load_case_prefix = 'SAMPLES_DIAGMAP' # if train_samples is False, choose prefix of the experiment to load (i.e. samples among which looking for the best)
 
 
 # =====================================================
@@ -59,22 +61,16 @@ load_case_prefix = 'SAMPLES_REF' # if train_samples is False, choose prefix of t
 
 # Converts A -> A_raw
 @jax.jit
-def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
-    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*Vt, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
-    s_raw = InverseSoftplus(s - s_thresh) # convert singular values
-    A_raw = (U, s_raw, Vt)
+def A2Araw(A: Array, a_thresh: float=0.0) -> Tuple:
+    A_flat = jnp.diag(A)
+    A_raw = InverseSoftplus(A_flat - a_thresh) # convert singular values
     return A_raw
 
 # Converts A_raw -> A
 @jax.jit
-def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
-    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s_raw, Vt = A_raw
-    s = jax.nn.softplus(s_raw) + s_thresh
-    A = U @ jnp.diag(s) @ Vt
+def Araw2A(A_raw: Tuple, a_thresh: float=0.0) -> Array:
+    A_flat = jax.nn.softplus(A_raw) + a_thresh
+    A = jnp.diag(A_flat)
     return A
 
 # Loss function
@@ -167,7 +163,7 @@ def Loss(
         "predictions": ydd_hat_batch,
         "labels": ydd_batch,
     }
-    
+
     return loss, metrics
 
 # Some useful vmapped functions
@@ -214,7 +210,7 @@ train_size, n_ron = train_set["y"].shape
 
 if train_samples:
     # Epochs and batches
-    n_epochs = 300    # number of epochs
+    n_epochs = 300
     batch_size = 2**6 # batch size
 
     batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
@@ -230,7 +226,7 @@ if train_samples:
     optimizer = optax.adam(learning_rate=lr)
 
     # Number of samples (optimizations to run in parallel)
-    n_samples = 30
+    n_samples = 10
 else:
     # Epochs and batches
     n_epochs = 1500   # number of epochs
@@ -257,23 +253,18 @@ else:
 # =====================================================
 
 if train_samples:
+    # Load data (best reference case)
+    all_robot_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_robot_before.npz') # load all robot data before training
+
     # PCS robot
     n_pcs = 2
-    key, keyL, keyD, keyr, keyrho, keyE, keyG = jax.random.split(key, 7)
 
-    L_min, L_max = 0.025, 0.4
-    D_min, D_max = jnp.tile(jnp.array([1e-5, 1e-2, 1e-2]), n_pcs), jnp.tile(jnp.array([4.5e-4, 4.5e-1, 4.5e-1]), n_pcs)
-    r_min, r_max = 0.005, 0.1
-    rho_min, rho_max = 900, 1300
-    E_min, E_max = 1e3, 1e4
-    G_min, G_max = 1e3/3, 1e4/3
-
-    L0 = jax.random.uniform(keyL, (n_samples,n_pcs), minval=L_min, maxval=L_max)
-    D0 = jax.random.uniform(keyD, (n_samples,3*n_pcs), minval=D_min, maxval=D_max)
-    r0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=r_min, maxval=r_max)
-    rho0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=rho_min, maxval=rho_max)
-    E0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=E_min, maxval=E_max)
-    G0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=G_min, maxval=G_max)
+    L0 = jnp.tile(jnp.array(all_robot_before["L_before"]), (n_samples, 1))
+    D0 = jnp.tile(jnp.array(all_robot_before["D_before"]), (n_samples, 1))
+    r0 = jnp.tile(jnp.array(all_robot_before["r_before"]), (n_samples, 1))
+    rho0 = jnp.tile(jnp.array(all_robot_before["rho_before"]), (n_samples, 1))
+    E0 = jnp.tile(jnp.array(all_robot_before["E_before"]), (n_samples, 1))
+    G0 = jnp.tile(jnp.array(all_robot_before["G_before"]), (n_samples, 1))
 
     L0_raw = InverseSoftplus(L0)
     D0_raw = InverseSoftplus(D0)
@@ -284,17 +275,20 @@ if train_samples:
 
     phi0 = (L0_raw, D0_raw, r0_raw, rho0_raw, E0_raw, G0_raw)
 
-    # Mapping
-    keys = jax.random.split(key, 1+1+n_samples)
-    key, keyOOM, keysA = keys[0], keys[1], keys[2:]
-    s_thresh = 1e-4              # min threshold for s_i during optimization
-    min_oom_s, max_oom_s = -3, 1 # each sample A0 has all singular values with same order of magnitude sampled between 10^(min_oom_s) and 10^(max_oom_s)
-
-    oom_s = jax.random.uniform(keyOOM, (n_samples,), minval=min_oom_s, maxval=max_oom_s) # sample different order of magnitudes for the singular values
-    s_value = s_thresh + 10**oom_s                                                       # defines values for s_i: s_i = 10^(oom_s) for all s_i in one sample
-
-    init_A_svd_batch = jax.vmap(init_A_svd, in_axes=(0,None,0,0,None))
-    A0 = init_A_svd_batch(keysA, n_ron, s_value, s_value + 1e-6, False) # this function samples each A0 with DIFFERENT s_i in [s_min, s_max], that's why we chose s_max = s_min + eps
+    # Mapping (diagonal matrix in this case)
+    s_thresh = 1e-5
+    A0 = jnp.array(
+        [jnp.diag(1e1 * jnp.ones(n_ron)),
+        jnp.diag(1e0 * jnp.ones(n_ron)),
+        jnp.diag(1e-1 * jnp.ones(n_ron)),
+        jnp.diag(1e-2 * jnp.ones(n_ron)),
+        jnp.diag(1e-3 * jnp.ones(n_ron)),
+        jnp.diag(jnp.array([1e0, 1e-1, 1e-1, 1e0, 1e-1, 1e-1])),
+        jnp.diag(jnp.array([1e-1, 1e-3, 1e-3, 1e-1, 1e-3, 1e-3])),
+        jnp.diag(jnp.array([15, 0.5, 0.5, 15, 0.5, 0.5])),
+        jnp.diag(jnp.array([1e0, 2e-5, 2e-5, 1e0, 2e-5, 2e-5])),
+        jnp.diag(jnp.array([1e1, 1e0, 1e0, 1e1, 1e0, 1e0]))]
+    )
     c0 = jnp.zeros((n_samples, 3*n_pcs))
 
     A0_raw = A2Araw_vmap(A0, s_thresh)
@@ -306,7 +300,8 @@ if train_samples:
     mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
     mlp_controller = MLP(key=keyController, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
-    CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
+    """Note: controller is NOT initialized as the 0.0_reference samples cases, but it's basically null in both cases."""
+    CONTR0 = mlp_controller.init_params_batch(keyController, n_samples) # generates as many params as the number of samples
 else:
     # Load data
     all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                # load all RMSE on the test set after parallel training
