@@ -20,7 +20,6 @@ import time
 import sys
 
 from soromox.systems.my_systems import PlanarPCS_simple
-from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -262,9 +261,9 @@ if train_samples:
     n_pcs = 2
     key, keyL, keyD, keyr, keyrho, keyE, keyG = jax.random.split(key, 7)
 
-    L_min, L_max = 0.05, 1.0
-    D_min, D_max = jnp.tile(jnp.array([1e-6, 1e-4, 1e-4]), n_pcs), jnp.tile(jnp.array([1e-3, 1e-1, 1e-1]), n_pcs)
-    r_min, r_max = 5e-3, 1e-1
+    L_min, L_max = 0.025, 0.4
+    D_min, D_max = jnp.tile(jnp.array([1e-5, 1e-2, 1e-2]), n_pcs), jnp.tile(jnp.array([4.5e-4, 4.5e-1, 4.5e-1]), n_pcs)
+    r_min, r_max = 0.005, 0.1
     rho_min, rho_max = 900, 1300
     E_min, E_max = 1e3, 1e4
     G_min, G_max = 1e3/3, 1e4/3
@@ -310,10 +309,10 @@ if train_samples:
     CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
 else:
     # Load data
-    all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                            # load all RMSE on the test set after parallel training
-    idx_best = onp.argmin(all_rmse["RMSE_after"])                                                        # index of the best sample
-    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz')             # load all robot data before training
-    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')                 # load all map data beofre training
+    all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                # load all RMSE on the test set after parallel training
+    idx_best = onp.argmin(all_rmse["RMSE_after"])                                            # index of the best sample
+    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz') # load all robot data before training
+    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')     # load all map data beofre training
 
     # PCS robot
     n_pcs = 2
@@ -346,7 +345,7 @@ else:
     # MLP fb controller
     key, subkey = jax.random.split(key)
     mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
-    mlp_controller = MLP(key=key, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
+    mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
     CONTR0 = mlp_controller.load_params(
         path=data_folder/f'{load_case_prefix}_best_data_controller_before.npz', 
