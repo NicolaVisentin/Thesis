@@ -6,7 +6,7 @@ plots and videos/*
 !plots and videos/.gitkeep
 
 saved data/*
-!data/.gitkeep
+!saved data/.gitkeep
 
 datasets/*
 !datasets/.gitkeep
