@@ -373,37 +373,44 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
 if train_A_diag:
-    A0 = jnp.eye(n_ron)
+    A0 = 1e-2 * jnp.eye(n_ron)
 else:
-    A0 = init_A_svd(key_A, n_ron, A_thresh+1e-6)
-c0 = jnp.zeros(3*n_pcs)
-# ...robot
-L0 = 1e-1*jnp.ones(n_pcs)
-D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs))
-r0 = 2e-2*jnp.ones(n_pcs)
-rho0 = 1070*jnp.ones(n_pcs)
-E0 = 2e3*jnp.ones(n_pcs)
-G0 = 1e3*jnp.ones(n_pcs)
+    A0 = init_A_svd(key=key_A, n=n_ron, s_min=A_thresh+1e-6, s_max=1e-1)
+c0 = jnp.zeros(Nrobots*3*n_pcs)
+# ...robots (parameters of each single robot)
+L0 = 1e-1*jnp.ones(n_pcs)                                     # shape (n_pcs,)
+D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)) # shape (3*n_pcs,3*n_pcs)
+r0 = 2e-2*jnp.ones(n_pcs)                                     # shape (n_pcs,)
+rho0 = 1070*jnp.ones(n_pcs)                                   # shape (n_pcs,)
+E0 = 2e3*jnp.ones(n_pcs)                                      # shape (n_pcs,)
+G0 = 1e3*jnp.ones(n_pcs)                                      # shape (n_pcs,)
 # ...controller
-mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]                                  # [input, hidden1, hidden2, output]
+mlp_sizes = [2*Nrobots*3*n_pcs, 64, 64, Nrobots*3*n_pcs]                  # [input, hidden1, hidden2, output]
 mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.001) # initialize MLP feedback control law
 
-L_raw = InverseSoftplus(L0)
-D_raw = InverseSoftplus(jnp.diag(D0))
-r_raw = InverseSoftplus(r0)
-rho_raw = InverseSoftplus(rho0)
-E_raw = InverseSoftplus(E0)
-G_raw = InverseSoftplus(G0)
+L_raw = InverseSoftplus(L0)           # shape (n_pcs,)
+D_raw = InverseSoftplus(jnp.diag(D0)) # shape (3*n_pcs,)
+r_raw = InverseSoftplus(r0)           # shape (n_pcs,)
+rho_raw = InverseSoftplus(rho0)       # shape (n_pcs,)
+E_raw = InverseSoftplus(E0)           # shape (n_pcs,)
+G_raw = InverseSoftplus(G0)           # shape (n_pcs,)
 A_raw = A2Araw(A0, A_thresh)
 c = c0
 
 MAP = (A_raw, c)
 CONTR = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 Phi = (MAP, CONTR)
-phi = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
+phi = (
+    jnp.broadcast_to(L_raw, (Nrobots, L_raw.shape[0])),     # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(D_raw, (Nrobots, D_raw.shape[0])),     # shape (Nrobots, 3*n_pcs)
+    jnp.broadcast_to(r_raw, (Nrobots, r_raw.shape[0])),     # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(rho_raw, (Nrobots, rho_raw.shape[0])), # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(E_raw, (Nrobots, E_raw.shape[0])),     # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(G_raw, (Nrobots, G_raw.shape[0])),     # shape (Nrobots, n_pcs)
+)
 params_optimiz = [Phi, phi]
 
-# Initialize robot
+# Initialize robots
 parameters = {
     "th0": jnp.array(jnp.pi/2),
     "L": L0,
@@ -419,16 +426,11 @@ robot = PlanarPCS_simple(
     num_segments = n_pcs,
     params = parameters,
     order_gauss = 5
-)
-approximator = PlanarPCS_simple_modified(
-    num_segments = n_pcs,
-    params = parameters,
-    order_gauss = 5,
-    A = A0,
-    c = c0
-)
+) # "dummy" istantiation
+robot1 = robot
+robot2 = robot
 
-# If required, simulate robot, approximator and compare their behaviour in time with the RON's one
+# If required, simulate robot compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
     RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
@@ -436,6 +438,7 @@ if show_simulations:
     y_RONsaved = jnp.array(RON_evolution_data['y'])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'])
 
+### STOPPED HERE ###
     # Define controller
     def tau_law(system_state: SystemState, controller: MLP):
         """Implements user-defined feedback control tau(t) = MLP(q(t),qd(t))."""
