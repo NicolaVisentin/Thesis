@@ -270,10 +270,10 @@ if train_samples:
 
     L0 = jax.random.uniform(keyL, (n_samples,n_pcs), minval=L_min, maxval=L_max)
     D0 = jax.random.uniform(keyD, (n_samples,3*n_pcs), minval=D_min, maxval=D_max)
-    r0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=r_min, maxval=r_max)
-    rho0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=rho_min, maxval=rho_max)
-    E0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=E_min, maxval=E_max)
-    G0 = jax.random.uniform(keyD, (n_samples,n_pcs), minval=G_min, maxval=G_max)
+    r0 = jax.random.uniform(keyr, (n_samples,n_pcs), minval=r_min, maxval=r_max)
+    rho0 = jax.random.uniform(keyrho, (n_samples,n_pcs), minval=rho_min, maxval=rho_max)
+    E0 = jax.random.uniform(keyE, (n_samples,n_pcs), minval=E_min, maxval=E_max)
+    G0 = jax.random.uniform(keyG, (n_samples,n_pcs), minval=G_min, maxval=G_max)
 
     L0_raw = InverseSoftplus(L0)
     D0_raw = InverseSoftplus(D0)
