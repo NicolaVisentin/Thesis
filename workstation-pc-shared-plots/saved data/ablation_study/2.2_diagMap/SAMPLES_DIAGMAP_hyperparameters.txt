@@ -1,5 +1,0 @@
-Optimizer: adam
-learning rate: cosine (max=1e-3, min=1e-5) + linear warmup (start=1e-6, duration=15)
-Epochs: 300
-Batch size: 64
-Samples: 10
