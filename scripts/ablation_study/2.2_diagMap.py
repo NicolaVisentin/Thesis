@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "gpu"
+os.environ["JAX_PLATFORM_NAME"] = "cpu"
 
 # Imports
 import numpy as onp
@@ -235,12 +235,22 @@ else:
     batches_per_epoch = batch_indx_generator(key, train_size, batch_size).shape[0]
 
     # Optimizer and learning rate
-    lr = optax.warmup_cosine_decay_schedule(
-        init_value=1e-6,
-        peak_value=1e-3,
-        warmup_steps=15*batches_per_epoch,
-        decay_steps=n_epochs*batches_per_epoch,
-        end_value=1e-5
+    n_epochs_warm_and_cos = 300
+    lr1 = optax.warmup_cosine_decay_schedule(
+            init_value=1e-6,
+            peak_value=1e-3,
+            warmup_steps=15*batches_per_epoch,
+            decay_steps=n_epochs_warm_and_cos*batches_per_epoch,
+            end_value=1e-5
+        )
+    lr2 = optax.linear_schedule(
+        init_value=1e-5,
+        end_value=1e-6,
+        transition_steps=(n_epochs-n_epochs_warm_and_cos)*batches_per_epoch
+    )
+    lr = optax.join_schedules(
+        schedules=[lr1, lr2],
+        boundaries=[n_epochs_warm_and_cos*batches_per_epoch]
     )
     optimizer = optax.adam(learning_rate=lr)
 
