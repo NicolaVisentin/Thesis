@@ -254,7 +254,7 @@ max_steps = int(1e6)
 # =====================================================
 # 0.0 Reference case
 # =====================================================
-if False:
+if True:
     print(f'--- REFERENCE CASE ---')
     test_case = '0.0_reference'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -342,9 +342,9 @@ if False:
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
-    train_loss_ts = loss_curves["train_losses_ts"][0]
-    val_loss_ts = loss_curves["val_losses_ts"][0]
-    n_epochs = len(train_loss_ts)
+    REF_train_loss_ts = loss_curves["train_losses_ts"][0]
+    REF_val_loss_ts = loss_curves["val_losses_ts"][0]
+    n_epochs = len(REF_train_loss_ts)
 
     # Load and extract data (before training)
     CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
@@ -442,8 +442,8 @@ if False:
 
     # Show loss curve
     plt.figure()
-    plt.plot(range(n_epochs), train_loss_ts, 'r', label='train loss')
-    plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b', label='validation loss')
+    plt.plot(range(n_epochs), REF_train_loss_ts, 'r', label='train loss')
+    plt.plot(onp.arange(1,n_epochs+1), REF_val_loss_ts, 'b', label='validation loss')
     plt.grid(True)
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -668,7 +668,7 @@ if False:
 # =====================================================
 # 1.1 No PCS
 # =====================================================
-if False:
+if True:
     print(f'--- NO PCS CASE ---')
     test_case = '1.1_noPCS'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -678,9 +678,9 @@ if False:
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
-    train_loss_ts = loss_curves["train_losses_ts"][0]
-    val_loss_ts = loss_curves["val_losses_ts"][0]
-    n_epochs = len(train_loss_ts)
+    NOPCS_train_loss_ts = loss_curves["train_losses_ts"][0]
+    NOPCS_val_loss_ts = loss_curves["val_losses_ts"][0]
+    n_epochs = len(NOPCS_train_loss_ts)
 
     # Load and extract data (before training)
     CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
@@ -778,8 +778,8 @@ if False:
 
     # Show loss curve
     plt.figure()
-    plt.plot(range(n_epochs), train_loss_ts, 'r', label='train loss')
-    plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b', label='validation loss')
+    plt.plot(range(n_epochs), NOPCS_train_loss_ts, 'r', label='train loss')
+    plt.plot(onp.arange(1,n_epochs+1), NOPCS_val_loss_ts, 'b', label='validation loss')
     plt.grid(True)
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -1002,9 +1002,9 @@ if False:
 
 
 # =====================================================
-# 2.1 No mapping (identity)
+# 2.1 No mapping (identity) case
 # =====================================================
-if False:
+if True:
     print(f'--- NO MAP CASE ---')
     test_case = '2.1_noMap'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -1092,9 +1092,9 @@ if False:
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
-    train_loss_ts = loss_curves["train_losses_ts"][0]
-    val_loss_ts = loss_curves["val_losses_ts"][0]
-    n_epochs = len(train_loss_ts)
+    NOMAP_train_loss_ts = loss_curves["train_losses_ts"][0]
+    NOMAP_val_loss_ts = loss_curves["val_losses_ts"][0]
+    n_epochs = len(NOMAP_train_loss_ts)
 
     # Load and extract data (before training)
     CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
@@ -1192,8 +1192,8 @@ if False:
 
     # Show loss curve
     plt.figure()
-    plt.plot(range(n_epochs), train_loss_ts, 'r', label='train loss')
-    plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b', label='validation loss')
+    plt.plot(range(n_epochs), NOMAP_train_loss_ts, 'r', label='train loss')
+    plt.plot(onp.arange(1,n_epochs+1), NOMAP_val_loss_ts, 'b', label='validation loss')
     plt.grid(True)
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -1416,9 +1416,9 @@ if False:
 
 
 # =====================================================
-# 2.2 Diagonal mapping
+# 2.2 Diagonal mapping case
 # =====================================================
-if False:
+if True:
     print(f'--- DIAG MAP CASE ---')
     test_case = '2.2_diagMap'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -1506,9 +1506,9 @@ if False:
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
-    train_loss_ts = loss_curves["train_losses_ts"][0]
-    val_loss_ts = loss_curves["val_losses_ts"][0]
-    n_epochs = len(train_loss_ts)
+    DIAGMAP_train_loss_ts = loss_curves["train_losses_ts"][0]
+    DIAGMAP_val_loss_ts = loss_curves["val_losses_ts"][0]
+    n_epochs = len(DIAGMAP_train_loss_ts)
 
     # Load and extract data (before training)
     CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
@@ -1606,8 +1606,8 @@ if False:
 
     # Show loss curve
     plt.figure()
-    plt.plot(range(n_epochs), train_loss_ts, 'r', label='train loss')
-    plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b', label='validation loss')
+    plt.plot(range(n_epochs), DIAGMAP_train_loss_ts, 'r', label='train loss')
+    plt.plot(onp.arange(1,n_epochs+1), DIAGMAP_val_loss_ts, 'b', label='validation loss')
     plt.grid(True)
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -1830,9 +1830,9 @@ if False:
 
 
 # =====================================================
-# 3.1 No MLP
+# 3.1 No MLP case
 # =====================================================
-if False:
+if True:
     print(f'--- NO MLP CASE ---')
     test_case = '3.1_noMLP'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -1842,9 +1842,9 @@ if False:
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
-    train_loss_ts = loss_curves["train_losses_ts"][0]
-    val_loss_ts = loss_curves["val_losses_ts"][0]
-    n_epochs = len(train_loss_ts)
+    NOMLP_train_loss_ts = loss_curves["train_losses_ts"][0]
+    NOMLP_val_loss_ts = loss_curves["val_losses_ts"][0]
+    n_epochs = len(NOMLP_train_loss_ts)
 
     # Load and extract data (before training)
     CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
@@ -1944,8 +1944,8 @@ if False:
 
     # Show loss curve
     plt.figure()
-    plt.plot(range(n_epochs), train_loss_ts, 'r', label='train loss')
-    plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b', label='validation loss')
+    plt.plot(range(n_epochs), NOMLP_train_loss_ts, 'r', label='train loss')
+    plt.plot(onp.arange(1,n_epochs+1), NOMLP_val_loss_ts, 'b', label='validation loss')
     plt.grid(True)
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -2168,9 +2168,9 @@ if False:
 
 
 # =====================================================
-# 3.2 Regularization MLP
+# 3.2 Regularization MLP case
 # =====================================================
-if False:
+if True:
     print(f'--- REGULARIZATION MLP CASE ---')
     test_case = '3.2_regulMLP'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -2259,11 +2259,11 @@ if False:
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
-    train_loss_ts = loss_curves["train_losses_ts"][0]
-    val_loss_ts = loss_curves["val_losses_ts"][0]
+    REGULMLP_train_loss_ts = loss_curves["train_losses_ts"][0]
+    REGULMLP_val_loss_ts = loss_curves["val_losses_ts"][0]
     train_mse_ts = loss_curves["train_MSEs_ts"][0]
     val_mse_ts = loss_curves["val_MSEs_ts"][0]
-    n_epochs = len(train_loss_ts)
+    n_epochs = len(REGULMLP_train_loss_ts)
 
     # Load and extract data (before training)
     CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
@@ -2363,8 +2363,8 @@ if False:
     plt.figure()
     plt.plot(range(n_epochs), train_mse_ts, 'r', label='train MSE')
     plt.plot(onp.arange(1,n_epochs+1), val_mse_ts, 'b', label='validation MSE')
-    plt.plot(range(n_epochs), train_loss_ts, 'r--', label='train loss')
-    plt.plot(onp.arange(1,n_epochs+1), val_loss_ts, 'b--', label='validation loss')
+    plt.plot(range(n_epochs), REGULMLP_train_loss_ts, 'r--', label='train loss')
+    plt.plot(onp.arange(1,n_epochs+1), REGULMLP_val_loss_ts, 'b--', label='validation loss')
     plt.grid(True)
     plt.xlabel('epoch')
     plt.ylabel('loss')
@@ -2584,3 +2584,17 @@ if False:
         file.write(f'c = {c_after}\n')
         file.write(f'\nCONTROLLER:\n')
         file.write(f'test |u_i| = {tau_norms_after}\n')
+
+
+# =====================================================
+# Overall comparison
+# =====================================================
+
+# Plot all best losses together
+plt.figure()
+plt.plot(1+onp.arange(1500), REF_val_loss_ts, 'b', label='reference')
+plt.plot(1+onp.arange(1500), NOPCS_val_loss_ts, 'r', label='no pcs')
+plt.plot(1+onp.arange(1500), NOMAP_val_loss_ts, 'g', label='no map')
+plt.plot(1+onp.arange(1500), DIAGMAP_val_loss_ts, 'c', label='diagonal map')
+plt.plot(1+onp.arange(1500), NOMLP_val_loss_ts, 'm', label='no fb controller')
+plt.plot(1+onp.arange(1500), REGULMLP_val_loss_ts, 'y', label='control penality')
