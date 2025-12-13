@@ -79,6 +79,99 @@ def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
     A = U @ jnp.diag(s) @ Vt
     return A
 
+# Loss function (COMPLETE, also considers robot update). Used to compare different samples.
+@jax.jit
+def LossComplete(
+        params_optimiz : Sequence, 
+        data_batch : Dict, 
+        robot : PlanarPCS_simple,
+        mlp_controller : MLP,
+        s_thresh : float
+) -> Tuple[float, Dict]:
+    """
+    Computes loss function over a batch of data for certain parameters. In this case:
+    Takes a batch of datapoints (y, yd), computes the forward dynamics ydd_hat = f_approximator(y,yd)
+    and computes the loss as the MSE in the batch between predictions ydd_hat and labels ydd. In particular,
+    our approximator here is: f_approximator = T_out( f_pcs( T_in(y,yd) ) ), where T_in: (q, qd)=(A*y+c, A*yd)
+    and T_out: ydd_hat=A*qdd.
+
+    Args
+    ----
+    params_optimiz : Sequence
+        Parameters for the opimization. In this case a list with:
+        - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
+                   with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
+        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
+    robot : PlanarPCS_simple
+        Robot instance.
+    mlp_controller : MLP
+        MLP instance.
+    s_thresh : float
+        Threshold on the singular values for the mapping.
+    data_batch : Dict
+        Dictionary with datapoints and labels to compute the loss. In this case has keys:
+        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
+        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
+        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
+
+    Returns
+    -------
+    loss : float
+        Scalar loss computed as MSE in the batch between predictions and labels.
+    metrics : Dict[float, Dict]
+        Dictionary of useful metrics.
+    """
+    # extract everything
+    y_batch = data_batch["y"]
+    yd_batch = data_batch["yd"]
+    ydd_batch = data_batch["ydd"]
+
+    Phi, phi = params_optimiz
+
+    MAP, CONTR = Phi
+    A_raw, c = MAP
+    L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw = phi
+
+    # convert parameters
+    A = Araw2A(A_raw, s_thresh)
+    L = jax.nn.softplus(L_raw)
+    D = jnp.diag(jax.nn.softplus(D_raw))
+    r = jax.nn.softplus(r_raw)
+    rho = jax.nn.softplus(rho_raw)
+    E = jax.nn.softplus(E_raw)
+    G = jax.nn.softplus(G_raw)
+
+    # update robot and controller
+    robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
+    controller_updated = mlp_controller.update_params(CONTR)
+
+    # convert variables
+    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
+    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, 3*n_pcs)
+
+    # predictions
+    z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
+    tau_batch = controller_updated.forward_batch(z_batch)
+    actuation_arg = (tau_batch,)
+
+    forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0,0))
+    zd_batch = forward_dynamics_vmap(0, z_batch, actuation_arg) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
+    _, qdd_batch = jnp.split(zd_batch, 2, axis=1) 
+
+    # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
+    ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # convert predictions from qdd to ydd
+    MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
+    loss = MSE
+
+    # store metrics
+    metrics = {
+        "MSE": MSE,
+        "predictions": ydd_hat_batch,
+        "labels": ydd_batch,
+    }
+    
+    return loss, metrics
+
 # Loss function
 @jax.jit
 def Loss(
@@ -173,7 +266,7 @@ def Loss(
     return loss, metrics
 
 # Some useful vmapped functions
-Loss_vmap = jax.vmap(Loss, in_axes=(0,None,None,None,None))
+LossComplete_vmap = jax.vmap(LossComplete, in_axes=(0,None,None,None,None))
 A2Araw_vmap = jax.vmap(A2Araw, in_axes=(0,None))
 Araw2A_vmap = jax.vmap(Araw2A, in_axes=(0,None))
 
@@ -341,7 +434,7 @@ else:
 Phi0 = (MAP0, CONTR0)
 params_optimiz0 = (Phi0, phi0)
 
-# Instantiation of robot class
+# "Dummy" instantiation of robot class
 parameters = {
     "th0": jnp.array(jnp.pi/2),
     "L": L0[0],
@@ -358,11 +451,8 @@ robot = PlanarPCS_simple(
     order_gauss = 5
 )
 
-# Correct signature for loss function
-Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thresh=s_thresh))
-
 # Compute RMSE on the test set before optimization for the various guesses
-_, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
+_, metrics = LossComplete_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
 RMSE_before = onp.sqrt(metrics["MSE"])
 
 # Compute actuation power mean squared value on the test set before optimization for the various guesses
@@ -388,6 +478,9 @@ train_in_parallel = jax.jit(
     jax.vmap(train_with_scan, in_axes=(0,None,0,None,None,None,None,None)),
     static_argnums=(1,3,6,7)
 )
+
+# Correct signature for loss function
+Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thresh=s_thresh))
 
 # Run trainings in parallel
 keys = jax.random.split(key, n_samples+1)
@@ -433,7 +526,7 @@ E_after = jax.nn.softplus(E_raw_after)
 G_after = jax.nn.softplus(G_raw_after)
 
 # Compute RMSE on the test set after optimization for the various guesses
-_, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
+_, metrics = LossComplete_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
 RMSE_after = onp.sqrt(metrics["MSE"])
 
 # Compute actuation power mean squared value on the test set after optimization for the various guesses
