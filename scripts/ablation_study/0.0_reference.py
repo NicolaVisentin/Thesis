@@ -312,10 +312,10 @@ if train_samples:
     CONTR0 = mlp_controller.init_params_batch(keyController, n_samples)              # generates as many params as the number of samples
 else:
     # Load data
-    all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                          # load all RMSE on the test set after parallel training
-    idx_best = onp.argmin(all_rmse["RMSE_after"])                                                      # index of the best sample
-    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz')           # load all robots data before training
-    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')               # load all maps data beofre training
+    all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                # load all RMSE on the test set after parallel training
+    idx_best = onp.argmin(all_rmse["RMSE_after"])                                            # index of the best sample
+    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz') # load all robots data before training
+    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')     # load all maps data beofre training
 
     # PCS robot
     n_pcs = 2
@@ -500,7 +500,7 @@ onp.savez(
     A_before=onp.array(A0), 
     c_before=onp.array(c0)
 )
-mlp_controller._save_params(CONTR0, data_folder/'all_data_controller_before.npz') 
+mlp_controller._save_params(CONTR0, data_folder/'all_data_controller_before.npz')
 onp.savez(
     data_folder/'all_rmse_before.npz', 
     RMSE_before=onp.array(RMSE_before)
