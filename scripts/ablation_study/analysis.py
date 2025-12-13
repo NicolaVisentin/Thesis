@@ -1119,10 +1119,11 @@ if False:
     n_epochs = len(NOMAP_train_loss_ts)
 
     # Load and extract data (before training)
-    CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
+    CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_all_data_controller_before.npz')
+    CONTR_before = mlp_controller.extract_params_from_batch(CONTR_before, 0) # controller data are always saved as batches
     controller_before = mlp_controller.update_params(CONTR_before)
-    tau_norms_before = onp.load(data_folder/test_case/f'{prefix}_all_norms_tau_before.npz')
-    tau_norms_before = tau_norms_before["norms_tau_before"][0]
+    powers_msv_before = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_before.npz')
+    powers_msv_before = powers_msv_before["powers_msv_before"][0]
 
     robot_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     L_before = jnp.array(robot_data_before["L_before"][0])
@@ -1140,10 +1141,11 @@ if False:
     # Load and extract data (after training)
     BEST_NOMAP_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')["RMSE_after"][0]
 
-    CONTR_after = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_after.npz')
+    CONTR_after = mlp_controller.load_params(data_folder/test_case/f'{prefix}_all_data_controller_after.npz')
+    CONTR_after = mlp_controller.extract_params_from_batch(CONTR_after, 0) # controller data are always saved as batches
     controller_after = mlp_controller.update_params(CONTR_after)
-    tau_norms_after = onp.load(data_folder/test_case/f'{prefix}_all_norms_tau_after.npz')
-    tau_norms_after = tau_norms_after["norms_tau_after"][0]
+    powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
+    powers_msv_after = powers_msv_after["powers_msv_after"][0]
 
     robot_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
     L_after = jnp.array(robot_data_after["L_after"][0])
@@ -1423,7 +1425,7 @@ if False:
             file.write(f'A_inv = {onp.linalg.inv(A_before)}\n')
             file.write(f'c = {c_before}\n')
             file.write(f'\nCONTROLLER:\n')
-            file.write(f'test |u_i| = {tau_norms_before}\n')
+            file.write(f'RMS power on the test set = {onp.sqrt(powers_msv_before)}\n')
             file.write(f'\n\n----------AFTER TRAINING----------\n')
             file.write(f'PCS:\n')
             file.write(f'L = {L_after}\n')
@@ -1437,7 +1439,7 @@ if False:
             file.write(f'A_inv = {onp.linalg.inv(A_after)}\n')
             file.write(f'c = {c_after}\n')
             file.write(f'\nCONTROLLER:\n')
-            file.write(f'test |u_i| = {tau_norms_after}\n')
+            file.write(f'RMS power on the test set = {onp.sqrt(powers_msv_after)}\n')
 
 
 # =====================================================

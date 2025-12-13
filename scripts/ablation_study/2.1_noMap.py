@@ -295,14 +295,13 @@ if train_samples:
     mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
     mlp_controller = MLP(key=keyController, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
 
-    """Note: controller is NOT initialized as the 0.0_reference samples cases, but it's basically null in both cases."""
-    CONTR0 = mlp_controller.init_params_batch(keyController, n_samples) # generates as many params as the number of samples
+    CONTR0 = mlp_controller.load_params(data_folder_ref/f'{ref_data_prefix}_all_data_controller_before.npz')
 else:
     # Load data
     all_rmse = onp.load(data_folder/f'{load_case_prefix}_all_rmse_after.npz')                # load all RMSE on the test set after parallel training
     idx_best = onp.argmin(all_rmse["RMSE_after"])                                            # index of the best sample
-    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz') # load all robot data before training
-    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')     # load all map data beofre training
+    all_robot_before = onp.load(data_folder/f'{load_case_prefix}_all_data_robot_before.npz') # load all robots data before training
+    all_map_before = onp.load(data_folder/f'{load_case_prefix}_all_data_map_before.npz')     # load all maps data beofre training
 
     # PCS robot
     n_pcs = 2
@@ -336,10 +335,12 @@ else:
     key, subkey = jax.random.split(key)
     mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs] 
     mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.001) # dummy instance
+    all_controller_before = mlp_controller.load_params(data_folder/f'{load_case_prefix}_all_data_controller_before.npz')
 
-    CONTR0 = mlp_controller.load_params(
-        path=data_folder/f'{load_case_prefix}_best_data_controller_before.npz', 
-        load_as_batch=True
+    CONTR0 = mlp_controller.extract_params_from_batch(
+        params_batch=all_controller_before, 
+        idx=idx_best,
+        extract_as_batch=True
     )
 
 # Collect all parameters
@@ -370,17 +371,18 @@ Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thres
 _, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
 RMSE_before = onp.sqrt(metrics["MSE"])
 
-# Compute actuation RMS value on the test set before optimization for the various guesses
-norms_tau_before = []
+# Compute actuation power mean squared value on the test set before optimization for the various guesses
+powers_msv_before = []
 for i in range(n_samples):
     params_i = mlp_controller.extract_params_from_batch(CONTR0, i)
     q = test_set["y"] @ A0[i].T + c0[i]                # shape (testset_size, 3*n_pcs)
     qd = test_set["yd"] @ A0[i].T                      # shape (testset_size, 3*n_pcs)
     z = jnp.concatenate([q, qd], axis=1)               # shape (testset_size, 2*3*n_pcs)
     tau_i = mlp_controller._forward_batch(params_i, z) # shape (testset_size, 3*n_pcs)
-    norms_tau_i = jnp.sqrt(jnp.mean(tau_i**2, axis=0)) # shape (3*n_pcs,)
-    norms_tau_before.append(norms_tau_i)
-norms_tau_before = jnp.stack(norms_tau_before, axis=0) # shape (n_samples, 3*n_pcs)
+    power_i = jnp.sum(tau_i * qd, axis=1)              # shape (testset_size,)
+    power_msv_i = jnp.mean(power_i**2)                 # scalar
+    powers_msv_before.append(power_msv_i)
+powers_msv_before = jnp.stack(powers_msv_before, axis=0) # shape (n_samples,)
 
 
 # =====================================================
@@ -420,11 +422,6 @@ end = time.perf_counter()
 elatime_optimiz = end - start
 print(f'Elapsed time: {elatime_optimiz} s')
 
-
-# =====================================================
-# Save results
-# =====================================================
-
 # Extract (raw) parameters
 Phi_after, phi_after = params_optimiz_after
 
@@ -445,24 +442,26 @@ G_after = jax.nn.softplus(G_raw_after)
 _, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
 RMSE_after = onp.sqrt(metrics["MSE"])
 
-# Find best result and update controller (also pick corresponding controller before optimization)
-idx_best = jnp.argmin(RMSE_after)
-CONTR_after_best = mlp_controller.extract_params_from_batch(CONTR_after, idx_best)
-CONTR_before_best = mlp_controller.extract_params_from_batch(CONTR0, idx_best)
-mlp_controller_after_best = mlp_controller.update_params(CONTR_after_best)
-mlp_controller_before_best = mlp_controller.update_params(CONTR_before_best)
-
-# Compute actuation RMS value on the test set after optimization for the various guesses
-norms_tau_after = []
+# Compute actuation power mean squared value on the test set after optimization for the various guesses
+powers_msv_after = []
 for i in range(n_samples):
     params_i = mlp_controller.extract_params_from_batch(CONTR_after, i)
     q = test_set["y"] @ A_after[i].T + c_after[i]      # shape (testset_size, 3*n_pcs)
     qd = test_set["yd"] @ A_after[i].T                 # shape (testset_size, 3*n_pcs)
     z = jnp.concatenate([q, qd], axis=1)               # shape (testset_size, 2*3*n_pcs)
     tau_i = mlp_controller._forward_batch(params_i, z) # shape (testset_size, 3*n_pcs)
-    norms_tau_i = jnp.sqrt(jnp.mean(tau_i**2, axis=0)) # shape (3*n_pcs,)
-    norms_tau_after.append(norms_tau_i)
-norms_tau_after = jnp.stack(norms_tau_after, axis=0)   # shape (n_samples, 3*n_pcs)
+    power_i = jnp.sum(tau_i * qd, axis=1)              # shape (testset_size,)
+    power_msv_i = jnp.mean(power_i**2)                 # scalar
+    powers_msv_after.append(power_msv_i)
+powers_msv_after = jnp.stack(powers_msv_after, axis=0) # shape (n_samples,)
+
+# Find best result
+idx_best = jnp.argmin(RMSE_after)
+
+
+# =====================================================
+# Save results
+# =====================================================
 
 # Save hyperparameters
 with open(data_folder/'hyperparameters.txt', 'w') as file:
@@ -487,15 +486,14 @@ onp.savez(
     A_before=onp.array(A0), 
     c_before=onp.array(c0)
 )
-"""Note: only controller_before cooresponding to the BEST case after training is saved"""
-mlp_controller_before_best.save_params(data_folder/'best_data_controller_before.npz') 
+mlp_controller._save_params(CONTR0, data_folder/'all_data_controller_before.npz')
 onp.savez(
     data_folder/'all_rmse_before.npz', 
     RMSE_before=onp.array(RMSE_before)
 )
 onp.savez(
-    data_folder/'all_norms_tau_before.npz', 
-    norms_tau_before=onp.array(norms_tau_before)
+    data_folder/'all_powers_msv_before.npz', 
+    powers_msv_before=onp.array(powers_msv_before)
 )
 
 # Save all n_samples sets of parameters after training
@@ -513,15 +511,14 @@ onp.savez(
     A_after=onp.array(A_after), 
     c_after=onp.array(c_after)
 )
-"""Note: only BEST case controller after training is saved"""
-mlp_controller_after_best.save_params(data_folder/'best_data_controller_after.npz') 
+mlp_controller._save_params(CONTR_after, data_folder/'all_data_controller_after.npz') 
 onp.savez(
     data_folder/'all_rmse_after.npz', 
     RMSE_after=onp.array(RMSE_after)
 )
 onp.savez(
-    data_folder/'all_norms_tau_after.npz', 
-    norms_tau_after=onp.array(norms_tau_after)
+    data_folder/'all_powers_msv_after.npz', 
+    powers_msv_after=onp.array(powers_msv_after)
 )
 
 # Save all loss curves
