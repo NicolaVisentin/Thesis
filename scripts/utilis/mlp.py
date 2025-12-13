@@ -119,6 +119,15 @@ class MLP(eqx.Module):
             flat_params[f"W_{i}"] = np.array(W)
             flat_params[f"b_{i}"] = np.array(b)
         np.savez(path, **flat_params)
+
+    @staticmethod
+    def _save_params(params: Params, path: str):
+        """Saves externally provided parameters params: Params in the specified path as a .npz file."""
+        flat_params = {}
+        for i, (W, b) in enumerate(params):
+            flat_params[f"W_{i}"] = np.array(W)
+            flat_params[f"b_{i}"] = np.array(b)
+        np.savez(path, **flat_params)
     
     @staticmethod
     def load_params(path: str, load_as_batch: bool=False) -> Params:
@@ -148,7 +157,7 @@ class MLP(eqx.Module):
         return jax.vmap(self._init_params)(keys)
     
     @staticmethod
-    def extract_params_from_batch(params_batch: Params, idx: int) -> Params:
+    def extract_params_from_batch(params_batch: Params, idx: int, extract_as_batch: bool=False) -> Params:
         """
         If params_batch is a Params list that contains tuples of batched parameters, this
         method extracts a Params list with tuples of the parameters in position idx within
@@ -162,10 +171,16 @@ class MLP(eqx.Module):
             bi.shape=(batch_size, ...).     
         idx : int
             Position in the batch of the parameters to extract.
+        extract_as_batch: bool
+            If True, extracts desired parameters as they were a batch of dimension 1 (default: False).
 
         Returns
         -------
         params : Params
             List of desired parameters.
         """
-        return [(W[idx], b[idx]) for (W, b) in params_batch]
+        if extract_as_batch:
+            out = [(W[idx][None,:], b[idx][None,:]) for (W, b) in params_batch]
+        else:
+            out = [(W[idx], b[idx]) for (W, b) in params_batch]
+        return out
