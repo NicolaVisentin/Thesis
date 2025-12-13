@@ -259,7 +259,7 @@ else:
 # =====================================================
 
 if train_samples:
-    # Load data (best reference case)
+    # Load data (samples reference case)
     all_robot_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_robot_before.npz') # load all robot data before training
 
     # PCS robot
