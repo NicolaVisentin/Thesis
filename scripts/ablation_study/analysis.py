@@ -691,8 +691,87 @@ if False:
     test_case = '1.1_noPCS'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
 
-    ##### RESULT (ONLY 1 OPTIMIZATION FOR THIS CASE) #####
-    prefix = 'ONLY_NOPCS'
+    ##### ALL SAMPLES #####
+    prefix = 'SAMPLES_NOPCS'
+
+    # Load and extract data
+    all_loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
+    all_rmse_before = onp.load(data_folder/test_case/f'{prefix}_all_rmse_before.npz')
+    all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
+    all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
+    all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+
+    all_train_loss_ts = all_loss_curves["train_losses_ts"]
+    all_val_loss_ts = all_loss_curves["val_losses_ts"]
+    all_train_mse_ts = all_loss_curves["train_MSEs_ts"]
+    all_rmse_before = all_rmse_before["RMSE_before"]
+    all_rmse_after = all_rmse_after["RMSE_after"]
+    n_samples = all_rmse_before.shape[0]
+    n_epochs_samples = all_train_mse_ts.shape[1]
+
+    if do_nopcs_case:
+        # Plot comparison of all samples (RMSE)
+        colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
+
+        plt.figure()
+        plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
+        plt.scatter(onp.arange(n_samples)+1, all_rmse_after, marker='o', c=colors, label='test RMSE after')
+        plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
+        plt.yscale('log')
+        plt.grid(True)
+        plt.xlabel('sample n.')
+        plt.ylabel('RMSE')
+        plt.title(f'Results for various initial guesses')
+        plt.legend()
+        plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.tight_layout()
+        plt.savefig(plots_folder/test_case/'samples_comparison', bbox_inches='tight')
+        #plt.show()
+
+        # Plot comparison of all samples (loss curves)
+        plt.figure()
+        for i in range(n_samples):
+            plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
+            plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
+        plt.grid(True)
+        plt.xlabel('epoch')
+        plt.ylabel('loss')
+        plt.title('Results for all samples')
+        plt.legend()
+        plt.yscale('log')
+        plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
+        plt.tight_layout()
+        plt.savefig(plots_folder/test_case/'samples_losses', bbox_inches='tight')
+        #plt.show()
+
+        # Save text file with all initial and final pcs parameters for the robot
+        with open(plots_folder/test_case/'samples_pcs_params_comparison.txt', 'w') as file:
+            file.write(f'PCS parameters before and after training for all samples:\n\n')
+            for i in range(n_samples):
+                file.write(f'L = {all_robot_params_before["L_before"][i]} --> {all_robot_params_after["L_after"][i]}\n')
+            for i in range(n_samples):
+                if i == 0:
+                    file.write(f'\n')
+                file.write(f'D = {all_robot_params_before["D_before"][i]} --> {all_robot_params_after["D_after"][i]}\n')
+            for i in range(n_samples):
+                if i == 0:
+                    file.write(f'\n')
+                file.write(f'r = {all_robot_params_before["r_before"][i]} --> {all_robot_params_after["r_after"][i]}\n')
+            for i in range(n_samples):
+                if i == 0:
+                    file.write(f'\n')
+                file.write(f'rho = {all_robot_params_before["rho_before"][i]} --> {all_robot_params_after["rho_after"][i]}\n')
+            for i in range(n_samples):
+                if i == 0:
+                    file.write(f'\n')
+                file.write(f'E = {all_robot_params_before["E_before"][i]} --> {all_robot_params_after["E_after"][i]}\n')
+            for i in range(n_samples):
+                if i == 0:
+                    file.write(f'\n')
+                file.write(f'G = {all_robot_params_before["G_before"][i]} --> {all_robot_params_after["G_after"][i]}\n')
+
+    ##### BEST RESULT #####
+    prefix = 'BEST_NOPCS'
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
@@ -701,10 +780,11 @@ if False:
     n_epochs = len(NOPCS_train_loss_ts)
 
     # Load and extract data (before training)
-    CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_before.npz')
+    CONTR_before = mlp_controller.load_params(data_folder/test_case/f'{prefix}_all_data_controller_before.npz')
+    CONTR_before = mlp_controller.extract_params_from_batch(CONTR_before, 0) # controller data are always saved as batches
     controller_before = mlp_controller.update_params(CONTR_before)
-    tau_norms_before = onp.load(data_folder/test_case/f'{prefix}_all_norms_tau_before.npz')
-    tau_norms_before = tau_norms_before["norms_tau_before"][0]
+    powers_msv_before = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_before.npz')
+    powers_msv_before = powers_msv_before["powers_msv_before"][0]
 
     robot_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     L_before = jnp.array(robot_data_before["L_before"][0])
@@ -720,12 +800,13 @@ if False:
     c_before = jnp.array(map_data_before["c_before"][0])
 
     # Load and extract data (after training)
-    BEST_NOPCS_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')["RMSE_after"][0]
+    BEST_REF_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')["RMSE_after"][0]
 
-    CONTR_after = mlp_controller.load_params(data_folder/test_case/f'{prefix}_best_data_controller_after.npz')
+    CONTR_after = mlp_controller.load_params(data_folder/test_case/f'{prefix}_all_data_controller_after.npz')
+    CONTR_after = mlp_controller.extract_params_from_batch(CONTR_after, 0) # controller data are always saved as batches
     controller_after = mlp_controller.update_params(CONTR_after)
-    tau_norms_after = onp.load(data_folder/test_case/f'{prefix}_all_norms_tau_after.npz')
-    tau_norms_after = tau_norms_after["norms_tau_after"][0]
+    powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
+    powers_msv_after = powers_msv_after["powers_msv_after"][0]
 
     robot_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
     L_after = jnp.array(robot_data_after["L_after"][0])
@@ -1005,7 +1086,7 @@ if False:
             file.write(f'A_inv = {onp.linalg.inv(A_before)}\n')
             file.write(f'c = {c_before}\n')
             file.write(f'\nCONTROLLER:\n')
-            file.write(f'test |u_i| = {tau_norms_before}\n')
+            file.write(f'RMS power on the test set = {onp.sqrt(powers_msv_before)}\n')
             file.write(f'\n\n----------AFTER TRAINING----------\n')
             file.write(f'PCS:\n')
             file.write(f'L = {L_after}\n')
@@ -1019,7 +1100,7 @@ if False:
             file.write(f'A_inv = {onp.linalg.inv(A_after)}\n')
             file.write(f'c = {c_after}\n')
             file.write(f'\nCONTROLLER:\n')
-            file.write(f'test |u_i| = {tau_norms_after}\n')
+            file.write(f'RMS power on the test set = {onp.sqrt(powers_msv_after)}\n')
 
 
 # =====================================================
