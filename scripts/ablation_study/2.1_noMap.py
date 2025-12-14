@@ -364,9 +364,6 @@ robot = PlanarPCS_simple(
     order_gauss = 5
 )
 
-# Correct signature for loss function
-Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thresh=s_thresh))
-
 # Compute RMSE on the test set before optimization for the various guesses
 _, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
 RMSE_before = onp.sqrt(metrics["MSE"])
@@ -394,6 +391,9 @@ train_in_parallel = jax.jit(
     jax.vmap(train_with_scan, in_axes=(0,None,0,None,None,None,None,None)),
     static_argnums=(1,3,6,7)
 )
+
+# Correct signature for loss function
+Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thresh=s_thresh))
 
 # Run trainings in parallel
 keys = jax.random.split(key, n_samples+1)
