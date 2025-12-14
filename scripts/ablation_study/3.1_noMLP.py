@@ -261,7 +261,7 @@ else:
 if train_samples:
     # Load data (samples reference case)
     all_robot_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_robot_before.npz') # load all robot data before training
-    all_map_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_map_before.npz')     # load all map data beofre training
+    all_map_before = onp.load(data_folder_ref/f'{ref_data_prefix}_all_data_map_before.npz')     # load all map data before training
 
     # PCS robot
     n_pcs = 2
@@ -393,6 +393,7 @@ train_in_parallel = jax.jit(
     jax.vmap(train_with_scan, in_axes=(0,None,0,None,None,None,None,None)),
     static_argnums=(1,3,6,7)
 )
+
 # Correct signature for loss function
 Loss = jax.jit(partial(Loss, robot=robot, mlp_controller=mlp_controller, s_thresh=s_thresh))
 
