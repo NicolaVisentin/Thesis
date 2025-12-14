@@ -2398,7 +2398,7 @@ if True:
         plt.figure()
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, all_rmse_after, marker='o', c=colors, label='test RMSE after')
-        plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
+        plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE') # mse, not loss!
         plt.yscale('log')
         plt.grid(True)
         plt.xlabel('sample n.')
@@ -2413,8 +2413,8 @@ if True:
         # Plot comparison of all samples (MSE curves)
         plt.figure()
         for i in range(n_samples):
-            plt.plot(range(n_epochs_samples), all_train_mse_ts[i], color=colors[i], label=f'train MSEs' if i == 0 else "")
-            plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_mse_ts[i], '--', color=colors[i], label=f'validation MSEs' if i == 0 else "")
+            plt.plot(range(n_epochs_samples), all_train_mse_ts[i], color=colors[i], label=f'train MSEs' if i == 0 else "") # mse, not loss!
+            plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_mse_ts[i], '--', color=colors[i], label=f'validation MSEs' if i == 0 else "") # mse, not loss!
         plt.grid(True)
         plt.xlabel('epoch')
         plt.ylabel('loss')
@@ -2560,7 +2560,7 @@ if True:
         q_PCS_after, qd_PCS_after = jnp.split(sim_out_pcs.y, 2, axis=1)
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T            # yd_hat(t) = inv(A) * qd(t)
+        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
 
         # Show loss curve
         plt.figure()
