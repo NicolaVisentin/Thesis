@@ -51,8 +51,8 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # Script settings
 # =====================================================
 train_samples = True                 # if True, short training on many samples. If False, long training on the best sample
-ref_data_prefix = '_samples_ref'      # prefix of the REFERENCE data (for same initial condition)
-load_case_prefix = '_samples_diagmap' # if train_samples is False, choose prefix of the experiment to load (i.e. samples among which looking for the best)
+ref_data_prefix = 'SAMPLES_REF'      # prefix of the REFERENCE data (for same initial condition)
+load_case_prefix = 'SAMPLES_DIAGMAP' # if train_samples is False, choose prefix of the experiment to load (i.e. samples among which looking for the best)
 
 
 # =====================================================
@@ -293,15 +293,15 @@ if train_samples:
     A0_other10 = 10 ** jax.random.uniform(
         keyA1,
         shape=(10, n_ron),
-        minval=jnp.array([-2, -4, -4, -2, -4, -4]),
-        maxval=jnp.array([0.5, -1, -1, 0.5, -1, -1])
+        minval=jnp.array([-2.0, -4.0, -4.0, -2.0, -4.0, -4.0]),
+        maxval=jnp.array([0.5, -1.0, -1.0, 0.5, -1.0, -1.0])
     )
     A0_other10 = jax.vmap(jnp.diag)(A0_other10)
     A0_last10 = 10 ** jax.random.uniform(
         keyA2,
         shape=(10, n_ron),
-        minval=jnp.array([-4, -2, -2, -4, -2, -2]),
-        maxval=jnp.array([-1, 0.5, 0.5, -1, 0.5, 0.5])
+        minval=jnp.array([-4.0, -2.0, -2.0, -4.0, -2.0, -2.0]),
+        maxval=jnp.array([-1.0, 0.5, 0.5, -1.0, 0.5, 0.5])
     )
     A0_last10 = jax.vmap(jnp.diag)(A0_last10)
     A0 = jnp.concatenate([A0_first10, A0_other10, A0_last10], axis=0)
