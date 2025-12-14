@@ -57,7 +57,7 @@ do_nomap_case = False
 do_diagmap_case = False
 do_nomlp_case = False
 do_regulmlp_case = False
-do_overall = False
+do_overall = True
 
 
 # =====================================================
@@ -266,7 +266,7 @@ max_steps = int(1e6)
 # =====================================================
 # 0.0 Reference case
 # =====================================================
-if False:
+if do_ref_case or do_overall:
     print(f'--- REFERENCE CASE ---')
     test_case = '0.0_reference'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -736,7 +736,7 @@ if False:
 # =====================================================
 # 1.1 No PCS
 # =====================================================
-if False:
+if do_nopcs_case or do_overall:
     print(f'--- NO PCS CASE ---')
     test_case = '1.1_noPCS'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -1207,7 +1207,7 @@ if False:
 # =====================================================
 # 2.1 No mapping (identity) case
 # =====================================================
-if False:
+if do_nomap_case or do_overall:
     print(f'--- NO MAP CASE ---')
     test_case = '2.1_noMap'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -1677,7 +1677,7 @@ if False:
 # =====================================================
 # 2.2 Diagonal mapping case
 # =====================================================
-if False:
+if do_diagmap_case or do_overall:
     print(f'--- DIAG MAP CASE ---')
     test_case = '2.2_diagMap'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -2147,7 +2147,7 @@ if False:
 # =====================================================
 # 3.1 No MLP case
 # =====================================================
-if False:
+if do_nomlp_case or do_overall:
     print(f'--- NO MLP CASE ---')
     test_case = '3.1_noMLP'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
@@ -2617,7 +2617,7 @@ if False:
 # =====================================================
 # 3.2 Regularization MLP case
 # =====================================================
-if False:
+if do_regulmlp_case or do_overall:
     print(f'--- REGULARIZATION MLP CASE ---')
     test_case = '3.2_regulMLP'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
