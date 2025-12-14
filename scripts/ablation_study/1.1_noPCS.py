@@ -179,7 +179,8 @@ def Loss(
         data_batch : Dict, 
         robot : PlanarPCS_simple,
         mlp_controller : MLP,
-        s_thresh : float
+        s_thresh : float,
+        additional_arg : Tuple
 ) -> Tuple[float, Dict]:
     """
     Computes loss function over a batch of data for certain parameters. In this case:
@@ -194,7 +195,9 @@ def Loss(
         Parameters for the opimization. In this case a list with:
         - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
                    with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
-        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
+        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw). !!! THEY ARE NOT USED FOR 
+                   UPDATING THE ROBOT BUT ONLY FOR GRADIENT COMPUTATION (THAT WILL ALWAYS BE ZERO, SINCE THEY 
+                   ARE NOT USED). THIS TRICK IS USED TO MAINTAIN THE SAME STRUCTURE OF THE FUNCTION. !!!
     robot : PlanarPCS_simple
         Robot instance.
     mlp_controller : MLP
@@ -206,6 +209,9 @@ def Loss(
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
         - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
         - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
+    additional_arg: Tuple
+        Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw). !!! THEY ARE USED FOR UPDATING THE ROBOT,
+        BUT NOT FOR GRADIENTS COMPUTATION !!!
 
     Returns
     -------
@@ -224,6 +230,7 @@ def Loss(
     MAP, CONTR = Phi
     A_raw, c = MAP
     L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw = phi
+    L_raw_fixed, D_raw_fixed, r_raw_fixed, rho_raw_fixed, E_raw_fixed, G_raw_fixed = additional_arg
 
     # convert parameters
     A = Araw2A(A_raw, s_thresh)
@@ -234,8 +241,18 @@ def Loss(
     E = jax.nn.softplus(E_raw)
     G = jax.nn.softplus(G_raw)
 
-    # update robot and controller
-    robot_updated = robot # ! don't update robot: we are not training it now !
+    L_fixed = jax.nn.softplus(L_raw_fixed)
+    D_fixed = jnp.diag(jax.nn.softplus(D_raw_fixed))
+    r_fixed = jax.nn.softplus(r_raw_fixed)
+    rho_fixed = jax.nn.softplus(rho_raw_fixed)
+    E_fixed = jax.nn.softplus(E_raw_fixed)
+    G_fixed = jax.nn.softplus(G_raw_fixed)
+
+    # update robot (with parameters NOT used for gradient computation) and controller
+    robot_updated = robot.update_params(
+        {"L": L_fixed, "D": D_fixed, "r": r_fixed, 
+         "rho": rho_fixed, "E": E_fixed, "G": G_fixed}
+    )
     controller_updated = mlp_controller.update_params(CONTR)
 
     # convert variables
@@ -266,7 +283,8 @@ def Loss(
     return loss, metrics
 
 # Some useful vmapped functions
-LossComplete_vmap = jax.vmap(LossComplete, in_axes=(0,None,None,None,None))
+LossComplete_vmap = jax.vmap(LossComplete, in_axes=(0,None,None,None,None)) # for evaluation
+Loss_vmap = jax.vmap(Loss, in_axes=(0,None,None,None,None,0)) # for evaluation
 A2Araw_vmap = jax.vmap(A2Araw, in_axes=(0,None))
 Araw2A_vmap = jax.vmap(Araw2A, in_axes=(0,None))
 
@@ -452,8 +470,12 @@ robot = PlanarPCS_simple(
 )
 
 # Compute RMSE on the test set before optimization for the various guesses
-_, metrics = LossComplete_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
+_, metrics_check = LossComplete_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh)
+_, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh, phi0)
+RMSE_before_check = onp.sqrt(metrics_check["MSE"])
 RMSE_before = onp.sqrt(metrics["MSE"])
+print('RMSE before:         ', RMSE_before)
+print('RMSE beofre (check): ', RMSE_before_check)
 
 # Compute actuation power mean squared value on the test set before optimization for the various guesses
 powers_msv_before = []
@@ -475,7 +497,7 @@ powers_msv_before = jnp.stack(powers_msv_before, axis=0) # shape (n_samples,)
 
 # vmap function for training
 train_in_parallel = jax.jit(
-    jax.vmap(train_with_scan, in_axes=(0,None,0,None,None,None,None,None)),
+    jax.vmap(train_with_scan_modified, in_axes=(0,None,0,None,None,None,None,None,0)),
     static_argnums=(1,3,6,7)
 )
 
@@ -497,6 +519,7 @@ results = train_in_parallel(
     val_set,
     n_epochs,
     batch_size,
+    phi0,
 )
 params_optimiz_after = results["params_optimiz"]
 train_loss_ts = results["train_loss_ts"]
@@ -526,8 +549,12 @@ E_after = jax.nn.softplus(E_raw_after)
 G_after = jax.nn.softplus(G_raw_after)
 
 # Compute RMSE on the test set after optimization for the various guesses
-_, metrics = LossComplete_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
+_, metrics_check = LossComplete_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh)
+_, metrics = Loss_vmap(params_optimiz_after, test_set, robot, mlp_controller, s_thresh, phi_after)
+RMSE_after_check = onp.sqrt(metrics_check["MSE"])
 RMSE_after = onp.sqrt(metrics["MSE"])
+print('RMSE after:         ', RMSE_after)
+print('RMSE after (check): ', RMSE_after_check)
 
 # Compute actuation power mean squared value on the test set after optimization for the various guesses
 powers_msv_after = []
