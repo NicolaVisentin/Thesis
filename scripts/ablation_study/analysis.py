@@ -52,7 +52,7 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # Script settings
 # =====================================================
 do_ref_case = False
-do_nopcs_case = False
+do_nopcs_case = True
 do_nomap_case = False
 do_diagmap_case = False
 do_nomlp_case = False
@@ -686,7 +686,7 @@ if False:
 # =====================================================
 # 1.1 No PCS
 # =====================================================
-if False:
+if True:
     print(f'--- NO PCS CASE ---')
     test_case = '1.1_noPCS'
     (plots_folder/test_case).mkdir(parents=True, exist_ok=True)
