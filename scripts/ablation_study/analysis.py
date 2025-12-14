@@ -771,7 +771,7 @@ if True:
                 file.write(f'G = {all_robot_params_before["G_before"][i]} --> {all_robot_params_after["G_after"][i]}\n')
 
     ##### BEST RESULT #####
-    prefix = 'BEST_NOPCS'
+    prefix = 'BEST_NOPCS' # !! In this test, BEST_NOPCS is taking as initial guess the best REFERENCE intial guess, to make a direct comparison
 
     # Load and extract data (training)
     loss_curves = onp.load(data_folder/test_case/f'{prefix}_all_loss_curves.npz')
@@ -1073,6 +1073,7 @@ if True:
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
+            file.write(f'*Important note: "best_nopcs" case (i.e. long optimization of the "noPCS" case) takes as initial guesses for all parameters the best initial guess of the REFERENCE case, not of the noPCS case.\n\n')
             file.write(f'----------BEFORE TRAINING----------\n')
             file.write(f'PCS:\n')
             file.write(f'L = {L_before}\n')
