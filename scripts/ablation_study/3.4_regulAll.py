@@ -4,7 +4,7 @@
 
 # Choose device (cpu or gpu)
 import os
-os.environ["JAX_PLATFORM_NAME"] = "cpu"
+os.environ["JAX_PLATFORM_NAME"] = "gpu"
 
 # Imports
 import numpy as onp
@@ -168,7 +168,7 @@ def Loss(
     regul_controller = jnp.mean(jnp.sum(power_batch**2, axis=1)) # mean square value of the power over the entire batch (scalar)
 
     # add regularization on mapping contribution
-    beta = 1.0 # regularization weight
+    beta = 0.5 # regularization weight
     Ek_pcs = jax.vmap(robot.kinetic_energy, in_axes=(0,0))(q_batch, qd_batch) # shape (batch_size,)
     Ek_ron = jnp.sum(yd_batch**2, axis=1) # shape (batch_size,)
     regul_map = jnp.mean(Ek_ron / Ek_pcs) # scalar
