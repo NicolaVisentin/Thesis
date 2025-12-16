@@ -44,9 +44,9 @@ key = jax.random.key(seed)
 main_folder = curr_folder.parent.parent                                            # main folder "codes"
 plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
+# data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
 
-data_folder.mkdir(parents=True, exist_ok=True)
+# data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
 # Functions for plotting
@@ -182,31 +182,47 @@ def animate_robot_matplotlib(
 # =====================================================
 use_scan = True         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
+train_A_diag = False          # train diagonal A. Otherwise SVD
 
 
 # =====================================================
 # Functions for optimization
 # =====================================================
 
-# Converts A -> A_raw
-@partial(jax.jit, static_argnums=(1,))
-def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
-    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*Vt, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
-    s_raw = InverseSoftplus(s - s_thresh) # convert singular values
-    A_raw = (U, s_raw, Vt)
-    return A_raw
+if train_A_diag:
+    # Converts A -> A_raw
+    @partial(jax.jit, static_argnums=(1,))
+    def A2Araw(A: Array, a_thresh: float=0.0) -> Tuple:
+        A_flat = jnp.diag(A)
+        A_raw = InverseSoftplus(A_flat - a_thresh) # convert singular values
+        return A_raw
 
-# Converts A_raw -> A
-@partial(jax.jit, static_argnums=(1,))
-def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
-    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s_raw, Vt = A_raw
-    s = jax.nn.softplus(s_raw) + s_thresh
-    A = U @ jnp.diag(s) @ Vt
-    return A
+    # Converts A_raw -> A
+    @partial(jax.jit, static_argnums=(1,))
+    def Araw2A(A_raw: Tuple, a_thresh: float=0.0) -> Array:
+        A_flat = jax.nn.softplus(A_raw) + a_thresh
+        A = jnp.diag(A_flat)
+        return A
+else:
+    # Converts A -> A_raw
+    @partial(jax.jit, static_argnums=(1,))
+    def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
+        """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*Vt, where s vector is parametrized with softplus
+        to ensure s_i > thresh >= 0 for all i."""
+        U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
+        s_raw = InverseSoftplus(s - s_thresh) # convert singular values
+        A_raw = (U, s_raw, Vt)
+        return A_raw
+
+    # Converts A_raw -> A
+    @partial(jax.jit, static_argnums=(1,))
+    def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
+        """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+        to ensure s_i > thresh >= 0 for all i."""
+        U, s_raw, Vt = A_raw
+        s = jax.nn.softplus(s_raw) + s_thresh
+        A = U @ jnp.diag(s) @ Vt
+        return A
 
 # Loss function
 @jax.jit
@@ -227,7 +243,7 @@ def Loss(
         Parameters for the opimization. In this case a list with:
         - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
                    with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
-        - **phi**: Tuple with pcs params (L_raw, D_raw). L_raw.shape=(n_pcs,), D_raw.shape=(3*n_pcs,)
+        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -250,15 +266,19 @@ def Loss(
 
     MAP, CONTR = Phi
     A_raw, c = MAP
-    L_raw, D_raw = phi
+    L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw = phi
 
     # convert parameters
     A = Araw2A(A_raw, A_thresh)
     L = jax.nn.softplus(L_raw)
     D = jnp.diag(jax.nn.softplus(D_raw))
+    r = jax.nn.softplus(r_raw)
+    rho = jax.nn.softplus(rho_raw)
+    E = jax.nn.softplus(E_raw)
+    G = jax.nn.softplus(G_raw)
 
     # update robot and controller
-    robot_updated = robot.update_params({"L": L, "D": D})
+    robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
     controller_updated = mlp_controller.update_params(CONTR)
 
     # convert variables
@@ -390,36 +410,47 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
-#A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
-A0 = init_A_svd(key_A, n_ron, A_thresh+1e-6)
+if train_A_diag:
+    A0 = jnp.eye(n_ron)
+else:
+    #A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
+    A0 = init_A_svd(key_A, n_ron, A_thresh+1e-6)
 c0 = jnp.zeros(3*n_pcs)
 # ...robot
-L0 = jnp.tile(jnp.array([1e-1]), n_pcs)
+L0 = 1e-1*jnp.ones(n_pcs)
 D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs))
+r0 = 2e-2*jnp.ones(n_pcs)
+rho0 = 1070*jnp.ones(n_pcs)
+E0 = 2e3*jnp.ones(n_pcs)
+G0 = 1e3*jnp.ones(n_pcs)
 # ...controller
 mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]                                  # [input, hidden1, hidden2, output]
 mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.001) # initialize MLP feedback control law
 
 L_raw = InverseSoftplus(L0)
 D_raw = InverseSoftplus(jnp.diag(D0))
+r_raw = InverseSoftplus(r0)
+rho_raw = InverseSoftplus(rho0)
+E_raw = InverseSoftplus(E0)
+G_raw = InverseSoftplus(G0)
 A_raw = A2Araw(A0, A_thresh)
 c = c0
 
 MAP = (A_raw, c)
 CONTR = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 Phi = (MAP, CONTR)
-phi = (L_raw, D_raw)
+phi = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
 params_optimiz = [Phi, phi]
 
 # Initialize robot
 parameters = {
     "th0": jnp.array(jnp.pi/2),
     "L": L0,
-    "r": 2e-2*jnp.ones(n_pcs),
-    "rho": 1070*jnp.ones(n_pcs),
+    "r": r0,
+    "rho": rho0,
     "g": jnp.array([0.0, 9.81]), # !! gravity UP !!
-    "E": 2e3*jnp.ones(n_pcs),
-    "G": 1e3*jnp.ones(n_pcs),
+    "E": E0,
+    "G": G0,
     "D": D0
 }
 
@@ -677,7 +708,7 @@ if True:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
-    n_iter = 1500 # number of epochs
+    n_iter = 150 # number of epochs
     batch_size = 2**6
 
     key, subkey = jax.random.split(key)
@@ -784,15 +815,23 @@ if True:
     Phi_opt, phi_opt = params_optimiz_opt
     MAP_opt, CONTR_opt = Phi_opt
     A_raw_opt, c_opt = MAP_opt
-    L_raw_opt, D_raw_opt = phi_opt
+    L_raw_opt, D_raw_opt, r_raw_opt, rho_raw_opt, E_raw_opt, G_raw_opt = phi_opt
 
     A_opt = Araw2A(A_raw_opt, A_thresh)
     L_opt = jax.nn.softplus(L_raw_opt)
     D_opt = jnp.diag(jax.nn.softplus(D_raw_opt))
+    r_opt = jax.nn.softplus(r_raw_opt)
+    rho_opt = jax.nn.softplus(rho_raw_opt)
+    E_opt = jax.nn.softplus(E_raw_opt)
+    G_opt = jax.nn.softplus(G_raw_opt)
 
     print(
         f'L_opt: \n{L_opt}\n'
         f'D_opt: \n{D_opt}\n'
+        f'r_opt: \n{r_opt}\n'
+        f'rho_opt: \n{rho_opt}\n'
+        f'E_opt: \n{E_opt}\n'
+        f'G_opt: \n{G_opt}\n'
         f'A_opt: \n{A_opt}\n'
         f'c_opt: \n{c_opt}'
     )
@@ -800,7 +839,7 @@ if True:
     # Update optimal controller, robot and approximator
     mlp_controller_opt = mlp_controller.update_params(CONTR_opt)
 
-    robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
+    robot_opt = robot.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
 
     approximator = PlanarPCS_simple_modified(
         num_segments = n_pcs,
@@ -809,20 +848,20 @@ if True:
         A = A_opt,
         c = c_opt
     )
-    approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt})
+    approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
 
-    # Save optimal parameters
-    onp.savez(
-        data_folder/'optimal_data_robot.npz', 
-        L=onp.array(L_opt), 
-        D=onp.array(D_opt)
-    )
-    onp.savez(
-        data_folder/'optimal_data_map.npz', 
-        A=onp.array(A_opt), 
-        c=onp.array(c_opt)
-    )
-    mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
+    # # Save optimal parameters
+    # onp.savez(
+    #     data_folder/'optimal_data_robot.npz', 
+    #     L=onp.array(L_opt), 
+    #     D=onp.array(D_opt)
+    # )
+    # onp.savez(
+    #     data_folder/'optimal_data_map.npz', 
+    #     A=onp.array(A_opt), 
+    #     c=onp.array(c_opt)
+    # )
+    # mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
 
     # Visualization
     fig, ax1 = plt.subplots()
