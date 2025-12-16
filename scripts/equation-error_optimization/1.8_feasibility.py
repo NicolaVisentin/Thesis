@@ -44,12 +44,12 @@ key = jax.random.key(seed)
 main_folder = curr_folder.parent.parent                                            # main folder "codes"
 plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-# data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
+data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
 
-# data_folder.mkdir(parents=True, exist_ok=True)
+data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
 
-# Functions for plotting
+# Functions for plotting robot
 def draw_robot(
         robot: PlanarPCS_simple, 
         q: Array, 
@@ -59,7 +59,7 @@ def draw_robot(
     s_ps = jnp.linspace(0, L_max, num_points)
 
     chi_ps = robot.forward_kinematics_batched(q, s_ps)  # (N,3)
-    curve = onp.array(chi_ps[:, 1:], dtype=onp.float64) # (N,2)
+    curve = jnp.array(chi_ps[:, 1:], dtype=jnp.float64) # (N,2)
     pos_tip = curve[-1]                                 # [x_tip, y_tip]
 
     return curve, pos_tip
@@ -74,6 +74,9 @@ def animate_robot_matplotlib(
     slider: bool = None,
     animation: bool = None,
     show: bool = True,
+    fps: float = None,
+    duration: float = None,
+    save_path: Path = None,
 ):
     if slider is None and animation is None:
         raise ValueError("Either 'slider' or 'animation' must be set to True.")
@@ -82,7 +85,8 @@ def animate_robot_matplotlib(
             "Cannot use both animation and slider at the same time. Choose one."
         )
 
-    width = jnp.sum(robot.L) * 10
+    _, pos_tip_list = jax.vmap(draw_robot, in_axes=(None,0,None))(robot, q_list, num_points)
+    width = onp.max(pos_tip_list)
     height = width
 
     if target is not None:
@@ -102,6 +106,30 @@ def animate_robot_matplotlib(
     draw_base(ax, robot, L=0.1)
 
     if animation:
+        n_frames = len(q_list)
+        default_fps = 1000 / interval
+        default_duration = n_frames * (interval / 1000)
+        if fps is None and duration is None:
+            final_fps = default_fps
+            final_duration = default_duration
+            frame_skip = 1
+        elif fps is not None and duration is None:
+            final_fps = fps
+            final_duration = n_frames / save_fps
+            frame_skip = 1
+        elif fps is None and duration is not None:
+            final_duration = duration
+            final_fps = n_frames / duration
+            frame_skip = 1
+        else:
+            final_fps = fps
+            final_duration = duration
+            n_required_frames = int(final_duration * final_fps)
+            n_required_frames = max(1, n_required_frames)
+            frame_skip = max(1, n_frames // n_required_frames)
+
+        frame_indices = list(range(0, n_frames, frame_skip))
+
         (line,) = ax.plot([], [], lw=4, color="blue")
         (tip,) = ax.plot([], [], 'ro', markersize=5)
         (targ,) = ax.plot([], [], color='r', alpha=0.5)
@@ -132,11 +160,13 @@ def animate_robot_matplotlib(
         ani = FuncAnimation(
             fig,
             update,
-            frames=len(q_list),
+            frames=frame_indices,
             init_func=init,
             blit=False,
-            interval=interval,
+            interval=1000/final_fps,
         )
+        if save_path is not None:
+            ani.save(save_path, writer=PillowWriter(fps=final_fps))
 
     elif slider:
 
@@ -394,8 +424,8 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
-#A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
-A0 = init_A_svd(key_A, n_ron, A_thresh + 1e-6)
+s_init = 3e-3 # initial value for the singulr values
+A0 = init_A_svd(key_A, n_ron, s_init, s_init + 1e-6)
 c0 = jnp.zeros(3*n_pcs)
 # ...robot
 L0 = 1e-1*jnp.ones(n_pcs)
@@ -689,7 +719,7 @@ if True:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
-    n_iter = 150 # number of epochs
+    n_iter = 1500 # number of epochs
     batch_size = 2**6
 
     key, subkey = jax.random.split(key)
@@ -831,18 +861,18 @@ if True:
     )
     approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
 
-    # # Save optimal parameters
-    # onp.savez(
-    #     data_folder/'optimal_data_robot.npz', 
-    #     L=onp.array(L_opt), 
-    #     D=onp.array(D_opt)
-    # )
-    # onp.savez(
-    #     data_folder/'optimal_data_map.npz', 
-    #     A=onp.array(A_opt), 
-    #     c=onp.array(c_opt)
-    # )
-    # mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
+    # Save optimal parameters
+    onp.savez(
+        data_folder/'optimal_data_robot.npz', 
+        L=onp.array(L_opt), 
+        D=onp.array(D_opt)
+    )
+    onp.savez(
+        data_folder/'optimal_data_map.npz', 
+        A=onp.array(A_opt), 
+        c=onp.array(c_opt)
+    )
+    mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
 
     # Visualization
     fig, ax1 = plt.subplots()
