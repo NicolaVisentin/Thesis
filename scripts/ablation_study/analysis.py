@@ -51,12 +51,12 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-do_ref_case = False
-do_nopcs_case = False
-do_nomap_case = False
-do_diagmap_case = False
-do_nomlp_case = False
-do_regulmlp_case = False
+do_ref_case = True
+do_nopcs_case = True
+do_nomap_case = True
+do_diagmap_case = True
+do_nomlp_case = True
+do_regulmlp_case = True
 do_coupled_case = False
 do_overall = True
 
@@ -310,6 +310,7 @@ if do_ref_case or do_overall:
     n_epochs_samples = all_train_mse_ts.shape[1]
 
     # Compute "mapping effort" for each sample (after training)
+    print('Computing mapping effort (after training)')
     SAMPLES_REF_mapping_effort_after = []
     for i in range(n_samples):
         robot_i = robot.update_params({
@@ -442,7 +443,7 @@ if do_ref_case or do_overall:
         RON_dataset, 
         partial(map, A=A_after, c=c_after)
     )
-    BEST_REF_condA = jnp.linalg.cond(A_after)
+    BEST_REF_condAinv = jnp.linalg.cond(jnp.linalg.inv(A_after))
 
     if do_ref_case:
         # Simulation before training
@@ -499,7 +500,12 @@ if do_ref_case or do_overall:
         q_PCS_after, qd_PCS_after = jnp.split(sim_out_pcs.y, 2, axis=1)
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T            # yd_hat(t) = inv(A) * qd(t)
+        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
+
+        # Compute simulation metrics
+        BEST_REF_simulationPower = compute_simulation_power(u_pcs_after, qd_PCS_after)
+        BEST_REF_simulationAccuracy = compute_simulation_rmse(timePCS_after, y_hat_pcs_after, time_RONsaved, y_RONsaved)
+        BEST_REF_simulationMapeffort = compute_simulation_Ek_ratio(robot_after, timePCS_after, q_PCS_after, qd_PCS_after, time_RONsaved, yd_RONsaved)
 
         # Show loss curve
         plt.figure()
@@ -691,7 +697,7 @@ if do_ref_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -706,7 +712,7 @@ if do_ref_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -721,8 +727,8 @@ if do_ref_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -737,12 +743,12 @@ if do_ref_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -806,6 +812,7 @@ if do_nopcs_case or do_overall:
     n_epochs_samples = all_train_mse_ts.shape[1]
 
     # Compute "mapping effort" for each sample (after training)
+    print('Computing mapping effort (after training)')
     SAMPLES_NOPCS_mapping_effort_after = []
     for i in range(n_samples):
         robot_i = robot.update_params({
@@ -938,7 +945,7 @@ if do_nopcs_case or do_overall:
         RON_dataset, 
         partial(map, A=A_after, c=c_after)
     )
-    BEST_NOPCS_condA = jnp.linalg.cond(A_after)
+    BEST_NOPCS_condAinv = jnp.linalg.cond(jnp.linalg.inv(A_after))
 
     if do_nopcs_case:
         # Simulation before training
@@ -995,7 +1002,12 @@ if do_nopcs_case or do_overall:
         q_PCS_after, qd_PCS_after = jnp.split(sim_out_pcs.y, 2, axis=1)
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T            # yd_hat(t) = inv(A) * qd(t)
+        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
+
+        # Compute simulation metrics
+        BEST_NOPCS_simulationPower = compute_simulation_power(u_pcs_after, qd_PCS_after)
+        BEST_NOPCS_simulationAccuracy = compute_simulation_rmse(timePCS_after, y_hat_pcs_after, time_RONsaved, y_RONsaved)
+        BEST_NOPCS_simulationMapeffort = compute_simulation_Ek_ratio(robot_after, timePCS_after, q_PCS_after, qd_PCS_after, time_RONsaved, yd_RONsaved)
 
         # Show loss curve
         plt.figure()
@@ -1187,7 +1199,7 @@ if do_nopcs_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -1202,7 +1214,7 @@ if do_nopcs_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -1217,8 +1229,8 @@ if do_nopcs_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -1233,12 +1245,12 @@ if do_nopcs_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -1303,6 +1315,7 @@ if do_nomap_case or do_overall:
     n_epochs_samples = all_train_mse_ts.shape[1]
 
     # Compute "mapping effort" for each sample (after training)
+    print('Computing mapping effort (after training)')
     SAMPLES_NOMAP_mapping_effort_after = []
     for i in range(n_samples):
         robot_i = robot.update_params({
@@ -1435,7 +1448,7 @@ if do_nomap_case or do_overall:
         RON_dataset, 
         partial(map, A=A_after, c=c_after)
     )
-    BEST_NOMAP_condA = jnp.linalg.cond(A_after)
+    BEST_NOMAP_condAinv = jnp.linalg.cond(jnp.linalg.inv(A_after))
 
     if do_nomap_case:
         # Simulation before training
@@ -1492,7 +1505,12 @@ if do_nomap_case or do_overall:
         q_PCS_after, qd_PCS_after = jnp.split(sim_out_pcs.y, 2, axis=1)
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T            # yd_hat(t) = inv(A) * qd(t)
+        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
+
+        # Compute simulation metrics
+        BEST_NOMAP_simulationPower = compute_simulation_power(u_pcs_after, qd_PCS_after)
+        BEST_NOMAP_simulationAccuracy = compute_simulation_rmse(timePCS_after, y_hat_pcs_after, time_RONsaved, y_RONsaved)
+        BEST_NOMAP_simulationMapeffort = compute_simulation_Ek_ratio(robot_after, timePCS_after, q_PCS_after, qd_PCS_after, time_RONsaved, yd_RONsaved)
 
         # Show loss curve
         plt.figure()
@@ -1684,7 +1702,7 @@ if do_nomap_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -1699,7 +1717,7 @@ if do_nomap_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -1714,8 +1732,8 @@ if do_nomap_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -1730,12 +1748,12 @@ if do_nomap_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -1799,6 +1817,7 @@ if do_diagmap_case or do_overall:
     n_epochs_samples = all_train_mse_ts.shape[1]
 
     # Compute "mapping effort" for each sample (after training)
+    print('Computing mapping effort (after training)')
     SAMPLES_DIAGMAP_mapping_effort_after = []
     for i in range(n_samples):
         robot_i = robot.update_params({
@@ -1931,7 +1950,7 @@ if do_diagmap_case or do_overall:
         RON_dataset, 
         partial(map, A=A_after, c=c_after)
     )
-    BEST_DIAGMAP_condA = jnp.linalg.cond(A_after)
+    BEST_DIAGMAP_condAinv = jnp.linalg.cond(jnp.linalg.inv(A_after))
 
     if do_diagmap_case:
         # Simulation before training
@@ -1988,7 +2007,12 @@ if do_diagmap_case or do_overall:
         q_PCS_after, qd_PCS_after = jnp.split(sim_out_pcs.y, 2, axis=1)
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T            # yd_hat(t) = inv(A) * qd(t)
+        yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
+
+        # Compute simulation metrics
+        BEST_DIAGMAP_simulationPower = compute_simulation_power(u_pcs_after, qd_PCS_after)
+        BEST_DIAGMAP_simulationAccuracy = compute_simulation_rmse(timePCS_after, y_hat_pcs_after, time_RONsaved, y_RONsaved)
+        BEST_DIAGMAP_simulationMapeffort = compute_simulation_Ek_ratio(robot_after, timePCS_after, q_PCS_after, qd_PCS_after, time_RONsaved, yd_RONsaved)
 
         # Show loss curve
         plt.figure()
@@ -2180,7 +2204,7 @@ if do_diagmap_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -2195,7 +2219,7 @@ if do_diagmap_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -2210,8 +2234,8 @@ if do_diagmap_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -2226,12 +2250,12 @@ if do_diagmap_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -2295,6 +2319,7 @@ if do_nomlp_case or do_overall:
     n_epochs_samples = all_train_mse_ts.shape[1]
 
     # Compute "mapping effort" for each sample (after training)
+    print('Computing mapping effort (after training)')
     SAMPLES_NOMLP_mapping_effort_after = []
     for i in range(n_samples):
         robot_i = robot.update_params({
@@ -2427,7 +2452,7 @@ if do_nomlp_case or do_overall:
         RON_dataset, 
         partial(map, A=A_after, c=c_after)
     )
-    BEST_NOMLP_condA = jnp.linalg.cond(A_after)
+    BEST_NOMLP_condAinv = jnp.linalg.cond(jnp.linalg.inv(A_after))
 
     if do_nomlp_case:
         # Simulation before training
@@ -2485,6 +2510,11 @@ if do_nomlp_case or do_overall:
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
         yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
+
+        # Compute simulation metrics
+        BEST_NOMLP_simulationPower = compute_simulation_power(u_pcs_after, qd_PCS_after)
+        BEST_NOMLP_simulationAccuracy = compute_simulation_rmse(timePCS_after, y_hat_pcs_after, time_RONsaved, y_RONsaved)
+        BEST_NOMLP_simulationMapeffort = compute_simulation_Ek_ratio(robot_after, timePCS_after, q_PCS_after, qd_PCS_after, time_RONsaved, yd_RONsaved)
 
         # Show loss curve
         plt.figure()
@@ -2676,7 +2706,7 @@ if do_nomlp_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -2691,7 +2721,7 @@ if do_nomlp_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -2706,8 +2736,8 @@ if do_nomlp_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -2722,12 +2752,12 @@ if do_nomlp_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -2792,6 +2822,7 @@ if do_regulmlp_case or do_overall:
     n_epochs_samples = all_train_mse_ts.shape[1]
 
     # Compute "mapping effort" for each sample (after training)
+    print('Computing mapping effort (after training)')
     SAMPLES_REGULMLP_mapping_effort_after = []
     for i in range(n_samples):
         robot_i = robot.update_params({
@@ -2926,7 +2957,7 @@ if do_regulmlp_case or do_overall:
         RON_dataset, 
         partial(map, A=A_after, c=c_after)
     )
-    BEST_REGULMLP_condA = jnp.linalg.cond(A_after)
+    BEST_REGULMLP_condAinv = jnp.linalg.cond(jnp.linalg.inv(A_after))
 
     if do_regulmlp_case:
         # Simulation before training
@@ -2984,6 +3015,11 @@ if do_regulmlp_case or do_overall:
         u_pcs_after = sim_out_pcs.u
         y_hat_pcs_after = jnp.linalg.solve(A_after, (q_PCS_after - c_after).T).T # y_hat(t) = inv(A) * ( q(t) - c )
         yd_hat_pcs_after = jnp.linalg.solve(A_after, qd_PCS_after.T).T           # yd_hat(t) = inv(A) * qd(t)
+
+        # Compute simulation metrics
+        BEST_REGULMLP_simulationPower = compute_simulation_power(u_pcs_after, qd_PCS_after)
+        BEST_REGULMLP_simulationAccuracy = compute_simulation_rmse(timePCS_after, y_hat_pcs_after, time_RONsaved, y_RONsaved)
+        BEST_REGULMLP_simulationMapeffort = compute_simulation_Ek_ratio(robot_after, timePCS_after, q_PCS_after, qd_PCS_after, time_RONsaved, yd_RONsaved)
 
         # Show loss curve
         plt.figure()
@@ -3177,7 +3213,7 @@ if do_regulmlp_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -3192,7 +3228,7 @@ if do_regulmlp_case or do_overall:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -3207,8 +3243,8 @@ if do_regulmlp_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -3223,12 +3259,12 @@ if do_regulmlp_case or do_overall:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -3647,7 +3683,7 @@ if do_coupled_case:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_before', bbox_inches='tight')
@@ -3662,7 +3698,7 @@ if do_coupled_case:
             ax.set_xlabel('t [s]')
             ax.set_ylabel('y, q')
             ax.set_title(f'Component {i+1}')
-            #ax.set_ylim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
+            ax.set_ylim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_time_after', bbox_inches='tight')
@@ -3677,8 +3713,8 @@ if do_coupled_case:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved_coupled[:,i])-1, onp.max(yd_RONsaved_coupled[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved_coupled[:,i])-1, onp.max(yd_RONsaved_coupled[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_before', bbox_inches='tight')
@@ -3693,12 +3729,12 @@ if do_coupled_case:
             ax.set_xlabel(r'$y$')
             ax.set_ylabel(r'$\dot{y}$')
             ax.set_title(f'Component {i+1}')
-            #ax.set_xlim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
-            #ax.set_ylim([onp.min(yd_RONsaved_coupled[:,i])-1, onp.max(yd_RONsaved_coupled[:,i])+1])
+            ax.set_xlim([onp.min(y_RONsaved_coupled[:,i])-1, onp.max(y_RONsaved_coupled[:,i])+1])
+            ax.set_ylim([onp.min(yd_RONsaved_coupled[:,i])-1, onp.max(yd_RONsaved_coupled[:,i])+1])
             ax.legend()
         plt.tight_layout()
         plt.savefig(plots_folder/test_case/'best_result_RONvsPCS_phaseplane_after', bbox_inches='tight')
-        plt.show()
+        #plt.show()
 
         # Save in a text file all the parameters before and after training
         with open(plots_folder/test_case/'best_result_parameters.txt', 'w') as file:
@@ -3737,7 +3773,7 @@ if do_coupled_case:
 # =====================================================
 if do_overall:
     ##### ALL SAMPLES #####
-    # Plot accuracy vs control effort (on test set)
+    # Plot accuracy vs control effort (on the test set)
     plt.figure()
     plt.scatter(SAMPLES_REF_all_rmse_after, onp.sqrt(SAMPLES_REF_all_powers_msv_after), color='b', label='reference')
     plt.scatter(SAMPLES_NOPCS_all_rmse_after, onp.sqrt(SAMPLES_NOPCS_all_powers_msv_after), color='r', label='no pcs')
@@ -3756,7 +3792,7 @@ if do_overall:
     plt.savefig(plots_folder/'Pareto_accuracy_vs_controleffort_samples', bbox_inches='tight')
     #plt.show()
 
-    # Plot accuracy vs mapping "effort" (on test set)
+    # Plot accuracy vs mapping "effort" (on the test set)
     plt.figure()
     plt.scatter(SAMPLES_REF_all_rmse_after, SAMPLES_REF_mapping_effort_after, color='b', label='reference')
     plt.scatter(SAMPLES_NOPCS_all_rmse_after, SAMPLES_NOPCS_mapping_effort_after, color='r', label='no pcs')
@@ -3794,40 +3830,62 @@ if do_overall:
     plt.savefig(plots_folder/'All_cases_validation_mse', bbox_inches='tight')
     #plt.show()
 
-    # Plot accuracy vs control effort (on test set)
+    # Plot accuracy vs control effort (on the test set and on a simulation)
     plt.figure()
+
+    if do_ref_case and do_nopcs_case and do_nomap_case and do_diagmap_case and do_nomlp_case and do_regulmlp_case:
+        plt.scatter(BEST_REF_simulationAccuracy, BEST_REF_simulationPower, color='b', marker='+')
+        plt.scatter(BEST_NOPCS_simulationAccuracy, BEST_NOPCS_simulationPower, color='r', marker='+')
+        if BEST_NOMAP_simulationAccuracy < 1e10 and BEST_NOMAP_simulationPower < 1e10:
+            plt.scatter(BEST_NOMAP_simulationAccuracy, BEST_NOMAP_simulationPower, color='g', marker='+')
+        plt.scatter(BEST_DIAGMAP_simulationAccuracy, BEST_DIAGMAP_simulationPower, color='c', marker='+')
+        y_axis_max = plt.ylim()[1]
+        plt.vlines(BEST_NOMLP_simulationAccuracy, -1, y_axis_max, color='m', linestyle='--', alpha=1)
+        plt.scatter(BEST_REGULMLP_simulationAccuracy, BEST_REGULMLP_simulationPower, color='y', marker='+')
+
     plt.scatter(BEST_REF_rmse_after, onp.sqrt(BEST_REF_powers_msv_after), color='b', label='reference')
     plt.scatter(BEST_NOPCS_rmse_after, onp.sqrt(BEST_NOPCS_powers_msv_after), color='r', label='no pcs')
     plt.scatter(BEST_NOMAP_rmse_after, onp.sqrt(BEST_NOMAP_powers_msv_after), color='g', label='no map')
     plt.scatter(BEST_DIAGMAP_rmse_after, onp.sqrt(BEST_DIAGMAP_powers_msv_after), color='c', label='diagonal map')
-    plt.vlines(BEST_NOMLP_rmse_after, -1, plt.ylim()[1], color='m', alpha=1, label='no fb controller')
+    plt.vlines(BEST_NOMLP_rmse_after, -1, y_axis_max, color='m', alpha=1, label='no fb controller')
     plt.scatter(BEST_REGULMLP_rmse_after, onp.sqrt(BEST_REGULMLP_powers_msv_after), color='y', label='control penality')
+
     plt.xscale('log')
     plt.yscale('log')
     plt.grid(True)
-    plt.xlabel('RMS error on test set')
-    plt.ylabel('RMS power on test set')
+    plt.xlabel('RMS error')
+    plt.ylabel('RMS power')
     plt.title('Control effort vs accuracy')
     plt.legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'Pareto_accuracy_vs_controleffort_best', bbox_inches='tight')
     #plt.show()
 
-    # Plot accuracy vs mapping "effort" (on test set)
+    # Plot accuracy vs mapping "effort" (on the test set and on a simulation)
     plt.figure()
-    plt.scatter(BEST_REF_rmse_after, BEST_REF_mapping_effort_after, color='b', label=f'reference (cond(A)={BEST_REF_condA:.2f})')
-    plt.scatter(BEST_NOPCS_rmse_after, BEST_NOPCS_mapping_effort_after, color='r', label=f'no pcs (cond(A)={BEST_NOPCS_condA:.2f})')
-    plt.scatter(BEST_NOMAP_rmse_after, BEST_NOMAP_mapping_effort_after, color='g', label=f'no map (cond(A)={BEST_NOMAP_condA:.2f})')
-    plt.scatter(BEST_DIAGMAP_rmse_after, BEST_DIAGMAP_mapping_effort_after, color='c', label=f'diagonal map (cond(A)={BEST_DIAGMAP_condA:.2f})')
-    plt.scatter(BEST_NOMLP_rmse_after, BEST_NOMLP_mapping_effort_after, color='m', label=f'no fb controller (cond(A)={BEST_NOMLP_condA:.2f})')
-    plt.scatter(BEST_REGULMLP_rmse_after, BEST_REGULMLP_mapping_effort_after, color='y', label=f'control penality (cond(A)={BEST_REGULMLP_condA:.2f})')
+
+    if do_ref_case and do_nopcs_case and do_nomap_case and do_diagmap_case and do_nomlp_case and do_regulmlp_case:
+        plt.scatter(BEST_REF_simulationAccuracy, BEST_REF_simulationMapeffort, color='b', marker='+')
+        plt.scatter(BEST_NOPCS_simulationAccuracy, BEST_NOPCS_simulationMapeffort, color='r', marker='+')
+        plt.scatter(BEST_NOMAP_simulationAccuracy, BEST_NOMAP_simulationMapeffort, color='g', marker='+')
+        plt.scatter(BEST_DIAGMAP_simulationAccuracy, BEST_DIAGMAP_simulationMapeffort, color='c', marker='+')
+        plt.scatter(BEST_NOMLP_simulationAccuracy, BEST_NOMLP_simulationMapeffort, color='m', marker='+')
+        plt.scatter(BEST_REGULMLP_simulationAccuracy, BEST_REGULMLP_simulationMapeffort, color='y', marker='+')
+
+    plt.scatter(BEST_REF_rmse_after, BEST_REF_mapping_effort_after, color='b', label=f'reference (cond(A)={BEST_REF_condAinv:.2f})')
+    plt.scatter(BEST_NOPCS_rmse_after, BEST_NOPCS_mapping_effort_after, color='r', label=f'no pcs (cond(A)={BEST_NOPCS_condAinv:.2f})')
+    plt.scatter(BEST_NOMAP_rmse_after, BEST_NOMAP_mapping_effort_after, color='g', label=f'no map (cond(A)={BEST_NOMAP_condAinv:.2f})')
+    plt.scatter(BEST_DIAGMAP_rmse_after, BEST_DIAGMAP_mapping_effort_after, color='c', label=f'diagonal map (cond(A)={BEST_DIAGMAP_condAinv:.2f})')
+    plt.scatter(BEST_NOMLP_rmse_after, BEST_NOMLP_mapping_effort_after, color='m', label=f'no fb controller (cond(A)={BEST_NOMLP_condAinv:.2f})')
+    plt.scatter(BEST_REGULMLP_rmse_after, BEST_REGULMLP_mapping_effort_after, color='y', label=f'control penality (cond(A)={BEST_REGULMLP_condAinv:.2f})')
+    
     plt.xscale('log')
     plt.yscale('log')
     plt.grid(True)
-    plt.xlabel('RMS error on test set')
-    plt.ylabel(r'mean $E_{k}$ ratio on test set')
+    plt.xlabel('RMS error')
+    plt.ylabel(r'mean $E_{k}$ ratio')
     plt.title('Mapping effort vs accuracy')
     plt.legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'Pareto_accuracy_vs_mappingeffort_best', bbox_inches='tight')
-    plt.show()
+    #plt.show()
