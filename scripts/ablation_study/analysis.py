@@ -248,6 +248,16 @@ def tau_law(system_state: SystemState, controller: MLP):
     tau = controller(system_state.y)
     return tau, None
 
+def map(r, A, c):
+    y, yd = jnp.split(r, 2)
+    q = A @ y + c
+    qd = A @ yd
+    z = jnp.concatenate([q, qd])
+    return z
+
+# RON dataset (decoupled case)
+RON_dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
+
 # RON data (decoupled case)
 RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
 time_RONsaved = jnp.array(RON_evolution_data['time'])
@@ -287,6 +297,7 @@ if do_ref_case or do_overall:
     all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
     all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+    all_map_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     all_powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
 
     all_train_loss_ts = all_loss_curves["train_losses_ts"]
@@ -297,6 +308,21 @@ if do_ref_case or do_overall:
     n_samples = all_rmse_before.shape[0]
     SAMPLES_REF_all_powers_msv_after = all_powers_msv_after["powers_msv_after"]
     n_epochs_samples = all_train_mse_ts.shape[1]
+
+    # Compute "mapping effort" for each sample (after training)
+    SAMPLES_REF_mapping_effort_after = []
+    for i in range(n_samples):
+        robot_i = robot.update_params({
+            "L": jnp.array(all_robot_params_after["L_after"][i]), 
+            "D": jnp.diag(all_robot_params_after["D_after"][i]),
+            "r": jnp.array(all_robot_params_after["r_after"][i]),
+            "rho": jnp.array(all_robot_params_after["rho_after"][i]),
+            "E": jnp.array(all_robot_params_after["E_after"][i]),
+            "G": jnp.array(all_robot_params_after["G_after"][i]),
+        })
+        map_i = partial(map, A=jnp.array(all_map_after["A_after"][i]), c=jnp.array(all_map_after["c_after"][i]))
+        mapping_effort_i = mean_Ek_ratio(robot_i, RON_dataset, map_i)
+        SAMPLES_REF_mapping_effort_after.append(mapping_effort_i)
 
     if do_ref_case:
         # Plot comparison of all samples (RMSE)
@@ -409,6 +435,14 @@ if do_ref_case or do_overall:
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
     c_after = jnp.array(map_data_after["c_after"][0])
+
+    # Compute mapping effort (after training)
+    BEST_REF_mapping_effort_after = mean_Ek_ratio(
+        robot_after, 
+        RON_dataset, 
+        partial(map, A=A_after, c=c_after)
+    )
+    BEST_REF_condA = jnp.linalg.cond(A_after)
 
     if do_ref_case:
         # Simulation before training
@@ -759,6 +793,7 @@ if do_nopcs_case or do_overall:
     all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
     all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+    all_map_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     all_powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
 
     all_train_loss_ts = all_loss_curves["train_losses_ts"]
@@ -769,6 +804,21 @@ if do_nopcs_case or do_overall:
     n_samples = all_rmse_before.shape[0]
     SAMPLES_NOPCS_all_powers_msv_after = all_powers_msv_after["powers_msv_after"]
     n_epochs_samples = all_train_mse_ts.shape[1]
+
+    # Compute "mapping effort" for each sample (after training)
+    SAMPLES_NOPCS_mapping_effort_after = []
+    for i in range(n_samples):
+        robot_i = robot.update_params({
+            "L": jnp.array(all_robot_params_after["L_after"][i]), 
+            "D": jnp.diag(all_robot_params_after["D_after"][i]),
+            "r": jnp.array(all_robot_params_after["r_after"][i]),
+            "rho": jnp.array(all_robot_params_after["rho_after"][i]),
+            "E": jnp.array(all_robot_params_after["E_after"][i]),
+            "G": jnp.array(all_robot_params_after["G_after"][i]),
+        })
+        map_i = partial(map, A=jnp.array(all_map_after["A_after"][i]), c=jnp.array(all_map_after["c_after"][i]))
+        mapping_effort_i = mean_Ek_ratio(robot_i, RON_dataset, map_i)
+        SAMPLES_NOPCS_mapping_effort_after.append(mapping_effort_i)
 
     if do_nopcs_case:
         # Plot comparison of all samples (RMSE)
@@ -881,6 +931,14 @@ if do_nopcs_case or do_overall:
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
     c_after = jnp.array(map_data_after["c_after"][0])
+
+    # Compute mapping effort (after training)
+    BEST_NOPCS_mapping_effort_after = mean_Ek_ratio(
+        robot_after, 
+        RON_dataset, 
+        partial(map, A=A_after, c=c_after)
+    )
+    BEST_NOPCS_condA = jnp.linalg.cond(A_after)
 
     if do_nopcs_case:
         # Simulation before training
@@ -1232,6 +1290,7 @@ if do_nomap_case or do_overall:
     all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
     all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+    all_map_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     all_powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
 
     all_train_loss_ts = all_loss_curves["train_losses_ts"]
@@ -1242,6 +1301,21 @@ if do_nomap_case or do_overall:
     n_samples = all_rmse_before.shape[0]
     SAMPLES_NOMAP_all_powers_msv_after = all_powers_msv_after["powers_msv_after"]
     n_epochs_samples = all_train_mse_ts.shape[1]
+
+    # Compute "mapping effort" for each sample (after training)
+    SAMPLES_NOMAP_mapping_effort_after = []
+    for i in range(n_samples):
+        robot_i = robot.update_params({
+            "L": jnp.array(all_robot_params_after["L_after"][i]), 
+            "D": jnp.diag(all_robot_params_after["D_after"][i]),
+            "r": jnp.array(all_robot_params_after["r_after"][i]),
+            "rho": jnp.array(all_robot_params_after["rho_after"][i]),
+            "E": jnp.array(all_robot_params_after["E_after"][i]),
+            "G": jnp.array(all_robot_params_after["G_after"][i]),
+        })
+        map_i = partial(map, A=jnp.array(all_map_after["A_after"][i]), c=jnp.array(all_map_after["c_after"][i]))
+        mapping_effort_i = mean_Ek_ratio(robot_i, RON_dataset, map_i)
+        SAMPLES_NOMAP_mapping_effort_after.append(mapping_effort_i)
 
     if do_nomap_case:
         # Plot comparison of all samples (RMSE)
@@ -1354,6 +1428,14 @@ if do_nomap_case or do_overall:
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
     c_after = jnp.array(map_data_after["c_after"][0])
+
+    # Compute mapping effort (after training)
+    BEST_NOMAP_mapping_effort_after = mean_Ek_ratio(
+        robot_after, 
+        RON_dataset, 
+        partial(map, A=A_after, c=c_after)
+    )
+    BEST_NOMAP_condA = jnp.linalg.cond(A_after)
 
     if do_nomap_case:
         # Simulation before training
@@ -1704,6 +1786,7 @@ if do_diagmap_case or do_overall:
     all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
     all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+    all_map_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     all_powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
 
     all_train_loss_ts = all_loss_curves["train_losses_ts"]
@@ -1714,6 +1797,21 @@ if do_diagmap_case or do_overall:
     n_samples = all_rmse_before.shape[0]
     SAMPLES_DIAGMAP_all_powers_msv_after = all_powers_msv_after["powers_msv_after"]
     n_epochs_samples = all_train_mse_ts.shape[1]
+
+    # Compute "mapping effort" for each sample (after training)
+    SAMPLES_DIAGMAP_mapping_effort_after = []
+    for i in range(n_samples):
+        robot_i = robot.update_params({
+            "L": jnp.array(all_robot_params_after["L_after"][i]), 
+            "D": jnp.diag(all_robot_params_after["D_after"][i]),
+            "r": jnp.array(all_robot_params_after["r_after"][i]),
+            "rho": jnp.array(all_robot_params_after["rho_after"][i]),
+            "E": jnp.array(all_robot_params_after["E_after"][i]),
+            "G": jnp.array(all_robot_params_after["G_after"][i]),
+        })
+        map_i = partial(map, A=jnp.array(all_map_after["A_after"][i]), c=jnp.array(all_map_after["c_after"][i]))
+        mapping_effort_i = mean_Ek_ratio(robot_i, RON_dataset, map_i)
+        SAMPLES_DIAGMAP_mapping_effort_after.append(mapping_effort_i)
 
     if do_diagmap_case:
         # Plot comparison of all samples (RMSE)
@@ -1826,6 +1924,14 @@ if do_diagmap_case or do_overall:
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
     c_after = jnp.array(map_data_after["c_after"][0])
+
+    # Compute mapping effort (after training)
+    BEST_DIAGMAP_mapping_effort_after = mean_Ek_ratio(
+        robot_after, 
+        RON_dataset, 
+        partial(map, A=A_after, c=c_after)
+    )
+    BEST_DIAGMAP_condA = jnp.linalg.cond(A_after)
 
     if do_diagmap_case:
         # Simulation before training
@@ -2176,6 +2282,7 @@ if do_nomlp_case or do_overall:
     all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
     all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+    all_map_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     all_powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
 
     all_train_loss_ts = all_loss_curves["train_losses_ts"]
@@ -2186,6 +2293,21 @@ if do_nomlp_case or do_overall:
     n_samples = all_rmse_before.shape[0]
     SAMPLES_NOMLP_all_powers_msv_after = all_powers_msv_after["powers_msv_after"]
     n_epochs_samples = all_train_mse_ts.shape[1]
+
+    # Compute "mapping effort" for each sample (after training)
+    SAMPLES_NOMLP_mapping_effort_after = []
+    for i in range(n_samples):
+        robot_i = robot.update_params({
+            "L": jnp.array(all_robot_params_after["L_after"][i]), 
+            "D": jnp.diag(all_robot_params_after["D_after"][i]),
+            "r": jnp.array(all_robot_params_after["r_after"][i]),
+            "rho": jnp.array(all_robot_params_after["rho_after"][i]),
+            "E": jnp.array(all_robot_params_after["E_after"][i]),
+            "G": jnp.array(all_robot_params_after["G_after"][i]),
+        })
+        map_i = partial(map, A=jnp.array(all_map_after["A_after"][i]), c=jnp.array(all_map_after["c_after"][i]))
+        mapping_effort_i = mean_Ek_ratio(robot_i, RON_dataset, map_i)
+        SAMPLES_NOMLP_mapping_effort_after.append(mapping_effort_i)
 
     if do_nomlp_case:
         # Plot comparison of all samples (RMSE)
@@ -2298,6 +2420,14 @@ if do_nomlp_case or do_overall:
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
     c_after = jnp.array(map_data_after["c_after"][0])
+
+    # Compute mapping effort (after training)
+    BEST_NOMLP_mapping_effort_after = mean_Ek_ratio(
+        robot_after, 
+        RON_dataset, 
+        partial(map, A=A_after, c=c_after)
+    )
+    BEST_NOMLP_condA = jnp.linalg.cond(A_after)
 
     if do_nomlp_case:
         # Simulation before training
@@ -2648,6 +2778,7 @@ if do_regulmlp_case or do_overall:
     all_rmse_after = onp.load(data_folder/test_case/f'{prefix}_all_rmse_after.npz')
     all_robot_params_before = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_before.npz')
     all_robot_params_after = onp.load(data_folder/test_case/f'{prefix}_all_data_robot_after.npz')
+    all_map_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     all_powers_msv_after = onp.load(data_folder/test_case/f'{prefix}_all_powers_msv_after.npz')
 
     all_train_loss_ts = all_loss_curves["train_losses_ts"]
@@ -2659,6 +2790,21 @@ if do_regulmlp_case or do_overall:
     n_samples = all_rmse_before.shape[0]
     SAMPLES_REGULMLP_all_powers_msv_after = all_powers_msv_after["powers_msv_after"]
     n_epochs_samples = all_train_mse_ts.shape[1]
+
+    # Compute "mapping effort" for each sample (after training)
+    SAMPLES_REGULMLP_mapping_effort_after = []
+    for i in range(n_samples):
+        robot_i = robot.update_params({
+            "L": jnp.array(all_robot_params_after["L_after"][i]), 
+            "D": jnp.diag(all_robot_params_after["D_after"][i]),
+            "r": jnp.array(all_robot_params_after["r_after"][i]),
+            "rho": jnp.array(all_robot_params_after["rho_after"][i]),
+            "E": jnp.array(all_robot_params_after["E_after"][i]),
+            "G": jnp.array(all_robot_params_after["G_after"][i]),
+        })
+        map_i = partial(map, A=jnp.array(all_map_after["A_after"][i]), c=jnp.array(all_map_after["c_after"][i]))
+        mapping_effort_i = mean_Ek_ratio(robot_i, RON_dataset, map_i)
+        SAMPLES_REGULMLP_mapping_effort_after.append(mapping_effort_i)
 
     if do_regulmlp_case:
         # Plot comparison of all samples (RMSE)
@@ -2773,6 +2919,14 @@ if do_regulmlp_case or do_overall:
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
     c_after = jnp.array(map_data_after["c_after"][0])
+
+    # Compute mapping effort (after training)
+    BEST_REGULMLP_mapping_effort_after = mean_Ek_ratio(
+        robot_after, 
+        RON_dataset, 
+        partial(map, A=A_after, c=c_after)
+    )
+    BEST_REGULMLP_condA = jnp.linalg.cond(A_after)
 
     if do_regulmlp_case:
         # Simulation before training
@@ -3602,6 +3756,24 @@ if do_overall:
     plt.savefig(plots_folder/'Pareto_accuracy_vs_controleffort_samples', bbox_inches='tight')
     #plt.show()
 
+    # Plot accuracy vs mapping "effort" (on test set)
+    plt.figure()
+    plt.scatter(SAMPLES_REF_all_rmse_after, SAMPLES_REF_mapping_effort_after, color='b', label='reference')
+    plt.scatter(SAMPLES_NOPCS_all_rmse_after, SAMPLES_NOPCS_mapping_effort_after, color='r', label='no pcs')
+    plt.scatter(SAMPLES_NOMAP_all_rmse_after, SAMPLES_NOMAP_mapping_effort_after, color='g', label='no map')
+    plt.scatter(SAMPLES_DIAGMAP_all_rmse_after, SAMPLES_DIAGMAP_mapping_effort_after, color='c', label='diagonal map')
+    plt.scatter(SAMPLES_NOMLP_all_rmse_after, SAMPLES_NOMLP_mapping_effort_after, color='m', label='no fb controller')
+    plt.scatter(SAMPLES_REGULMLP_all_rmse_after, SAMPLES_REGULMLP_mapping_effort_after, color='y', label='control penality')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.grid(True)
+    plt.xlabel('RMS error on test set')
+    plt.ylabel(r'mean $E_{k}$ ratio on test set')
+    plt.title('Mapping effort vs accuracy')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'Pareto_accuracy_vs_mappingeffort_samples', bbox_inches='tight')
+    #plt.show()
 
     ##### BEST CASES #####
     # Plot all best losses together
@@ -3638,5 +3810,24 @@ if do_overall:
     plt.title('Control effort vs accuracy')
     plt.legend()
     plt.tight_layout()
-    plt.savefig(plots_folder/'Pareto_accuracy_vs_controleffort_samples', bbox_inches='tight')
+    plt.savefig(plots_folder/'Pareto_accuracy_vs_controleffort_best', bbox_inches='tight')
+    #plt.show()
+
+    # Plot accuracy vs mapping "effort" (on test set)
+    plt.figure()
+    plt.scatter(BEST_REF_rmse_after, BEST_REF_mapping_effort_after, color='b', label=f'reference (cond(A)={BEST_REF_condA:.2f})')
+    plt.scatter(BEST_NOPCS_rmse_after, BEST_NOPCS_mapping_effort_after, color='r', label=f'no pcs (cond(A)={BEST_NOPCS_condA:.2f})')
+    plt.scatter(BEST_NOMAP_rmse_after, BEST_NOMAP_mapping_effort_after, color='g', label=f'no map (cond(A)={BEST_NOMAP_condA:.2f})')
+    plt.scatter(BEST_DIAGMAP_rmse_after, BEST_DIAGMAP_mapping_effort_after, color='c', label=f'diagonal map (cond(A)={BEST_DIAGMAP_condA:.2f})')
+    plt.scatter(BEST_NOMLP_rmse_after, BEST_NOMLP_mapping_effort_after, color='m', label=f'no fb controller (cond(A)={BEST_NOMLP_condA:.2f})')
+    plt.scatter(BEST_REGULMLP_rmse_after, BEST_REGULMLP_mapping_effort_after, color='y', label=f'control penality (cond(A)={BEST_REGULMLP_condA:.2f})')
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.grid(True)
+    plt.xlabel('RMS error on test set')
+    plt.ylabel(r'mean $E_{k}$ ratio on test set')
+    plt.title('Mapping effort vs accuracy')
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'Pareto_accuracy_vs_mappingeffort_best', bbox_inches='tight')
     plt.show()
