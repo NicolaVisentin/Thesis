@@ -182,31 +182,47 @@ def animate_robot_matplotlib(
 # =====================================================
 use_scan = True         # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
+train_A_diag = False    # train diagonal A. Otherwise SVD
 
 
 # =====================================================
 # Functions for optimization
 # =====================================================
 
-# Converts A -> A_raw
-@partial(jax.jit, static_argnums=(1,))
-def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
-    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*Vt, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
-    s_raw = InverseSoftplus(s - s_thresh) # convert singular values
-    A_raw = (U, s_raw, Vt)
-    return A_raw
+if train_A_diag:
+    # Converts A -> A_raw
+    @partial(jax.jit, static_argnums=(1,))
+    def A2Araw(A: Array, a_thresh: float=0.0) -> Tuple:
+        A_flat = jnp.diag(A)
+        A_raw = InverseSoftplus(A_flat - a_thresh) # convert singular values
+        return A_raw
 
-# Converts A_raw -> A
-@partial(jax.jit, static_argnums=(1,))
-def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
-    """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
-    to ensure s_i > thresh >= 0 for all i."""
-    U, s_raw, Vt = A_raw
-    s = jax.nn.softplus(s_raw) + s_thresh
-    A = U @ jnp.diag(s) @ Vt
-    return A
+    # Converts A_raw -> A
+    @partial(jax.jit, static_argnums=(1,))
+    def Araw2A(A_raw: Tuple, a_thresh: float=0.0) -> Array:
+        A_flat = jax.nn.softplus(A_raw) + a_thresh
+        A = jnp.diag(A_flat)
+        return A
+else:
+    # Converts A -> A_raw
+    @partial(jax.jit, static_argnums=(1,))
+    def A2Araw(A: Array, s_thresh: float=0.0) -> Tuple:
+        """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*Vt, where s vector is parametrized with softplus
+        to ensure s_i > thresh >= 0 for all i."""
+        U, s, Vt = jnp.linalg.svd(A)          # decompose A = U*S*V.T, with s=diag(S) and Vt=V^T
+        s_raw = InverseSoftplus(s - s_thresh) # convert singular values
+        A_raw = (U, s_raw, Vt)
+        return A_raw
+
+    # Converts A_raw -> A
+    @partial(jax.jit, static_argnums=(1,))
+    def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
+        """A_raw is tuple (U,s,Vt) with SVD of A = U*diag(s)*V^T, where s vector is parametrized with softplus
+        to ensure s_i > thresh >= 0 for all i."""
+        U, s_raw, Vt = A_raw
+        s = jax.nn.softplus(s_raw) + s_thresh
+        A = U @ jnp.diag(s) @ Vt
+        return A
 
 # Loss function
 @jax.jit
@@ -218,8 +234,8 @@ def Loss(
     Computes loss function over a batch of data for certain parameters. In this case:
     Takes a batch of datapoints (y, yd), computes the forward dynamics ydd_hat = f_approximator(y,yd)
     and computes the loss as the MSE in the batch between predictions ydd_hat and labels ydd. In particular,
-    our approximator here is: f_approximator = T_out( f_pcs( T_in(y,yd) ) ), where T_in: (q, qd)=(A*y+c, A*yd)
-    and T_out: ydd_hat=A*qdd.
+    our approximator here is: f_approximator = T_out( f_pcs( T_in(y,yd) ) ), where T_in: (x, xd)=(A*y+c, A*yd)
+    and T_out: ydd_hat=A*xdd, where x = [q1.T, q2.T, ..., qNrobots.T].T.
 
     Args
     ----
@@ -227,7 +243,8 @@ def Loss(
         Parameters for the opimization. In this case a list with:
         - **Phi**: Tuple (MAP, CONTR). MAP is tuple with mapping params (A_raw, c), where A_raw is tuple 
                    with "raw" SVD of A (U, s_raw, V). CONTR is a tuple with MLP controller parameters (layers). 
-        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
+        - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw) BATCHED (for ex 
+                   L_raw.shape = (Nrobots,n_pcs)).
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -251,93 +268,53 @@ def Loss(
     MAP, CONTR = Phi
     A_raw, c = MAP
     L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw = phi
-
+    
     # convert parameters
-    A = Araw2A(A_raw, A_thresh)
-    L = jax.nn.softplus(L_raw)
-    D = jnp.diag(jax.nn.softplus(D_raw))
-    r = jax.nn.softplus(r_raw)
-    rho = jax.nn.softplus(rho_raw)
-    E = jax.nn.softplus(E_raw)
-    G = jax.nn.softplus(G_raw)
+    A = Araw2A(A_raw, A_thresh)     # shape (Nrobots*3*n_pcs, n_ron)
+    L = jax.nn.softplus(L_raw)      # shape (Nrobots, n_pcs)
+    D_flat = jax.nn.softplus(D_raw) # shape (Nrobots, 3*n_pcs)
+    r = jax.nn.softplus(r_raw)      # shape (Nrobots, n_pcs)
+    rho = jax.nn.softplus(rho_raw)  # shape (Nrobots, n_pcs)
+    E = jax.nn.softplus(E_raw)      # shape (Nrobots, n_pcs)
+    G = jax.nn.softplus(G_raw)      # shape (Nrobots, n_pcs)
 
-    # update robot and controller
-    robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
+    # extract parameters
+    L1, L2 = L[0], L[1]
+    D1, D2 = jnp.diag(D_flat[0]), jnp.diag(D_flat[1])
+    r1, r2 = r[0], r[1]
+    rho1, rho2 = rho[0], rho[1]
+    E1, E2 = E[0], E[1]
+    G1, G2 = G[0], G[1]
+
+    # update robots and controller
+    robot1_updated = robot.update_params({"L": L1, "D": D1, "r": r1, "rho": rho1, "E": E1, "G": G1})
+    robot2_updated = robot.update_params({"L": L2, "D": D2, "r": r2, "rho": rho2, "E": E2, "G": G2})
     controller_updated = mlp_controller.update_params(CONTR)
 
     # convert variables
-    q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
-    qd_batch = yd_batch @ jnp.transpose(A)   # shape (batch_size, 3*n_pcs)
+    x_batch = y_batch @ jnp.transpose(A) + c                    # shape (batch_size, Nrobots*3*n_pcs)
+    xd_batch = yd_batch @ jnp.transpose(A)                      # shape (batch_size, Nrobots*3*n_pcs)
+    q1_batch, q2_batch = jnp.split(x_batch, Nrobots, axis=1)    # shape (batch_size, 3*n_pcs)
+    qd1_batch, qd2_batch = jnp.split(xd_batch, Nrobots, axis=1) # shape (batch_size, 3*n_pcs)
 
     # predictions
-    z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
-    tau_batch = controller_updated.forward_batch(z_batch)
-    actuation_arg = (tau_batch,)
+    z1_batch = jnp.concatenate([q1_batch, qd1_batch], axis=1)                          # signle robot's state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
+    z2_batch = jnp.concatenate([q2_batch, qd2_batch], axis=1)                          # single robot's state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
+    tau_batch = controller_updated.forward_batch(jnp.concatenate([x_batch, xd_batch])) # shape (batch_size, Nrobots*3*n_pcs)
+    tau1_batch, tau2_batch = jnp.split(tau_batch, Nrobots, axis=1)                     # shape (batch_size, 3*n_pcs)
+    actuation_arg1 = (tau1_batch,)
+    actuation_arg2 = (tau2_batch,)
 
-    forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0,0))
-    zd_batch = forward_dynamics_vmap(0, z_batch, actuation_arg) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
-    _, qdd_batch = jnp.split(zd_batch, 2, axis=1) 
+    forward_dynamics1_vmap = jax.vmap(robot1_updated.forward_dynamics, in_axes=(None,0,0))
+    forward_dynamics2_vmap = jax.vmap(robot2_updated.forward_dynamics, in_axes=(None,0,0))
+    zd1_batch = forward_dynamics1_vmap(0, z1_batch, actuation_arg1) # single robot's state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
+    zd2_batch = forward_dynamics2_vmap(0, z2_batch, actuation_arg2) # single robot's state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
+    _, qdd1_batch = jnp.split(zd1_batch, 2, axis=1) 
+    _, qdd2_batch = jnp.split(zd2_batch, 2, axis=1) 
+    xdd_batch = jnp.concatenate([qdd1_batch, qdd2_batch], axis=1)
 
-    # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
-    ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # convert predictions from qdd to ydd
-    MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
-    loss = MSE
-
-    # store metrics
-    metrics = {
-        "MSE": MSE,
-        "predictions": ydd_hat_batch,
-        "labels": ydd_batch,
-    }
-
-    return loss, metrics
-
-# Loss defined using the approximator (for comparison)
-def Loss_approx(
-        approx : PlanarPCS_simple_modified, 
-        controller : MLP,
-        data_batch : Dict, 
-) -> Tuple[float, Dict]:
-    """
-    Args
-    ----
-    approx : PlanarPCS_simple_modified
-        Approximator instance.
-    controller : MLP
-        MLP fb controller.
-    data_batch : Dict
-        Dictionary with datapoints and labels to compute the loss. In this case has keys:
-        - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
-        - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
-        - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
-
-    Returns
-    -------
-    loss : float
-        Scalar loss computed as MSE in the batch between predictions and labels.
-    metrics : Dict[float, Dict]
-        Dictionary of useful metrics.
-    """
-    # extract everything
-    y_batch = data_batch["y"]
-    yd_batch = data_batch["yd"]
-    ydd_batch = data_batch["ydd"]
-
-    # Controller works as tau = MLP(q,qd), so it needs (q,qd), not (y,yd)
-    A, c = approx.A_Tin, approx.c_Tin
-    q_batch = y_batch @ A.T + c
-    qd_batch = yd_batch @ A.T
-    z_batch = jnp.concatenate([q_batch, qd_batch], axis=1)
-    tau_batch = controller.forward_batch(z_batch)
-    actuation_arg = (tau_batch,)
-
-    # predictions
-    r_batch = jnp.concatenate([y_batch, yd_batch], axis=1) # state r=[y^T, yd^T]. Shape (batch_size, 2*n_ron)
-    forward_dynamics_vmap = jax.vmap(approx.forward_dynamics, in_axes=(None,0,0))
-    rd_batch = forward_dynamics_vmap(0, r_batch, actuation_arg) # state derivative rd=[yd^T, ydd^T]. Shape (batch_size, 2*n_ron)
-    _, ydd_hat_batch = jnp.split(rd_batch, 2, axis=1) 
-
-    # compute loss (compare predictions ydd_hat=B*qdd+d with labels ydd)
+    # compute loss (compare predictions ydd_hat=A_inv*xdd with labels ydd)
+    ydd_hat_batch = jnp.linalg.solve(A, xdd_batch.T).T # convert predictions from xdd to ydd
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
     loss = MSE
 
@@ -356,7 +333,7 @@ def Loss_approx(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/N6_noInput/soft robot optimization/dataset_m1e5_N6_noInput.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -389,41 +366,51 @@ train_size, n_ron = train_set["y"].shape
 print('--- BEFORE OPTIMIZATION ---')
 
 # Initialize parameters
-n_pcs = 2
+Nrobots = 2
+n_pcs = 1
 key, key_A, key_mlp = jax.random.split(key, 3)
 
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
-#A0 = A_thresh + 1e-6 + jax.random.uniform(key_A, (3*n_pcs,n_ron))
-A0 = init_A_svd(key_A, n_ron, A_thresh + 1e-6)
-c0 = jnp.zeros(3*n_pcs)
-# ...robot
-L0 = 1e-1*jnp.ones(n_pcs)
-D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs))
-r0 = 2e-2*jnp.ones(n_pcs)
-rho0 = 1070*jnp.ones(n_pcs)
-E0 = 2e3*jnp.ones(n_pcs)
-G0 = 1e3*jnp.ones(n_pcs)
+if train_A_diag:
+    A0 = 1e-2 * jnp.eye(n_ron)
+else:
+    A0 = init_A_svd(key=key_A, n=n_ron, s_min=A_thresh+1e-6, s_max=1e-1)
+c0 = jnp.zeros(Nrobots*3*n_pcs)
+# ...robots (parameters of each single robot)
+L0 = 1e-1*jnp.ones(n_pcs)                                     # shape (n_pcs,)
+D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)) # shape (3*n_pcs,3*n_pcs)
+r0 = 2e-2*jnp.ones(n_pcs)                                     # shape (n_pcs,)
+rho0 = 1070*jnp.ones(n_pcs)                                   # shape (n_pcs,)
+E0 = 2e3*jnp.ones(n_pcs)                                      # shape (n_pcs,)
+G0 = 1e3*jnp.ones(n_pcs)                                      # shape (n_pcs,)
 # ...controller
-mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]                                  # [input, hidden1, hidden2, output]
+mlp_sizes = [2*Nrobots*3*n_pcs, 64, 64, Nrobots*3*n_pcs]                  # [input, hidden1, hidden2, output]
 mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=0.001) # initialize MLP feedback control law
 
-L_raw = InverseSoftplus(L0)
-D_raw = InverseSoftplus(jnp.diag(D0))
-r_raw = InverseSoftplus(r0)
-rho_raw = InverseSoftplus(rho0)
-E_raw = InverseSoftplus(E0)
-G_raw = InverseSoftplus(G0)
+L_raw = InverseSoftplus(L0)           # shape (n_pcs,)
+D_raw = InverseSoftplus(jnp.diag(D0)) # shape (3*n_pcs,)
+r_raw = InverseSoftplus(r0)           # shape (n_pcs,)
+rho_raw = InverseSoftplus(rho0)       # shape (n_pcs,)
+E_raw = InverseSoftplus(E0)           # shape (n_pcs,)
+G_raw = InverseSoftplus(G0)           # shape (n_pcs,)
 A_raw = A2Araw(A0, A_thresh)
 c = c0
 
 MAP = (A_raw, c)
 CONTR = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 Phi = (MAP, CONTR)
-phi = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
+phi = (
+    jnp.broadcast_to(L_raw, (Nrobots, L_raw.shape[0])),     # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(D_raw, (Nrobots, D_raw.shape[0])),     # shape (Nrobots, 3*n_pcs)
+    jnp.broadcast_to(r_raw, (Nrobots, r_raw.shape[0])),     # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(rho_raw, (Nrobots, rho_raw.shape[0])), # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(E_raw, (Nrobots, E_raw.shape[0])),     # shape (Nrobots, n_pcs)
+    jnp.broadcast_to(G_raw, (Nrobots, G_raw.shape[0])),     # shape (Nrobots, n_pcs)
+)
 params_optimiz = [Phi, phi]
 
-# Initialize robot
+# Initialize robots
 parameters = {
     "th0": jnp.array(jnp.pi/2),
     "L": L0,
@@ -439,23 +426,19 @@ robot = PlanarPCS_simple(
     num_segments = n_pcs,
     params = parameters,
     order_gauss = 5
-)
-approximator = PlanarPCS_simple_modified(
-    num_segments = n_pcs,
-    params = parameters,
-    order_gauss = 5,
-    A = A0,
-    c = c0
-)
+) # "dummy" istantiation
+robot1 = robot
+robot2 = robot
 
-# If required, simulate robot, approximator and compare their behaviour in time with the RON's one
+# If required, simulate robot compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_noInput/RON_evolution_N6_noInput.npz')
+    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'])
     y_RONsaved = jnp.array(RON_evolution_data['y'])
     yd_RONsaved = jnp.array(RON_evolution_data['yd'])
 
+### STOPPED HERE ###
     # Define controller
     def tau_law(system_state: SystemState, controller: MLP):
         """Implements user-defined feedback control tau(t) = MLP(q(t),qd(t))."""
