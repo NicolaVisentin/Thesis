@@ -454,7 +454,7 @@ key, key_A, key_mlp = jax.random.split(key, 3)
 # ...mapping
 A_thresh = 1e-4 # threshold on the singular values
 if train_A_diag:
-    A0 = jnp.array([1e0, 1e-1, 1e-1, 1e0, 1e-1, 1e-1])
+    A0 = jnp.diag(jnp.array([1e0, 1e-1, 1e-1, 1e0, 1e-1, 1e-1]))
 else:
     s_init = 3e-3
     A0 = init_A_svd(key_A, n_ron, s_init, s_init + 1e-6)
