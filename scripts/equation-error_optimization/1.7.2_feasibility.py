@@ -219,7 +219,7 @@ Choose controller to train. Possibilities are:
     'tanh_complete': u = tanh(W*z + b), where z = [q^T, qd^T]^T
     'mlp': u = MLP(q,qd) 
 """
-controller_to_train = 'tanh'
+controller_to_train = 'mlp'
 
 
 # =====================================================
@@ -673,10 +673,13 @@ if show_simulations:
         robot = robot,
         t_list = saveat,
         q_list = q_PCS,
-        interval = 1e-2, 
-        slider = True,
-        animation = False,
-        show = True
+        interval = 1e-3, 
+        slider = False,
+        animation = True,
+        show = True,
+        duration = 10,
+        fps = 30,
+        save_path = plots_folder/'animation_before.gif',
     )
 else:
     print('[simulation skipped]')
@@ -706,59 +709,6 @@ print(f'Example:\n'
       f'    label: ydd = {labels[69]}\n'
       f'    error: |e| = {onp.abs( labels[69] - pred[69] )}'
 )
-
-############################################################################
-##### SOME CHECKS ##########################################################
-"""
-# !! Check (jitted) loss computation !!
-print('\n\nCHECK: (jitted) loss computation')
-start = time.perf_counter() # warm-up
-loss, metrics = Loss(
-    params_optimiz,
-    test_set,
-)
-print(loss) 
-end = time.perf_counter()
-print(f'time (warmup): {end-start} s')
-
-start = time.perf_counter()
-loss, metrics = Loss(
-    params_optimiz,
-    test_set,
-)
-print(loss) 
-end = time.perf_counter()
-print(f'time (already compiled): {end-start} s')
-#exit()
-# !! End check !!
-
-#########
-
-# !! Check loss + gradients computation !!
-print('\n\nCHECK: (jitted) loss + gradients computation')
-loss_and_grad = jax.jit(jax.value_and_grad(Loss, argnums=(0,), has_aux=True))
-start = time.perf_counter()  # warm-up
-(loss, metrics), grads = loss_and_grad(
-    params_optimiz,
-    test_set,
-)
-print(loss, grads)
-end = time.perf_counter()
-print(f'time (warmup): {end-start} s')
-
-start = time.perf_counter()
-(loss, metrics), grads = loss_and_grad(
-    params_optimiz,
-    test_set,
-)
-print(loss, grads)
-end = time.perf_counter()
-print(f'time (already compiled): {end-start} s')
-exit()
-# !! End check !!
-"""
-############################################################################
-############################################################################
 
 
 # =====================================================
@@ -915,7 +865,11 @@ if True:
     onp.savez(
         data_folder/'optimal_data_robot.npz', 
         L=onp.array(L_opt), 
-        D=onp.array(D_opt)
+        D=onp.array(D_opt),
+        r=onp.array(r_opt),
+        rho=onp.array(rho_opt),
+        E=onp.array(E_opt),
+        G=onp.array(G_opt),
     )
     onp.savez(
         data_folder/'optimal_data_map.npz', 
@@ -946,14 +900,6 @@ if True:
     ax1.legend(lines, labels, loc='center right')
     plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
     plt.title(f'Loss curve (elapsed time: {elatime_optimiz:.2f} s)')
-    plt.figtext(
-        0.5, -0.05, 
-        f"L_opt={onp.array(L_opt)} m\n"
-        f"D_opt={onp.diag(D_opt)} Pa*s\n"
-        f"A_opt={onp.array(A_opt)}\n"
-        f"c_opt={onp.array(c_opt)}",
-        ha="center", va="top"
-    )
     plt.tight_layout()
     plt.savefig(plots_folder/'Loss', bbox_inches='tight')
     plt.show()
@@ -965,7 +911,7 @@ if True:
 print('\n--- AFTER OPTIMIZATION ---')
 
 # Load optimal parameters
-if True:
+if False:
     # Choose prefix for data
     prefix_load = 'SIMPLE_TANH_'
 
@@ -975,22 +921,29 @@ if True:
 
     L_opt = jnp.array(data_robot_opt['L'])
     D_opt = jnp.array(data_robot_opt['D'])
+    r_opt = jnp.array(data_robot_opt['r'])
+    rho_opt = jnp.array(data_robot_opt['rho'])
+    E_opt = jnp.array(data_robot_opt['E'])
+    G_opt = jnp.array(data_robot_opt['G'])
     data_map_opt = onp.load(data_folder/f'{prefix_load}optimal_data_map.npz')
     A_opt = jnp.array(data_map_opt['A'])
     c_opt = jnp.array(data_map_opt['c'])
 
     L_raw_opt = InverseSoftplus(L_opt)
     D_raw_opt = InverseSoftplus(jnp.diag(D_opt))
+    r_raw_opt = InverseSoftplus(r_opt)
+    rho_raw_opt = InverseSoftplus(rho_opt)
+    E_raw_opt = InverseSoftplus(E_opt)
+    G_raw_opt = InverseSoftplus(G_opt)
     A_raw_opt = A2Araw(A_opt, A_thresh)
 
     MAP_opt = (A_raw_opt, c_opt)
     Phi_opt = (MAP_opt, CONTR_opt)
-    phi_opt = (L_raw_opt, D_raw_opt)
+    phi_opt = (L_raw_opt, D_raw_opt, r_raw_opt, rho_raw_opt, E_raw_opt, G_raw_opt)
     params_optimiz_opt = [Phi_opt, phi_opt]
 
-    robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
+    robot_opt = robot.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
     mlp_controller_opt = mlp_controller.update_params(CONTR_opt)
-    robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
     approximator = PlanarPCS_simple_modified(
         num_segments = n_pcs,
         params = parameters,
@@ -998,7 +951,7 @@ if True:
         A = A_opt,
         c = c_opt
     )
-    approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt})
+    approximator_opt = approximator.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
 
 # If required, simulate robot, approximator and compare their behaviour in time with the RON's one
 if show_simulations:
@@ -1117,10 +1070,13 @@ if show_simulations:
         robot = robot_opt,
         t_list = saveat,
         q_list = q_PCS,
-        interval = 1e-2, 
-        slider = True,
-        animation = False,
-        show = True
+        interval = 1e-3, 
+        slider = False,
+        animation = True,
+        show = True,
+        duration = 10,
+        fps = 30,
+        save_path = plots_folder/'animation_after.gif',
     )
 else:
     print('[simulation skipped]')
@@ -1145,7 +1101,8 @@ pred_approx = onp.array(metrics["predictions"])
 print(f'Test accuracy: RMSE = {RMSE:.6e} | RMSE approx (comparison) = {RMSE_approx:.6e}')
 print(f'Example:\n'
       f'    (y, yd) = ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])})\n'
-      f'    prediction: ydd_hat = {pred[69]} | ydd_hat_approx (comparison) = {pred_approx[69]}\n'
+      f'    prediction: ydd_hat = {pred[69]}\n'
+      f'    prediction: ydd_hat = {pred_approx[69]} (approximator, comparison)\n'
       f'    label: ydd = {labels[69]}\n'
-      f'    error: |e| = {onp.abs( labels[69] - pred[69] )} | |e_approx| (comparison) = {onp.abs( labels[69] - pred_approx[69] )}'
+      f'    error: |e| = {onp.abs( labels[69] - pred[69] )}'
 )
