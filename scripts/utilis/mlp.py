@@ -103,6 +103,35 @@ class MLP(eqx.Module):
         batched_forward = jax.vmap(self._forward_single, in_axes=(None,0))
         out_batch = batched_forward(params, x_batch)
         return out_batch
+    
+    @eqx.filter_jit
+    def forward_xd(self, x: Array, xd: Array) -> Tuple[Array, Array]:
+        """Given input x and input derivative xd, computes output y and output derivative yd = J(x) * xd 
+        where J is the Jacobian of the net evaluated in x. Avoids the direct computation of J."""
+        y, yd = jax.jvp(self.forward_single, (x,), (xd,))
+        return (y, yd)
+    
+    @eqx.filter_jit
+    def forward_xd_batch(self, x_batch: Array, xd_batch: Array) -> Tuple[Array, Array]:
+        """Batched version of forward_xd method."""
+        y_batch, yd_batch = jax.vmap(self.forward_xd)(x_batch, xd_batch)
+        return (y_batch, yd_batch)
+    
+    @eqx.filter_jit
+    def forward_xdd(self, x: Array, xd: Array, xdd: Array) -> Array:
+        """Given input x, input derivative xd and input acceleration xdd, computes output acceleration 
+        ydd = J(x) * xdd + H(x) * (x x^T), where H(x) is the Hessian of the net evaluated in x in tensorial
+        form and (x x^T) a matrix. Avoids the direct computation of H."""
+        def fun(x, xd):
+            return self.forward_xd(x, xd)[1]
+        _, ydd = jax.jvp(fun, (x, xd), (xd, xdd))
+        return ydd
+    
+    @eqx.filter_jit
+    def forward_xdd_batch(self, x_batch: Array, xd_batch: Array, xdd_batch: Array) -> Array:
+        """Batched version of forward_xdd method."""
+        ydd_batch = jax.vmap(self.forward_xdd)(x_batch, xd_batch, xdd_batch)
+        return ydd_batch
 
     @eqx.filter_jit
     def __call__(self, x: Array) -> Array:
@@ -111,6 +140,16 @@ class MLP(eqx.Module):
         input, using internal parameters.
         """
         return self.forward_single(x)
+    
+    @eqx.filter_jit
+    def compute_jacobian(self, x: Array) -> Array:
+        """Computes the Jacobian of the network wrt the input x at a given x."""
+        return jax.jacfwd(self.forward_single)(x)
+    
+    @eqx.filter_jit
+    def compute_hessian(self, x: Array) -> Array:
+        """Computes the Hessian of the network wrt the input x at a given x."""
+        return jax.hessian(self.forward_single)(x)
     
     def save_params(self, path: str):
         """Saves the parameters of the network in the specified path as a .npz file."""
