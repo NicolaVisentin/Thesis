@@ -113,7 +113,7 @@ class MLP(eqx.Module):
     
     @eqx.filter_jit
     def forward_xd_batch(self, x_batch: Array, xd_batch: Array) -> Tuple[Array, Array]:
-        """Batched version of forward_xd method."""
+        """Batched version of `forward_xd` method."""
         y_batch, yd_batch = jax.vmap(self.forward_xd)(x_batch, xd_batch)
         return (y_batch, yd_batch)
     
@@ -129,7 +129,7 @@ class MLP(eqx.Module):
     
     @eqx.filter_jit
     def forward_xdd_batch(self, x_batch: Array, xd_batch: Array, xdd_batch: Array) -> Array:
-        """Batched version of forward_xdd method."""
+        """Batched version of `forward_xdd` method."""
         ydd_batch = jax.vmap(self.forward_xdd)(x_batch, xd_batch, xdd_batch)
         return ydd_batch
 
@@ -144,12 +144,12 @@ class MLP(eqx.Module):
     @eqx.filter_jit
     def compute_jacobian(self, x: Array) -> Array:
         """Computes the Jacobian of the network wrt the input x at a given x."""
-        return jax.jacfwd(self.forward_single)(x)
+        return jax.jacfwd(self.forward_single)(x) # shape (n_out, n_in)
     
     @eqx.filter_jit
     def compute_hessian(self, x: Array) -> Array:
         """Computes the Hessian of the network wrt the input x at a given x."""
-        return jax.hessian(self.forward_single)(x)
+        return jax.hessian(self.forward_single)(x) # shape (n_out, n_in, n_in)
     
     def save_params(self, path: str):
         """Saves the parameters of the network in the specified path as a .npz file."""
