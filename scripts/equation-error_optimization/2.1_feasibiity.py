@@ -213,11 +213,13 @@ def animate_robot_matplotlib(
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 coupled_case = False # use dataset of coupled RON network
+reconstruction = 'y' # reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 """
 Choose controller to train. Possibilities are:
     'tanh_simple': u = tanh(W*q + b)
     'tanh_complete': u = tanh(W*z + b), where z = [q^T, qd^T]^T
-    'mlp': u = MLP(q,qd) 
+    'mlp': u = MLP(q,qd)
+    'none'
 """
 controller_to_train = 'mlp'
 
@@ -294,6 +296,8 @@ def Loss(
     z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
     if controller_to_train == 'tanh_simple':
         tau_batch = controller_updated.forward_batch(q_batch)
+    elif controller_to_train == 'none':
+        tau_batch = jnp.zeros_like(q_batch)
     else:
         tau_batch = controller_updated.forward_batch(z_batch)
     actuation_arg = (tau_batch,)
@@ -309,13 +313,20 @@ def Loss(
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
     
     # compute reconstruction loss
-    reconstruction_loss = jnp.mean(jnp.sum((y_batch - decoder_updated.forward_batch(q_batch))**2, axis=1))
-
-    #y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(q_batch, qd_batch)
-    #reconstruction_loss = jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1)) + jnp.mean(jnp.sum((yd_batch - yd_hat_batch_rec)**2, axis=1))
+    match reconstruction:
+        case 'y':
+            y_hat_batch_rec = decoder_updated.forward_batch(q_batch)
+            reconstruction_loss = 1e2 * jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1))
+        case 'yd':
+            y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(q_batch, qd_batch)
+            reconstruction_loss = 1e1 * jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1)) + 1e1 * jnp.mean(jnp.sum((yd_batch - yd_hat_batch_rec)**2, axis=1))
+        case 'ydd':
+            y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(q_batch, qd_batch)
+            ydd_hat_batch_rec = decoder_updated.forward_xdd_batch(q_batch, qd_batch, encoder_updated.forward_xdd_batch(y_batch, yd_batch, ydd_batch))
+            reconstruction_loss = 1e1 * jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1)) + 1e1 * jnp.mean(jnp.sum((yd_batch - yd_hat_batch_rec)**2, axis=1)) + 1e1 * jnp.mean(jnp.sum((ydd_batch - ydd_hat_batch_rec)**2, axis=1))
     
     # complete loss
-    loss = MSE + 1e2 * reconstruction_loss
+    loss = MSE + reconstruction_loss
 
     # store metrics
     metrics = {
@@ -373,10 +384,10 @@ n_pcs = 2
 key, key_encoder, key_decoder, key_controller = jax.random.split(key, 4)
 
 # ...mapping
-mlp_sizes_enc = [n_ron, 32, 32, 3*n_pcs]
-mlp_sizes_dec = [3*n_pcs, 32, 32, n_ron]
-encoder = MLP(key=key_encoder, layer_sizes=mlp_sizes_enc, scale_init=0.001)
-decoder = MLP(key=key_decoder, layer_sizes=mlp_sizes_dec, scale_init=0.001)
+mlp_sizes_enc = [n_ron, 64, 64, 3*n_pcs]
+mlp_sizes_dec = [3*n_pcs, 64, 64, n_ron]
+encoder = MLP(key=key_encoder, layer_sizes=mlp_sizes_enc, scale_init=0.01)
+decoder = MLP(key=key_decoder, layer_sizes=mlp_sizes_dec, scale_init=0.01)
 
 p_encoder = tuple(encoder.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 p_decoder = tuple(decoder.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
@@ -410,6 +421,9 @@ match controller_to_train:
     case 'mlp':
         mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
         scale_init = 0.001
+    case 'none':
+        mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+        scale_init = 0.0
     case _:
         raise ValueError('Unknown controller')
 mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init) # initialize MLP feedback control law
@@ -609,11 +623,13 @@ if True:
     lr = optax.warmup_cosine_decay_schedule(
         init_value=1e-6,
         peak_value=1e-3,
-        warmup_steps=15*batches_per_epoch,
+        warmup_steps=100*batches_per_epoch,
         decay_steps=n_iter*batches_per_epoch,
-        end_value=1e-5
+    )       
+    optimizer = optax.chain(
+        optax.clip_by_global_norm(1.0),
+        optax.adam(learning_rate=lr),
     )
-    optimizer = optax.adam(learning_rate=lr)
     optimiz_state = optimizer.init(params_optimiz) # initialize optimizer
 
     # Optimization iterations
@@ -806,6 +822,8 @@ if False:
     encoder_opt = encoder.update_params(p_encoder_opt)
     decoder_opt = decoder.update_params(p_decoder_opt)
     mlp_controller_opt = mlp_controller.update_params(p_controller_opt)
+
+    params_optimiz_opt = (p_robot_opt, p_map_opt, p_controller_opt)
 
 # If required, simulate robot and compare its behaviour in time with the RON's one
 if show_simulations:
