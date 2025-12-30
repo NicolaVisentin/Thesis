@@ -42,9 +42,9 @@ key = jax.random.key(seed)
 
 # Folders
 main_folder = curr_folder.parent.parent                                            # main folder "codes"
-plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem/'T14' # folder for plots and videos
+plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem/'T15' # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem/'T14'        # folder for saving data
+data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem/'T15'        # folder for saving data
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -213,7 +213,7 @@ def animate_robot_matplotlib(
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 coupled_case = False # use dataset of coupled RON network
-reconstruction = 'y' # reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
+reconstruction = 'ydd' # reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 """
 Choose controller to train. Possibilities are:
     'tanh_simple': u = tanh(W*q + b)
