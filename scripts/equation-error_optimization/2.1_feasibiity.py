@@ -23,7 +23,7 @@ from tqdm import tqdm
 import time
 import sys
 
-from soromox.systems.my_systems import PlanarPCS_simple, PlanarPCS_simple_modified
+from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
@@ -42,9 +42,9 @@ key = jax.random.key(seed)
 
 # Folders
 main_folder = curr_folder.parent.parent                                            # main folder "codes"
-plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
+plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem/'T14' # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
+data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem/'T14'        # folder for saving data
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -221,7 +221,7 @@ Choose controller to train. Possibilities are:
     'mlp': u = MLP(q,qd)
     'none'
 """
-controller_to_train = 'mlp'
+controller_to_train = 'tanh_complete'
 
 
 # =====================================================
@@ -505,6 +505,7 @@ if show_simulations:
     # Extract results
     timePCS = sim_out_pcs.t
     q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
+    u_pcs = sim_out_pcs.u
 
     y_hat_pcs = decoder.forward_batch(q_PCS) # y_hat(t) = psi(q(t)). Shape (n_steps, n_ron)
     yd_hat_pcs = jnp.einsum("bij,bj->bi", jax.vmap(decoder.compute_jacobian)(q_PCS), qd_PCS) # yd_hat(t) = J_psi(q(t))*qd(t)
@@ -532,6 +533,31 @@ if show_simulations:
         axs[2].legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'Strains_before', bbox_inches='tight')
+    #plt.show()
+
+    # Plot actuation power before training
+    fig, axs = plt.subplots(3,1, figsize=(10,6))
+    for i in range(n_pcs):
+        axs[0].plot(timePCS, qd_PCS[:,i] * u_pcs[:,i], label=f'segment {i+1}')
+        axs[0].grid(True)
+        axs[0].set_xlabel('t [s]')
+        axs[0].set_ylabel(r"$P_\mathrm{be}$ [W]")
+        axs[0].set_title('Bending actuation power')
+        axs[0].legend()
+        axs[1].plot(timePCS, qd_PCS[:,i+1] * u_pcs[:,i+1], label=f'segment {i+1}')
+        axs[1].grid(True)
+        axs[1].set_xlabel('t [s]')
+        axs[1].set_ylabel(r"$P_\mathrm{ax}$ [W]")
+        axs[1].set_title('Axial actuation power')
+        axs[1].legend()
+        axs[2].plot(timePCS, qd_PCS[:,i+2] * u_pcs[:,i+2], label=f'segment {i+1}')
+        axs[2].grid(True)
+        axs[2].set_xlabel('t [s]')
+        axs[2].set_ylabel(r"$P_\mathrm{sh}$ [W]")
+        axs[2].set_title('Shear actuation power')
+        axs[2].legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'Power_before', bbox_inches='tight')
     #plt.show()
 
     # Plot y(t) and y_hat(t)
@@ -613,7 +639,7 @@ if True:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
-    n_iter = 1500 # number of epochs
+    n_iter = 9000 # number of epochs
     batch_size = 2**6
 
     key, subkey = jax.random.split(key)
@@ -853,6 +879,7 @@ if show_simulations:
     # Extract results
     timePCS = sim_out_pcs.t
     q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
+    u_pcs = sim_out_pcs.u
 
     y_hat_pcs = decoder_opt.forward_batch(q_PCS) # y_hat(t) = psi(q(t)). Shape (n_steps, n_ron)
     yd_hat_pcs = jnp.einsum("bij,bj->bi", jax.vmap(decoder_opt.compute_jacobian)(q_PCS), qd_PCS) # yd_hat(t) = J_psi(q(t))*qd(t)
@@ -880,6 +907,31 @@ if show_simulations:
         axs[2].legend()
     plt.tight_layout()
     plt.savefig(plots_folder/'Strains_after', bbox_inches='tight')
+    #plt.show()
+
+    # Plot actuation power after training
+    fig, axs = plt.subplots(3,1, figsize=(10,6))
+    for i in range(n_pcs):
+        axs[0].plot(timePCS, qd_PCS[:,i] * u_pcs[:,i], label=f'segment {i+1}')
+        axs[0].grid(True)
+        axs[0].set_xlabel('t [s]')
+        axs[0].set_ylabel(r"$P_\mathrm{be}$ [W]")
+        axs[0].set_title('Bending actuation power')
+        axs[0].legend()
+        axs[1].plot(timePCS, qd_PCS[:,i+1] * u_pcs[:,i+1], label=f'segment {i+1}')
+        axs[1].grid(True)
+        axs[1].set_xlabel('t [s]')
+        axs[1].set_ylabel(r"$P_\mathrm{ax}$ [W]")
+        axs[1].set_title('Axial actuation power')
+        axs[1].legend()
+        axs[2].plot(timePCS, qd_PCS[:,i+2] * u_pcs[:,i+2], label=f'segment {i+1}')
+        axs[2].grid(True)
+        axs[2].set_xlabel('t [s]')
+        axs[2].set_ylabel(r"$P_\mathrm{sh}$ [W]")
+        axs[2].set_title('Shear actuation power')
+        axs[2].legend()
+    plt.tight_layout()
+    plt.savefig(plots_folder/'Power_after', bbox_inches='tight')
     #plt.show()
     
     # Plot y(t) and y_hat(t)
@@ -951,3 +1003,16 @@ print(f'Example:\n'
       f'    encoding: (q, qd) = ({onp.array(encoder_opt(test_set["y"][69]))}, {onp.array(encoder_opt.compute_jacobian(test_set["y"][69])@test_set["yd"][69])})\n'
       f'    reconstruction: (y_hat, yd_hat) = ({onp.array(decoder_opt(encoder_opt(test_set["y"][69])))}, {onp.array(decoder_opt.compute_jacobian(encoder_opt(test_set["y"][69])) @ (encoder_opt.compute_jacobian(test_set["y"][69])@test_set["yd"][69]))})\n'
 )
+
+# Compute actuation power mean squared value on the test set after optimization
+q_test_power, qd_test_power = encoder_opt.forward_xd_batch(test_set["y"], test_set["yd"]) # shape (testset_size, 3*n_pcs)
+z_test_power = jnp.concatenate([q_test_power, qd_test_power], axis=1) # shape (testset_size, 2*3*n_pcs)
+tau_test_power = mlp_controller_opt.forward_batch(z_test_power) # shape (testset_size, 3*n_pcs)
+power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
+power_msv_after = jnp.mean(power**2) # scalar
+
+# Save some metrics
+with open(data_folder/'metrics.txt', 'w') as file:
+    file.write(f"Final test RMS error:                {RMSE}\n")
+    file.write(f"Final test RMS reconstruction error: {reconstructionRMSE}\n")
+    file.write(f"Final test RMS power:                {onp.sqrt(power_msv_after)}\n")
