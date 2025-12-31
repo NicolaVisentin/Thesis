@@ -42,9 +42,9 @@ key = jax.random.key(seed)
 
 # Folders
 main_folder = curr_folder.parent.parent                                            # main folder "codes"
-plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem/'T15' # folder for plots and videos
+plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem/'T15'        # folder for saving data
+data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
 
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
@@ -278,10 +278,10 @@ def Loss(
     # convert parameters
     L = jax.nn.softplus(L_raw)
     D = jnp.diag(jax.nn.softplus(D_raw))
-    r = jax.nn.softplus(r_raw) * jnp.ones(n_pcs)
-    rho = jax.nn.softplus(rho_raw) * jnp.ones(n_pcs)
-    E = jax.nn.softplus(E_raw) * jnp.ones(n_pcs)
-    G = jax.nn.softplus(G_raw) * jnp.ones(n_pcs)
+    r = jax.nn.softplus(r_raw)
+    rho = jax.nn.softplus(rho_raw)
+    E = jax.nn.softplus(E_raw)
+    G = jax.nn.softplus(G_raw)
 
     # update robot, map and controller
     robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
@@ -384,8 +384,8 @@ n_pcs = 2
 key, key_encoder, key_decoder, key_controller = jax.random.split(key, 4)
 
 # ...mapping
-mlp_sizes_enc = [n_ron, 64, 64, 3*n_pcs]
-mlp_sizes_dec = [3*n_pcs, 64, 64, n_ron]
+mlp_sizes_enc = [n_ron, 32, 32, 3*n_pcs]
+mlp_sizes_dec = [3*n_pcs, 32, 32, n_ron]
 encoder = MLP(key=key_encoder, layer_sizes=mlp_sizes_enc, scale_init=0.01)
 decoder = MLP(key=key_decoder, layer_sizes=mlp_sizes_dec, scale_init=0.01)
 
@@ -403,10 +403,10 @@ G0 = 1e3 * jnp.ones(n_pcs)
 
 L_raw = InverseSoftplus(L0)
 D_raw = InverseSoftplus(jnp.diag(D0))
-r_raw = InverseSoftplus(r0[0])
-rho_raw = InverseSoftplus(rho0[0])
-E_raw = InverseSoftplus(E0[0])
-G_raw = InverseSoftplus(G0[0])
+r_raw = InverseSoftplus(r0)
+rho_raw = InverseSoftplus(rho0)
+E_raw = InverseSoftplus(E0)
+G_raw = InverseSoftplus(G0)
 
 p_robot = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
 
@@ -639,7 +639,7 @@ if True:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
-    n_iter = 9000 # number of epochs
+    n_iter = 1500 # number of epochs
     batch_size = 2**6
 
     key, subkey = jax.random.split(key)
@@ -751,10 +751,10 @@ if True:
 
     L_opt = jax.nn.softplus(L_raw_opt)
     D_opt = jnp.diag(jax.nn.softplus(D_raw_opt))
-    r_opt = jax.nn.softplus(r_raw_opt) * jnp.ones(n_pcs)
-    rho_opt = jax.nn.softplus(rho_raw_opt) * jnp.ones(n_pcs)
-    E_opt = jax.nn.softplus(E_raw_opt) * jnp.ones(n_pcs)
-    G_opt = jax.nn.softplus(G_raw_opt) * jnp.ones(n_pcs)
+    r_opt = jax.nn.softplus(r_raw_opt)
+    rho_opt = jax.nn.softplus(rho_raw_opt)
+    E_opt = jax.nn.softplus(E_raw_opt)
+    G_opt = jax.nn.softplus(G_raw_opt)
 
     print(
         f'L_opt: \n{L_opt}\n'
@@ -836,10 +836,10 @@ if False:
 
     L_raw_opt = InverseSoftplus(L_opt)
     D_raw_opt = InverseSoftplus(jnp.diag(D_opt))
-    r_raw_opt = InverseSoftplus(r_opt[0])
-    rho_raw_opt = InverseSoftplus(rho_opt[0])
-    E_raw_opt = InverseSoftplus(E_opt[0])
-    G_raw_opt = InverseSoftplus(G_opt[0])
+    r_raw_opt = InverseSoftplus(r_opt)
+    rho_raw_opt = InverseSoftplus(rho_opt)
+    E_raw_opt = InverseSoftplus(E_opt)
+    G_raw_opt = InverseSoftplus(G_opt)
 
     p_robot_opt = (L_raw_opt, D_raw_opt, r_raw_opt, rho_raw_opt, E_raw_opt, G_raw_opt)
     p_map_opt = (p_encoder_opt, p_decoder_opt)
