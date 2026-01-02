@@ -221,7 +221,7 @@ Choose controller to train. Possibilities are:
     'mlp': u = MLP(q,qd)
     'none'
 """
-controller_to_train = 'tanh_complete'
+controller_to_train = 'tanh_simple'
 
 
 # =====================================================
@@ -1005,9 +1005,13 @@ print(f'Example:\n'
 )
 
 # Compute actuation power mean squared value on the test set after optimization
-q_test_power, qd_test_power = encoder_opt.forward_xd_batch(test_set["y"], test_set["yd"]) # shape (testset_size, 3*n_pcs)
-z_test_power = jnp.concatenate([q_test_power, qd_test_power], axis=1) # shape (testset_size, 2*3*n_pcs)
-tau_test_power = mlp_controller_opt.forward_batch(z_test_power) # shape (testset_size, 3*n_pcs)
+if controller_to_train == 'tanh_simple':
+    q_test_power, qd_test_power = encoder_opt.forward_xd_batch(test_set["y"], test_set["yd"]) # shape (testset_size, 3*n_pcs)
+    tau_test_power = mlp_controller_opt.forward_batch(q_test_power) # shape (testset_size, 3*n_pcs)
+else:
+    q_test_power, qd_test_power = encoder_opt.forward_xd_batch(test_set["y"], test_set["yd"]) # shape (testset_size, 3*n_pcs)
+    z_test_power = jnp.concatenate([q_test_power, qd_test_power], axis=1) # shape (testset_size, 2*3*n_pcs)
+    tau_test_power = mlp_controller_opt.forward_batch(z_test_power) # shape (testset_size, 3*n_pcs)
 power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
 power_msv_after = jnp.mean(power**2) # scalar
 
