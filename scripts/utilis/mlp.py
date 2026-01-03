@@ -4,7 +4,6 @@ import jax.numpy as jnp
 from jax import Array
 import equinox as eqx
 
-from functools import partial
 from typing import Sequence, Tuple, List
 
 # Custom types definition
@@ -13,7 +12,7 @@ Params = List[Tuple[Array, Array]]  # [(W1, b1), (W2, b2), ...] for all layers
 # Class
 class MLP(eqx.Module):
     """
-    Simple class for fully-connected MLP with tanh activations.
+    Simple class for fully-connected MLP with tanh or relu activations.
 
     Attributes
     ----------
@@ -23,14 +22,17 @@ class MLP(eqx.Module):
         List of tuples with the layers weights and biases, i.e. [(W1,b1), (W2,b2), ...].
     scale_init : float
         Scaling factor for the initialization of the parameters.
+    activation_fn : str
+        Activation function. Either 'tanh' or 'relu' (default: tanh).
     """
     layer_sizes: Sequence[int]
     params: Params
     scale_init: float
+    activation_fn: str
 
-    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: int=1.0):
+    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: int=1.0, activation_fn: str='tanh'):
         """
-        Initializes an MLP (tanh activations) with given layer sizes.
+        Initializes an MLP (tanh/relu activations) with given layer sizes.
 
         Args
         ----
@@ -44,16 +46,29 @@ class MLP(eqx.Module):
         self.layer_sizes = layer_sizes
         self.scale_init = scale_init
         self.params = self._init_params(key)
+        self.activation_fn = activation_fn
     
     def _init_params(self, key: jax.random.key) -> Params:
-        """Glorot/Xavier initialization of weights and null biases, with optional scaling factor."""
+        """
+        If tanh activations: Glorot/Xavier initialization of weights and null biases, with optional scaling factor.
+        If relu activations: He initialization of weights and null biases, with optional scaling factor.
+        """
         keys = jax.random.split(key, len(self.layer_sizes) - 1)
         params = []
-        for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
-            limit = jnp.sqrt(6.0 / (m + n))
-            W = self.scale_init*jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
-            b = jnp.zeros((n,))
-            params.append((W, b))
+        if self.activation_fn == 'tanh':
+            for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
+                limit = jnp.sqrt(6.0 / (m + n))
+                W = self.scale_init*jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
+                b = jnp.zeros((n,))
+                params.append((W, b))
+        elif self.activation_fn == 'relu':
+            for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
+                stddev = jnp.sqrt(2.0 / m)
+                W = jax.random.normal(k, (n, m)) * stddev
+                b = jnp.zeros((n,))
+                params.append((W, b))
+        else:
+            raise ValueError('Choose a valid activation.')
         return params
     
     @eqx.filter_jit
@@ -71,8 +86,12 @@ class MLP(eqx.Module):
     def forward_single(self, x: Array) -> Array:
         """Forward pass for a single input sample x. Uses internal parameters."""
         # pass from input to second-last layer (use activation)
-        for W, b in self.params[:-1]:
-            x = jnp.tanh(W @ x + b)
+        if self.activation_fn == 'tanh':
+            for W, b in self.params[:-1]:
+                x = jnp.tanh(W @ x + b)
+        else:
+            for W, b in self.params[:-1]:
+                x = jax.nn.relu(W @ x + b)
         # last layer: no activation
         W, b = self.params[-1]
         out = W @ x + b
@@ -81,7 +100,7 @@ class MLP(eqx.Module):
     @staticmethod
     @eqx.filter_jit
     def _forward_single(params: Params, x: Array) -> Array:
-        """Forward pass for a single input sample x. Uses external parameters."""
+        """Forward pass for a single input sample x. Uses external parameters. ! ONLY WORKS WITH TANH ACTIVATIONS !"""
         # pass from input to second-last layer (use activation)
         for W, b in params[:-1]:
             x = jnp.tanh(W @ x + b)
@@ -99,7 +118,7 @@ class MLP(eqx.Module):
     
     @eqx.filter_jit
     def _forward_batch(self, params: Params, x_batch: Array) -> Array:
-        """Forward pass for a batch of input samples. Uses external parameters."""
+        """Forward pass for a batch of input samples. Uses external parameters. ! ONLY WORKS WITH TANH ACTIVATIONS !"""
         batched_forward = jax.vmap(self._forward_single, in_axes=(None,0))
         out_batch = batched_forward(params, x_batch)
         return out_batch
