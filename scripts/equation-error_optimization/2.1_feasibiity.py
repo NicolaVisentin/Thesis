@@ -256,6 +256,7 @@ def Loss(
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
         - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
         - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
+        
     Returns
     -------
     loss : float
