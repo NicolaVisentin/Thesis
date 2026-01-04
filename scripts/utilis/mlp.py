@@ -25,10 +25,10 @@ class MLP(eqx.Module):
     activation_fn : str
         Activation function. Either 'tanh' or 'relu' (default: tanh).
     """
-    layer_sizes: Sequence[int]
+    layer_sizes: Sequence[int] = eqx.field(static=True)
     params: Params
     scale_init: float
-    activation_fn: str
+    activation_fn: str = eqx.field(static=True)
 
     def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: int=1.0, activation_fn: str='tanh'):
         """
@@ -45,8 +45,8 @@ class MLP(eqx.Module):
         """
         self.layer_sizes = layer_sizes
         self.scale_init = scale_init
-        self.params = self._init_params(key)
         self.activation_fn = activation_fn
+        self.params = self._init_params(key)
     
     def _init_params(self, key: jax.random.key) -> Params:
         """
