@@ -3,3 +3,4 @@ from .gradient_based_stuff import *
 from .mlp import *
 from .evaluation_metrics import *
 from .real_nvp import *
+from .generic import *

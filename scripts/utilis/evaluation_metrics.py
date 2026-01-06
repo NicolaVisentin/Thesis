@@ -3,12 +3,7 @@ import jax
 from jax import numpy as jnp
 from jax import Array
 from jax.scipy.integrate import trapezoid
-import matplotlib.pyplot as plt
 
-
-# =====================================================
-# 
-# =====================================================
 
 # Root mean square error on a simulation
 def compute_simulation_rmse(that_ts: Array, yhat_ts: Array, ty_ts: Array, y_ts: Array):
