@@ -2,9 +2,8 @@ import jax
 from jax import numpy as jnp, Array
 import numpy as np
 from typing import Callable, Tuple
-from diffrax import Tsit5, ConstantStepSize
+from diffrax import Euler, Tsit5, ConstantStepSize, LinearInterpolation
 from functools import partial
-from dataclasses import dataclass
 
 from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
@@ -34,7 +33,7 @@ class pcsReservoir:
         self.hid_dim = 3*self.robot.num_segments # reservoir dim = pcs dim
         
     @partial(jax.jit, static_argnums=(0,))    
-    def __call__(self, u: Array, time_u: Array, saveat: Array) -> Tuple[Array, Array, Array, Array]:
+    def __call__(self, u: Array, time_u: Array, saveat: Array, dt: float=0.042) -> Tuple[Array, Array, Array, Array]:
         """
         Forward pass of the reservoir. Given a certain input in time, performs simulation of
         the reservoir and returns final activations.
@@ -47,6 +46,8 @@ class pcsReservoir:
             Time vector associated with u. Shape (n_steps_input,)
         saveat : Array
             Time vector for saving the solution of the simulation (use same t0 and t1 of time_u).
+        dt : float
+            Constant time step for the simulation (default: 0.042 s).
 
         Returns
         -------
@@ -64,37 +65,45 @@ class pcsReservoir:
         # Simulation parameters
         t0 = 0
         t1 = time_u[-1]
-        dt = 1e-4
+        dt = dt #1e-4
         saveat = saveat
-        solver = Tsit5()
+        solver = Euler() #Tsit5()
         step_size = ConstantStepSize()
         max_steps = int(1e6)
-
+        
         # Controller definition
-        def tau_law(system_state: SystemState, controller: Callable, u_ts: Array, time_u: Array) -> Tuple:
+        u_interp = LinearInterpolation(
+            ts=time_u,
+            ys=u
+        )
+        def tau_law(system_state: SystemState, controller: Callable, u_interp) -> Tuple:
             """Implements user-defined control law tau(t, q, qd)."""
             # extract corresponding external input basing on time
-            dt = time_u[1] - time_u[0]
-            idx = jnp.clip(jnp.floor((system_state.t-time_u[0])/dt).astype(int), 0, len(time_u)-1)
-            u = u_ts[idx]
+            u_t = u_interp.evaluate(system_state.t)
             # compute actuation
-            tau = controller(system_state.y, u)
+            tau = controller(system_state.y, u_t)
             return tau, None
         
-        tau_diffrax = jax.jit(partial(tau_law, controller=self.controller, u_ts=u, time_u=time_u)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+        tau_diffrax = jax.jit(partial(tau_law, controller=self.controller, u_interp=u_interp)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
+        
+        # def tau_law(system_state: SystemState, controller: Callable, u_ts: Array, time_u: Array) -> Tuple:
+        #     """Implements user-defined control law tau(t, q, qd)."""
+        #     # extract corresponding external input basing on time
+        #     dt = time_u[1] - time_u[0]
+        #     idx = jnp.clip(jnp.floor((system_state.t-time_u[0])/dt).astype(int), 0, len(time_u)-1)
+        #     u = u_ts[idx]
+        #     # compute actuation
+        #     tau = controller(system_state.y, u)
+        #     return tau, None
+        # tau_diffrax = jax.jit(partial(tau_law, controller=self.controller, u_ts=u, time_u=time_u)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
 
         # Simulation
         q0, qd0 = self.map_direct(jnp.zeros(self.hid_dim), jnp.zeros(self.hid_dim)) # init cond for the reservoir is [0, 0]
         initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
-        def ahh(sys_state):
-            tau = jnp.zeros(6)
-            return tau, None
-
         sim_out_pcs = self.robot.rollout_closed_loop_to(
             initial_state = initial_state_pcs,
-            #controller = tau_diffrax,
-            controller = ahh,
+            controller = tau_diffrax,
             t1 = t1, 
             solver_dt = dt, 
             save_ts = saveat,
