@@ -10,6 +10,10 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 import numpy as onp
 import jax
 import jax.numpy as jnp
+from sklearn import preprocessing
+from sklearn.linear_model import LogisticRegression
+import joblib
+import copy
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -207,6 +211,7 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
+train = True # if True, perform training. Otherwise, test saved model
 
 
 # =====================================================
@@ -217,7 +222,8 @@ def animate_robot_matplotlib(
 train_set_raw, test_set_raw = load_mnist_data(dataset_folder/'MNIST') # shape (n_images, 1, 28, 28)
 
 # Convert (n_imgs, 1, 28, 28) --> (n_imgs, 784)
-train_set, test_set = train_set_raw, test_set_raw
+train_set = copy.deepcopy(train_set_raw)
+test_set  = copy.deepcopy(test_set_raw)
 train_set["images"] = train_set["images"].reshape(train_set["images"].shape[0], -1)
 test_set["images"] = test_set["images"].reshape(test_set["images"].shape[0], -1)
 
@@ -277,7 +283,7 @@ def controller(z, u):
     W = jnp.zeros((int(len(z)/2), len(z)))
     b = jnp.zeros(int(len(z)/2))
     V = jnp.ones(int(len(z)/2))
-    return jnp.tanh(W @ z + b + V @ u)
+    return jnp.tanh(W @ z + b + V * u)
 
 # Instantiate the reservoir
 reservoir = pcsReservoir(
@@ -287,47 +293,173 @@ reservoir = pcsReservoir(
     controller=controller
 )
 
+# Other stuff
+dt_u = 0.042 # time step for the input u. (in the RON paper dt = 0.042 s)
+dt_sim = 1e-3 # time step for the simulation
+
+reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap roservoir's forward
+time_u = jnp.linspace(0, dt_u * (len(train_set["images"][0]) - 1), len(train_set["images"][0])) # define time vector for the input image 
+saveat = jnp.arange(0, time_u[-1], dt_u) # for saving simulation results
+
 
 # =====================================================
 # Training
 # =====================================================
 
-# Create batches
-key, subkey = jax.random.split(key)
-batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=7500)
+if train:
+    # Train the output layer (classifier) (1): pass all the inputs in the train set to the model
+    print(f'--- Generating previsions for training ---')
+    key, subkey = jax.random.split(key)
+    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=6000) # create indices for the batches
+    activations, labels = [], []
+    start = time.perf_counter()
+    for i in tqdm(range(len(batch_ids)), 'Model forward'):
+        batch_i_ids = batch_ids[i]
+        train_batch = extract_batch(train_set, batch_i_ids)
+        _, _, _, _, activations_batch = reservoir_forward(train_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
+        activations.append(activations_batch)
+        labels.append(train_batch["labels"])
 
-# Train the output layer (classifier) (1): pass all the inputs in the train set to the model
-print(f'--- Generating previsions for training ---')
-reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None))) # vmap roservoir's forward
-time_u = jnp.linspace(0, 0.042 * (len(train_set["images"][0]) - 1), len(train_set["images"][0])) # define time vector for the input image (in the RON paper dt = 0.042 s)
-saveat = jnp.arange(0, time_u[-1], 1e-2) # for saving simulation results
+    activations = jnp.concatenate(activations) # shape (num_train_images, num_hidden_units)
+    labels = jnp.concatenate(labels) # shape (num_train_images,)
+    stop = time.perf_counter() 
+    print(f'Elapsed time: {stop-start}')
 
-start = time.perf_counter()
+    # Train the output layer (classifier) (2): logistic regression of the output layer
+    print(f'\n--- Training the classifier (regression) ---')
+    start = time.perf_counter()
+    scaler = preprocessing.StandardScaler().fit(onp.array(activations))
+    activations = scaler.transform(onp.array(activations))
+    classifier = LogisticRegression(max_iter=1000).fit(onp.array(activations), onp.array(labels))
+    stop = time.perf_counter()
+    print(f'Elapsed time: {stop-start}')
+
+    # Save the trained classifier and scaler
+    joblib.dump(scaler, data_folder/'scaler.pkl')
+    joblib.dump(classifier, data_folder/'classifier.pkl')
+
+    # Train accuracy
+    train_accuracy = classifier.score(activations, labels)
+    print(f'Accuracy on the train set: {train_accuracy}')
+
+
+# =====================================================
+# Testing
+# =====================================================
+if train:
+    print()
+print(f'--- Evaluating perfomances ---')
+
+# If training was not performed, load saved data
+if not train:
+    scaler = joblib.load(data_folder/'scaler.pkl')
+    classifier = joblib.load(data_folder/'classifier.pkl')
+
+# Forward on the test set
 activations, labels = [], []
+key, subkey = jax.random.split(key)
+batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=5000) # create indices for the batches
+start = time.perf_counter()
 for i in tqdm(range(len(batch_ids)), 'Model forward'):
     batch_i_ids = batch_ids[i]
-    train_batch = extract_batch(train_set, batch_i_ids)
-    _, _, _, _, activations_batch = reservoir_forward(train_batch["images"], time_u, saveat) # shape (batch_size, num_hidden_units)
+    test_batch = extract_batch(test_set, batch_i_ids)
+    _, _, _, _, activations_batch = reservoir_forward(test_batch["images"], time_u, saveat) # shape (batch_size, num_hidden_units)
     activations.append(activations_batch)
-    labels.append(train_batch["labels"])
+    labels.append(test_batch["labels"])
 
-activations = jnp.concatenate(activations) # shape (num_train_images, num_hidden_units)
-labels = jnp.concatenate(labels) # shape (num_train_images,)
+activations = jnp.concatenate(activations) # shape (num_test_images, num_hidden_units)
+labels = jnp.concatenate(labels) # shape (num_test_images,)
 stop = time.perf_counter() 
 print(f'Elapsed time: {stop-start}')
-exit()
 
-# Train the output layer (classifier) (2): logistic regression of the output layer
-print(f'\n--- Training the classifier (regression) ---')
-scaler = preprocessing.StandardScaler().fit(activations)
+# Accuracy
+test_accuracy = classifier.score(activations, labels)
+print(f'Accuracy on the test set: {test_accuracy}')
+
+
+# =====================================================
+# Visualization (example)
+# =====================================================
+print(f'\n--- Example ---')
+
+# Take one example and try inference
+example_idx = 1234
+image = test_set["images"][example_idx] # shape (784,)
+image_raw = test_set_raw["images"][example_idx,0] # shape (28, 28)
+label = test_set["labels"][example_idx]
+
+start = time.perf_counter()
+time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, activations = reservoir(image, time_u, saveat)
+y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1)
+q_ts, qd_ts = jnp.split(state_pcs_ts, 2, axis=1)
+stop = time.perf_counter()
+print(f'Elapsed time (simulation): {stop-start}')
+
+activations = activations[None,:] # sklear requires input (n_inputs, dim_inputs)
 activations = scaler.transform(activations)
-classifier = LogisticRegression(max_iter=1000).fit(activations, ys)
+pred = classifier.predict(activations)[0] # prediction
+probs = classifier.predict_proba(activations).squeeze() # probabilities
 
-# Evaluate the performances of the trained classifier
-print('\nEvaluating perfomances...')
-train_acc = test(train_loader, classifier, scaler)                               # on the training set
-valid_acc = test(valid_loader, classifier, scaler) if not args.use_test else 0.0 # on the validation set
-test_acc = test(test_loader, classifier, scaler) if args.use_test else 0.0       # on the testing set
-train_accs.append(train_acc)
-valid_accs.append(valid_acc)
-test_accs.append(test_acc)
+# Show prediction
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+ax1.imshow(image_raw, cmap='gray')
+ax1.set_title('Input')
+ax2.bar(np.arange(10), probs, color='skyblue')
+ax2.set_title(f'Prediction: {pred}')
+ax2.set_xlabel('classes')
+ax2.set_ylabel('probability')
+ax2.set_xticks(np.arange(10))
+plt.tight_layout()
+plt.savefig(plots_folder/'Example_inference', bbox_inches='tight') 
+#plt.show()
+
+# Show reservoir/robot evolution
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(time_ts, y_ts[:,i], 'b', label='reservoir')
+    ax.plot(time_ts, q_ts[:,i], 'r', label='soft robot')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y, q')
+    ax.set_title(f'Component {i+1}')
+    ax.legend()
+plt.tight_layout()
+plt.savefig(plots_folder/'Example_inference_evolution', bbox_inches='tight') 
+#plt.show()
+
+# Show actuation signal tau(t)
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(time_ts, actuation_ts[:,i], 'r')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel(r'$\tau$')
+    ax.set_title(f'Component {i+1}')
+plt.tight_layout()
+plt.savefig(plots_folder/'Example_inference_actuation', bbox_inches='tight') 
+#plt.show()
+
+# Show reservoir input u(t)
+plt.figure()
+plt.plot(time_u, image, 'b')
+plt.grid(True)
+plt.xlabel('t [s]')
+plt.ylabel('u')
+plt.title('Reservoir input')
+plt.tight_layout()
+plt.savefig(plots_folder/'Example_inference_input', bbox_inches='tight') 
+plt.show()
+
+# Show robot animation
+animate_robot_matplotlib(
+    robot = robot,
+    t_list = time_ts,
+    q_list = q_ts,
+    interval = 1e-3, 
+    slider = False,
+    animation = True,
+    show = True,
+    duration = 10,
+    fps = 30,
+    save_path = plots_folder/'Example_inference_animation.gif',
+)
