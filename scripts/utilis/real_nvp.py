@@ -2,6 +2,7 @@ import jax
 import jax.numpy as jnp
 from jax import Array
 import equinox as eqx
+import numpy as np
 
 from typing import Tuple, List
 
@@ -318,6 +319,58 @@ class RealNVP(eqx.Module):
             x_batch, xd_batch = jax.vmap(self.inverse_with_derivatives)(y_batch, yd_batch)
             out = (x_batch, xd_batch)
         return out
+    
+    def save_params(self, path: str):
+        """Saves the parameters of the RealNVP in the specified path as a .npz file."""
+        flat_params = {}
+        for i, (t_params, s_params, scale_factor) in enumerate(self.params):
+            # save translation network parameters
+            for j, (W, b) in enumerate(t_params):
+                flat_params[f"t_net_{i}_W_{j}"] = np.array(W)
+                flat_params[f"t_net_{i}_b_{j}"] = np.array(b)
+            # save scale network parameters
+            for j, (W, b) in enumerate(s_params):
+                flat_params[f"s_net_{i}_W_{j}"] = np.array(W)
+                flat_params[f"s_net_{i}_b_{j}"] = np.array(b)
+            # save scale factor
+            flat_params[f"scale_factor_{i}"] = np.array(scale_factor)
+        np.savez(path, **flat_params)
+
+    @staticmethod
+    def load_params(path: str) -> ParamsRealNVP:
+        """Load parameters of the RealNVP from a .npz file."""
+        with np.load(path) as data:
+            keys = sorted(data.files)
+            
+            # determine number of coupling layers
+            num_layers = len([k for k in keys if k.startswith("scale_factor_")])
+            
+            params = []
+            for i in range(num_layers):
+                # load translation network parameters
+                t_params = []
+                j = 0
+                while f"t_net_{i}_W_{j}" in keys:
+                    W = jnp.array(data[f"t_net_{i}_W_{j}"])
+                    b = jnp.array(data[f"t_net_{i}_b_{j}"])
+                    t_params.append((W, b))
+                    j += 1
+                
+                # load scale network parameters
+                s_params = []
+                j = 0
+                while f"s_net_{i}_W_{j}" in keys:
+                    W = jnp.array(data[f"s_net_{i}_W_{j}"])
+                    b = jnp.array(data[f"s_net_{i}_b_{j}"])
+                    s_params.append((W, b))
+                    j += 1
+                
+                # load scale factor
+                scale_factor = jnp.array(data[f"scale_factor_{i}"])
+                
+                params.append((t_params, s_params, scale_factor))
+            
+        return params
 
 
 # Utility function to create alternating masks
