@@ -1,5 +1,5 @@
 # Imports
-from typing import Dict, Tuple, Callable
+from typing import Dict, Tuple
 from pathlib import Path
 from functools import partial
 import numpy as np
@@ -8,7 +8,6 @@ import struct
 import jax
 from jax import numpy as jnp
 from jax import Array
-import optax
 
 
 # =====================================================
