@@ -410,7 +410,7 @@ Loss = jax.jit(partial(Loss, robot=robot, controller=mlp_controller, map=map))
 # Run trainings in parallel
 keys = jax.random.split(key, n_samples+1)
 key, keysTrain = keys[0], keys[1:]
-exit()
+
 print(f"Starting optimizations ({n_samples} samples, {n_epochs} epochs)...")
 start = time.perf_counter()
 results = train_in_parallel(
