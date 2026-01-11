@@ -41,7 +41,7 @@ class AffineCoupling(eqx.Module):
     translation_net: "MLP"
     scale_param: Array
 
-    def __init__(self, key: jax.random.key, mask: Array, hidden_dim: int, activation_fn: str='relu'):
+    def __init__(self, key: jax.random.key, mask: Array, hidden_dim: int, activation_fn: str='relu', scale_init_t_net: float=1.0, scale_init_scale_factor: float=1.0):
         """
         Initialize affine coupling layer.
         
@@ -55,11 +55,17 @@ class AffineCoupling(eqx.Module):
             Hidden layer dimension.
         activation_fn : str
             Activation function for the MLPs. Either 'tanh' or 'relu' (default: 'relu').
+        scale_init_t_net : float
+            Scaling factor on the parameters for the translation MLPs initialization (default: 1.0).
+        scale_init_scale_factor : float
+            Scaling factor on the scale factor initialization (default: 1.0).
         """
         self.input_dim = len(mask)
         self.hidden_dim = hidden_dim
         self.mask = mask
         self.activation_fn = activation_fn
+        self.scale_init_t_net = scale_init_t_net
+        self.scale_init_scale_factor = scale_init_scale_factor
 
         # Initialize scale and translation networks (MLPs)
         key_s, key_t, key_param = jax.random.split(key, 3)        
@@ -68,10 +74,10 @@ class AffineCoupling(eqx.Module):
         self.scale_net = MLP(key_s, layer_sizes_scale, activation_fn=self.activation_fn)
 
         layer_sizes_trans = [self.input_dim, self.hidden_dim, self.hidden_dim, self.input_dim]
-        self.translation_net = MLP(key_t, layer_sizes_trans, activation_fn=self.activation_fn)
+        self.translation_net = MLP(key_t, layer_sizes_trans, scale_init_t_net, activation_fn=self.activation_fn)
         
         # Initialize scale parameter with normal distribution
-        self.scale_param = jax.random.normal(key_param, (self.input_dim,))
+        self.scale_param = scale_init_scale_factor * jax.random.normal(key_param, (self.input_dim,))
 
     @eqx.filter_jit
     def update_params(self, new_params : Tuple[Params, Params, Array]) -> "AffineCoupling":
@@ -147,6 +153,10 @@ class RealNVP(eqx.Module):
         scaling factor.
     activation_fn : str
         Activation function for the MLPs in the coupling layers.
+    scale_init_t_net : float
+        Scaling factor on the parameters for the translation MLPs initialization (default: 1.0).
+    scale_init_scale_factor : float
+        Scaling factor on the scale factor initialization (default: 1.0).
     """
     hidden_dim : int = eqx.field(static=True)
     activation_fn : str = eqx.field(static=True)
@@ -154,7 +164,7 @@ class RealNVP(eqx.Module):
     affine_couplings : List[AffineCoupling]
     params : ParamsRealNVP
     
-    def __init__(self, key: jax.random.key, masks: List[Array], hidden_dim: int, activation_fn: str='relu'):
+    def __init__(self, key: jax.random.key, masks: List[Array], hidden_dim: int, activation_fn: str='relu', scale_init_t_net: float=1.0, scale_init_scale_factor: float=1.0):
         """
         Initialize RealNVP flow.
         
@@ -173,11 +183,13 @@ class RealNVP(eqx.Module):
         self.hidden_dim = hidden_dim
         self.masks = masks
         self.activation_fn = activation_fn
+        self.scale_init_t_net = scale_init_t_net
+        self.scale_init_scale_factor = scale_init_scale_factor
         
         # Initialize coupling layers
         keys = jax.random.split(key, len(masks))
         self.affine_couplings = [
-            AffineCoupling(keys[i], masks[i], hidden_dim, activation_fn=self.activation_fn)
+            AffineCoupling(keys[i], masks[i], hidden_dim, self.activation_fn, self.scale_init_t_net, self.scale_init_scale_factor)
             for i in range(len(masks))
         ]
         
