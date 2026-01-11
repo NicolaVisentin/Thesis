@@ -209,7 +209,7 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
-load_experiment = False # choose whether to load saved experiment or to perform training
+load_experiment = True # choose whether to load saved experiment or to perform training
 experiment = '' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
@@ -219,7 +219,7 @@ ron_case = 'simple' # 'simple' 'coupled' 'input'
 controller_to_train = 'tanh_qd' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
 
 # Mapping
-map_to_train = 'reconstruction' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 
@@ -1340,11 +1340,11 @@ if ron_case == 'input':
         contr_inp = jnp.concatenate([z_test_power, test_set["u"]], axis=1) # shape (batch_size, 2*3*n_pcs+1)
 else:
     if controller_to_train == 'tanh_simple':
-        contr_input = q_test_power # shape (testset_size, 3*n_pcs)
+        contr_inp = q_test_power # shape (testset_size, 3*n_pcs)
     elif controller_to_train == 'tanh_qd':
-        contr_input = qd_test_power # shape (testset_size, 3*n_pcs)
+        contr_inp = qd_test_power # shape (testset_size, 3*n_pcs)
     else:
-        contr_input = z_test_power # shape (testset_size, 2*3*n_pcs)
+        contr_inp = z_test_power # shape (testset_size, 2*3*n_pcs)
 
 tau_test_power = mlp_controller_opt.forward_batch(contr_inp) # shape (testset_size, 3*n_pcs)
 power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
