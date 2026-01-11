@@ -52,7 +52,7 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 train_samples = True # if True, short training on many samples. If False, long training on the best sample
 ref_data_prefix = 'SAMPLES_REF' # prefix of the REFERENCE data (for same initial condition)
-load_case_prefix = '100TEMP_TANHQ_SVD_SAMPLES' # if train_samples is False, choose prefix of the experiment to load
+load_case_prefix = '100TEMP_TANHQ_BIJECTIVE_SAMPLES' # if train_samples is False, choose prefix of the experiment to load
 
 
 # =====================================================
@@ -322,13 +322,17 @@ else:
     n_coupling_layers = 4 # number of coupling layers
     nets_hidden_dim = 32 # dimension of the MLPs (all of them have 2 hidden layers)
     activation_fn_map = 'tanh' # activation function for the MLPs ('tanh' or 'relu')
+    scale_t_net = 0.01 # scaling factor on the translation nets initialization (translation MLPs)
+    scale_scale_factor = 0.1 # scaling factor on the scale factor initialization (scale MLPs)
 
     masks = create_alternating_masks(input_dim=n_ron, num_layers=n_coupling_layers) # list of length num_layers. Each element is a (input_dim,) binary array 
     map = RealNVP(
         key_map,
         masks=masks,
         hidden_dim=nets_hidden_dim,
-        activation_fn=activation_fn_map
+        activation_fn=activation_fn_map,
+        scale_init_t_net=scale_t_net,
+        scale_init_scale_factor=scale_scale_factor
     )
 
     all_map_before = map.load_params(data_folder/f'{load_case_prefix}_all_data_map_before.npz')

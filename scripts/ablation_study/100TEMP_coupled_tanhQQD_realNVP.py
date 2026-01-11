@@ -52,7 +52,7 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 train_samples = True # if True, short training on many samples. If False, long training on the best sample
 ref_data_prefix = 'SAMPLES_REF' # prefix of the REFERENCE data (for same initial condition)
-load_case_prefix = '100TEMP_TANHQ_SVD_SAMPLES' # if train_samples is False, choose prefix of the experiment to load
+load_case_prefix = '100TEMP_COUPLED_TANHQQD_BIJECTIVE_SAMPLES' # if train_samples is False, choose prefix of the experiment to load
 
 
 # =====================================================
@@ -130,7 +130,7 @@ def Loss(
 
     # predictions
     z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
-    tau_batch = controller_updated.forward_batch(q_batch) # shape (batch_size, 3*n_pcs)
+    tau_batch = controller_updated.forward_batch(z_batch) # shape (batch_size, 3*n_pcs)
     actuation_arg = (tau_batch,)
 
     forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0,0))
@@ -162,7 +162,7 @@ Loss_vmap = jax.vmap(Loss, in_axes=(0,None,None,None,None))
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/N6_noInput/dataset_m1e5_N6_noInput.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -271,20 +271,24 @@ if train_samples:
     n_coupling_layers = 4 # number of coupling layers
     nets_hidden_dim = 32 # dimension of the MLPs (all of them have 2 hidden layers)
     activation_fn_map = 'tanh' # activation function for the MLPs ('tanh' or 'relu')
+    scale_t_net = 0.01 # scaling factor on the translation nets initialization (translation MLPs)
+    scale_scale_factor = 0.1 # scaling factor on the scale factor initialization (scale MLPs)
 
     masks = create_alternating_masks(input_dim=n_ron, num_layers=n_coupling_layers) # list of length num_layers. Each element is a (input_dim,) binary array 
     map = RealNVP(
         key_map,
         masks=masks,
         hidden_dim=nets_hidden_dim,
-        activation_fn=activation_fn_map
+        activation_fn=activation_fn_map,
+        scale_init_t_net=scale_t_net,
+        scale_init_scale_factor=scale_scale_factor
     )
 
     p_map_before = map.init_params_batch(key_init, n_samples)
 
     # MLP fb controller
     key, key_controller, key_init = jax.random.split(key, 3)
-    mlp_sizes = [3*n_pcs, 3*n_pcs] 
+    mlp_sizes = [2*3*n_pcs, 3*n_pcs] 
     mlp_controller = MLP(key=key_controller, layer_sizes=mlp_sizes, scale_init=0.0001) # dummy instance
 
     p_controller_before = mlp_controller.init_params_batch(key_init, n_samples) # generates as many params as the number of samples
@@ -318,13 +322,17 @@ else:
     n_coupling_layers = 4 # number of coupling layers
     nets_hidden_dim = 32 # dimension of the MLPs (all of them have 2 hidden layers)
     activation_fn_map = 'tanh' # activation function for the MLPs ('tanh' or 'relu')
+    scale_t_net = 0.01 # scaling factor on the translation nets initialization (translation MLPs)
+    scale_scale_factor = 0.1 # scaling factor on the scale factor initialization (scale MLPs)
 
     masks = create_alternating_masks(input_dim=n_ron, num_layers=n_coupling_layers) # list of length num_layers. Each element is a (input_dim,) binary array 
     map = RealNVP(
         key_map,
         masks=masks,
         hidden_dim=nets_hidden_dim,
-        activation_fn=activation_fn_map
+        activation_fn=activation_fn_map,
+        scale_init_t_net=scale_t_net,
+        scale_init_scale_factor=scale_scale_factor
     )
 
     all_map_before = map.load_params(data_folder/f'{load_case_prefix}_all_data_map_before.npz')
@@ -337,7 +345,7 @@ else:
 
     # MLP fb controller
     key, key_controller = jax.random.split(key)
-    mlp_sizes = [3*n_pcs, 3*n_pcs] 
+    mlp_sizes = [2*3*n_pcs, 3*n_pcs] 
     mlp_controller = MLP(key=key_controller, layer_sizes=mlp_sizes, scale_init=0.0001) # dummy instance
 
     all_controller_before = mlp_controller.load_params(data_folder/f'{load_case_prefix}_all_data_controller_before.npz')
@@ -378,8 +386,9 @@ for i in range(n_samples):
     params_map_i = map.extract_params_from_batch(p_map_before, i)
     map_i = map.update_params(params_map_i)
     q, qd = map_i.forward_with_derivatives_batch(test_set["y"], test_set["yd"]) # shape (testset_size, 3*n_pcs)
+    z = jnp.concatenate([q, qd], axis=1)                                        # shape (testset_size, 2*3*n_pcs)
     params_contr_i = mlp_controller.extract_params_from_batch(p_controller_before, i)
-    tau_i = mlp_controller._forward_batch(params_contr_i, q)                    # shape (testset_size, 3*n_pcs)
+    tau_i = mlp_controller._forward_batch(params_contr_i, z)                    # shape (testset_size, 3*n_pcs)
     power_i = jnp.sum(tau_i * qd, axis=1)                                       # shape (testset_size,)
     power_msv_i = jnp.mean(power_i**2)                                          # scalar
     powers_msv_before.append(power_msv_i)
@@ -449,8 +458,9 @@ for i in range(n_samples):
     params_map_i = map.extract_params_from_batch(p_map_after, i)
     map_i = map.update_params(params_map_i)
     q, qd = map_i.forward_with_derivatives_batch(test_set["y"], test_set["yd"]) # shape (testset_size, 3*n_pcs)
+    z = jnp.concatenate([q, qd], axis=1)                                        # shape (testset_size, 2*3*n_pcs)
     params_contr_i = mlp_controller.extract_params_from_batch(p_controller_after, i)
-    tau_i = mlp_controller._forward_batch(params_contr_i, q)                    # shape (testset_size, 3*n_pcs)
+    tau_i = mlp_controller._forward_batch(params_contr_i, z)                    # shape (testset_size, 3*n_pcs)
     power_i = jnp.sum(tau_i * qd, axis=1)                                       # shape (testset_size,)
     power_msv_i = jnp.mean(power_i**2)                                          # scalar
     powers_msv_after.append(power_msv_i)
