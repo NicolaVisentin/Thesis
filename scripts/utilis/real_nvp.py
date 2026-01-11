@@ -371,6 +371,74 @@ class RealNVP(eqx.Module):
                 params.append((t_params, s_params, scale_factor))
             
         return params
+    
+    def init_params_batch(self, key, batch_size: int) -> ParamsRealNVP:
+        """"
+        Gives params as a list of tuples with batches of parameters for each coupling layer, i.e.:
+        params_batch = [(t_params_batch_1, s_params_batch_1, scale_factor_batch_1), 
+                        (t_params_batch_2, s_params_batch_2, scale_factor_batch_2), ...]
+        where each t_params_batch_i and s_params_batch_i are batched Params (as in MLP), and
+        scale_factor_batch_i has shape (batch_size, input_dim).
+        """
+        keys = jax.random.split(key, batch_size)
+        
+        def init_single_realnvp(key):
+            """Initialize a single RealNVP instance and extract its params."""
+            temp_realnvp = RealNVP(key, self.masks, self.hidden_dim, self.activation_fn)
+            return temp_realnvp.params
+        
+        # Use vmap to initialize batch_size instances
+        # This returns a tree structure where arrays are stacked along axis 0
+        params_vmapped = jax.vmap(init_single_realnvp)(keys)
+        
+        # Restructure to ParamsRealNVP with batched elements
+        params_batch = []
+        for layer_idx in range(len(self.affine_couplings)):
+            # Extract batched parameters for this coupling layer
+            t_params_batched = params_vmapped[layer_idx][0]  # (batch_size, num_mlp_layers, ...)
+            s_params_batched = params_vmapped[layer_idx][1]  # (batch_size, num_mlp_layers, ...)
+            scale_factors_batched = params_vmapped[layer_idx][2]  # (batch_size, input_dim)
+            
+            params_batch.append((t_params_batched, s_params_batched, scale_factors_batched))
+        
+        return params_batch
+
+    @staticmethod
+    def extract_params_from_batch(params_batch: ParamsRealNVP, idx: int, extract_as_batch: bool=False) -> ParamsRealNVP:
+        """
+        If params_batch is a ParamsRealNVP list that contains tuples of batched parameters, this
+        method extracts a ParamsRealNVP list with tuples of the parameters in position idx within
+        the batches.
+
+        Args
+        ----
+        params_batch : ParamsRealNVP
+            List of tuples with batches of parameters for each coupling layer.
+        idx : int
+            Position in the batch of the parameters to extract.
+        extract_as_batch: bool
+            If True, extracts desired parameters as they were a batch of dimension 1 (default: False).
+
+        Returns
+        -------
+        params : ParamsRealNVP
+            List of desired parameters for each coupling layer.
+        """
+        params = []
+        for (t_params_batch, s_params_batch, scale_factors_batch) in params_batch:
+            # extract MLP parameters at index idx
+            if extract_as_batch:
+                t_params = [(W[idx][None, :], b[idx][None, :]) for (W, b) in t_params_batch]
+                s_params = [(W[idx][None, :], b[idx][None, :]) for (W, b) in s_params_batch]
+                scale_factor = scale_factors_batch[idx][None, :]
+            else:
+                t_params = [(W[idx], b[idx]) for (W, b) in t_params_batch]
+                s_params = [(W[idx], b[idx]) for (W, b) in s_params_batch]
+                scale_factor = scale_factors_batch[idx]
+            
+            params.append((t_params, s_params, scale_factor))
+        
+        return params
 
 
 # Utility function to create alternating masks
