@@ -46,9 +46,6 @@ plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).st
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
 data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
 
-data_folder.mkdir(parents=True, exist_ok=True)
-plots_folder.mkdir(parents=True, exist_ok=True)
-
 # Functions for plotting robot
 def draw_robot(
         robot: PlanarPCS_simple, 
@@ -212,34 +209,29 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
+load_experiment = False # choose whether to load saved experiment or to perform training
+experiment = '' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 ron_case = 'coupled' # 'simple' 'coupled' 'input'
 
-# Controller
-"""
-Choose fb controller to train. Possibilities are:
-    'tanh_simple': tau = tanh(W*q + b + V*u)
-    'tanh_complete': tau = tanh(W*z + b + V*u), where z = [q^T, qd^T]^T
-    'mlp': tau = MLP(q,qd,u)
-"""
-controller_to_train = 'mlp'
+# FB controller
+controller_to_train = 'mlp' # 'tanh_simple', 'tanh_complete', 'mlp'
 
 # Mapping
-"""
-Choose mapping function to train. Possibilities are:
-    'diag': q = A*y + c, with A = diag(a)
-    'svd': q = A*y + c, with A = U*S*V^T
-    'reconstruction': q = phi(y) <-> y = psi(q), with reconstruction loss to ensure psi = inv(phi)
-    'norm_flow': q = phi(y), where phi is a bijective mapping (RealNVP net)
-"""
-map_to_train = 'norm_flow'
+map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 
 # =====================================================
-# Functions for optimization
+# Functions
 # =====================================================
+
+# Rename folders for plots/data
+plots_folder = plots_folder/experiment
+data_folder = data_folder/experiment
+data_folder.mkdir(parents=True, exist_ok=True)
+plots_folder.mkdir(parents=True, exist_ok=True)
 
 # Convert map parameters if necessary
 match map_to_train:
@@ -856,7 +848,7 @@ print(f'Example:\n'
 # Optimization
 # =====================================================
 
-if True:
+if not load_experiment:
     print(F'\n--- OPTIMIZATION ---')
 
     # Optimization parameters
@@ -1058,7 +1050,7 @@ if True:
 print('\n--- AFTER OPTIMIZATION ---')
 
 # Load optimal parameters
-if False:
+if load_experiment:
     # Choose prefix for data
     prefix_load = ''
 
