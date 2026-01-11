@@ -30,7 +30,7 @@ class MLP(eqx.Module):
     scale_init: float
     activation_fn: str = eqx.field(static=True)
 
-    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: int=1.0, activation_fn: str='tanh'):
+    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: float=1.0, activation_fn: str='tanh'):
         """
         Initializes an MLP (tanh/relu activations) with given layer sizes.
 
@@ -58,13 +58,13 @@ class MLP(eqx.Module):
         if self.activation_fn == 'tanh':
             for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
                 limit = jnp.sqrt(6.0 / (m + n))
-                W = self.scale_init*jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
+                W = self.scale_init * jax.random.uniform(k, (n, m), minval=-limit, maxval=limit)
                 b = jnp.zeros((n,))
                 params.append((W, b))
         elif self.activation_fn == 'relu':
             for k, (m, n) in zip(keys, zip(self.layer_sizes[:-1], self.layer_sizes[1:])):
                 stddev = jnp.sqrt(2.0 / m)
-                W = jax.random.normal(k, (n, m)) * stddev
+                W = self.scale_init * jax.random.normal(k, (n, m)) * stddev
                 b = jnp.zeros((n,))
                 params.append((W, b))
         else:
