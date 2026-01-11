@@ -295,7 +295,7 @@ reservoir = pcsReservoir(
 
 # Other stuff
 dt_u = 0.042 # time step for the input u. (in the RON paper dt = 0.042 s)
-dt_sim = 1e-3 # time step for the simulation
+dt_sim = 1e-4 # time step for the simulation
 
 reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap roservoir's forward
 time_u = jnp.linspace(0, dt_u * (len(train_set["images"][0]) - 1), len(train_set["images"][0])) # define time vector for the input image 
@@ -310,7 +310,7 @@ if train:
     # Train the output layer (classifier) (1): pass all the inputs in the train set to the model
     print(f'--- Generating previsions for training ---')
     key, subkey = jax.random.split(key)
-    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=6000) # create indices for the batches
+    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=100) # create indices for the batches
     activations, labels = [], []
     start = time.perf_counter()
     for i in tqdm(range(len(batch_ids)), 'Model forward'):
