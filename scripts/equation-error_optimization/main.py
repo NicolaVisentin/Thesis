@@ -213,7 +213,7 @@ load_experiment = False # choose whether to load saved experiment or to perform 
 experiment = '' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
-ron_case = 'coupled' # 'simple' 'coupled' 'input'
+ron_case = 'input' # 'simple' 'coupled' 'input'
 
 # FB controller
 controller_to_train = 'mlp' # 'tanh_simple', 'tanh_complete', 'mlp'
