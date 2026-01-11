@@ -271,13 +271,17 @@ if train_samples:
     n_coupling_layers = 4 # number of coupling layers
     nets_hidden_dim = 32 # dimension of the MLPs (all of them have 2 hidden layers)
     activation_fn_map = 'tanh' # activation function for the MLPs ('tanh' or 'relu')
+    scale_t_net = 0.01 # scaling factor on the translation nets initialization (translation MLPs)
+    scale_scale_factor = 0.1 # scaling factor on the scale factor initialization (scale MLPs)
 
     masks = create_alternating_masks(input_dim=n_ron, num_layers=n_coupling_layers) # list of length num_layers. Each element is a (input_dim,) binary array 
     map = RealNVP(
         key_map,
         masks=masks,
         hidden_dim=nets_hidden_dim,
-        activation_fn=activation_fn_map
+        activation_fn=activation_fn_map,
+        scale_init_t_net=scale_t_net,
+        scale_init_scale_factor=scale_scale_factor
     )
 
     p_map_before = map.init_params_batch(key_init, n_samples)
