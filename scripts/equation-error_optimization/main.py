@@ -213,13 +213,13 @@ load_experiment = False # choose whether to load saved experiment or to perform 
 experiment = '' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
-ron_case = 'input' # 'simple' 'coupled' 'input'
+ron_case = 'simple' # 'simple' 'coupled' 'input'
 
 # FB controller
-controller_to_train = 'mlp' # 'tanh_simple', 'tanh_complete', 'mlp'
+controller_to_train = 'tanh_qd' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
 
 # Mapping
-map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'reconstruction' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 
@@ -364,16 +364,20 @@ def Loss(
 
     # actuation
     z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
-    if controller_to_train == 'tanh_simple':
-        if ron_case == 'input':
+    if ron_case == 'input':
+        if controller_to_train == 'tanh_simple':
             contr_inp = jnp.concatenate([q_batch, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1)
+        elif controller_to_train == 'tanh_qd':
+            contr_inp = jnp.concatenate([qd_batch, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1)
         else:
-            contr_inp = q_batch # shape (batch_size, 3*n_pcs+1)
+            contr_inp = jnp.concatenate([z_batch, u_batch], axis=1) # shape (batch_size, 2*3*n_pcs+1)
     else:
-        if ron_case == 'input':
-            contr_inp = jnp.concatenate([z_batch, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1)
+        if controller_to_train == 'tanh_simple':
+            contr_inp = q_batch # shape (batch_size, 3*n_pcs)
+        elif controller_to_train == 'tanh_qd':
+            contr_inp = qd_batch # shape (batch_size, 3*n_pcs)
         else:
-            contr_inp = z_batch # shape (batch_size, 3*n_pcs+1)
+            contr_inp = z_batch # shape (batch_size, 2*3*n_pcs)
 
     tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs)
     actuation_arg = (tau_batch,)
@@ -538,7 +542,7 @@ p_robot = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
 
 # ...controller
 match controller_to_train:
-    case 'tanh_simple':
+    case 'tanh_simple' | 'tanh_qd':
         scale_init = 0.00001
         if ron_case == 'input':
             mlp_sizes = [3*n_pcs + 1, 3*n_pcs]
@@ -611,18 +615,22 @@ if show_simulations:
     def tau_law(system_state: SystemState, controller: MLP, u_interp_fn: AbstractTerm):
         """Implements user-defined control tau(t) = MLP(q(t),qd(t),u(t))."""
         u = u_interp_fn.evaluate(system_state.t)
-        if controller_to_train == 'tanh_simple':
-            q, _ = jnp.split(system_state.y, 2)
-            if ron_case == 'input':
+        q, qd = jnp.split(system_state.y, 2)
+        z = system_state.y
+        if ron_case == 'input':
+            if controller_to_train == 'tanh_simple':
                 contr_inp = jnp.concatenate([q, u])
+            elif controller_to_train == 'tanh_qd':
+                contr_inp = jnp.concatenate([qd, u])
             else:
-                contr_inp = q
-        else:
-            z = system_state.y
-            if ron_case == 'input':
                 contr_inp = jnp.concatenate([z, u])
+        else:
+            if controller_to_train == 'tanh_simple':
+                contr_inp = q
+            elif controller_to_train == 'tanh_qd':
+                contr_inp = qd
             else:
-                contr_inp = z
+                contr_inp = z                
         tau = controller(contr_inp)
         return tau, None
     
@@ -1322,12 +1330,23 @@ match map_to_train:
         q_test_power = test_set["y"] @ jnp.transpose(A_opt) + c_opt # shape (testset_size, 3*n_pcs)
         qd_test_power = test_set["yd"] @ jnp.transpose(A_opt) # shape (testset_size, 3*n_pcs)
 
-if controller_to_train == 'tanh_simple':
-    tau_test_power = mlp_controller_opt.forward_batch(q_test_power) # shape (testset_size, 3*n_pcs)
+z_test_power = jnp.concatenate([q_test_power, qd_test_power], axis=1) # shape (testset_size, 2*3*n_pcs)
+if ron_case == 'input':
+    if controller_to_train == 'tanh_simple':
+        contr_inp = jnp.concatenate([q_test_power, test_set["u"]], axis=1) # shape (batch_size, 3*n_pcs+1)
+    elif controller_to_train == 'tanh_qd':
+        contr_inp = jnp.concatenate([qd_test_power, test_set["u"]], axis=1) # shape (batch_size, 3*n_pcs+1)
+    else:
+        contr_inp = jnp.concatenate([z_test_power, test_set["u"]], axis=1) # shape (batch_size, 2*3*n_pcs+1)
 else:
-    z_test_power = jnp.concatenate([q_test_power, qd_test_power], axis=1) # shape (testset_size, 2*3*n_pcs)
-    tau_test_power = mlp_controller_opt.forward_batch(z_test_power) # shape (testset_size, 3*n_pcs)
+    if controller_to_train == 'tanh_simple':
+        contr_input = q_test_power # shape (testset_size, 3*n_pcs)
+    elif controller_to_train == 'tanh_qd':
+        contr_input = qd_test_power # shape (testset_size, 3*n_pcs)
+    else:
+        contr_input = z_test_power # shape (testset_size, 2*3*n_pcs)
 
+tau_test_power = mlp_controller_opt.forward_batch(contr_inp) # shape (testset_size, 3*n_pcs)
 power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
 power_msv_after = jnp.mean(power**2) # scalar
 
