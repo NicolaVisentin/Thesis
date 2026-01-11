@@ -32,6 +32,10 @@ class AffineCoupling(eqx.Module):
         Learnable scaling parameter.
     activation_fn : str
         Activation function of the MLPs.
+    scale_init_t_net : float
+        Scaling factor on the parameters for the translation MLPs initialization (default: 1.0).
+    scale_init_scale_factor : float
+        Scaling factor on the scale factor initialization (default: 1.0).
     """
     input_dim: int = eqx.field(static=True)
     hidden_dim: int = eqx.field(static=True)
@@ -40,6 +44,8 @@ class AffineCoupling(eqx.Module):
     scale_net: "MLP"
     translation_net: "MLP"
     scale_param: Array
+    scale_init_t_net: float
+    scale_init_scale_factor: float
 
     def __init__(self, key: jax.random.key, mask: Array, hidden_dim: int, activation_fn: str='relu', scale_init_t_net: float=1.0, scale_init_scale_factor: float=1.0):
         """
@@ -163,6 +169,8 @@ class RealNVP(eqx.Module):
     masks : List[Array]
     affine_couplings : List[AffineCoupling]
     params : ParamsRealNVP
+    scale_init_t_net: float
+    scale_init_scale_factor: float
     
     def __init__(self, key: jax.random.key, masks: List[Array], hidden_dim: int, activation_fn: str='relu', scale_init_t_net: float=1.0, scale_init_scale_factor: float=1.0):
         """
@@ -179,6 +187,10 @@ class RealNVP(eqx.Module):
             Hidden dimension for networks in coupling layers.
         activation_fn : str
             Activation function for the MLPs in the coupling layers (default: 'relu').
+        scale_init_t_net : float
+            Scaling factor on the parameters for the translation MLPs initialization (default: 1.0).
+        scale_init_scale_factor : float
+            Scaling factor on the scale factor initialization (default: 1.0).
         """
         self.hidden_dim = hidden_dim
         self.masks = masks
