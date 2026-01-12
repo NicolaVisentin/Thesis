@@ -209,17 +209,17 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
-load_experiment = True # choose whether to load saved experiment or to perform training
-experiment = '' # name of the experiment to perform/load
+load_experiment = False # choose whether to load saved experiment or to perform training
+experiment = 'T12' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
-ron_case = 'simple' # 'simple' 'coupled' 'input'
+ron_case = 'input' # 'simple' 'coupled' 'input'
 
 # FB controller
-controller_to_train = 'tanh_qd' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
+controller_to_train = 'mlp' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
 
 # Mapping
-map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 
