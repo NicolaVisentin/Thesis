@@ -36,6 +36,12 @@ class AffineCoupling(eqx.Module):
         Scaling factor on the parameters for the translation MLPs initialization (default: 1.0).
     scale_init_scale_factor : float
         Scaling factor on the scale factor initialization (default: 1.0).
+
+    Note
+    ----
+    Parameters of the single coupling layer are a tuple (params_scale_mlp, params_translation_mlp, scale_factor). They
+    are not collected in an attribute. To access them, use `self.translation_net.params`, `self.scale_net.params` and
+    `self.scale_param`.
     """
     input_dim: int = eqx.field(static=True)
     hidden_dim: int = eqx.field(static=True)
@@ -47,7 +53,15 @@ class AffineCoupling(eqx.Module):
     scale_init_t_net: float
     scale_init_scale_factor: float
 
-    def __init__(self, key: jax.random.key, mask: Array, hidden_dim: int, activation_fn: str='relu', scale_init_t_net: float=1.0, scale_init_scale_factor: float=1.0):
+    def __init__(
+            self, 
+            key: jax.random.key, 
+            mask: Array, 
+            hidden_dim: int, 
+            activation_fn: str='relu', 
+            scale_init_t_net: float=1.0, 
+            scale_init_scale_factor: float=1.0
+    ):
         """
         Initialize affine coupling layer.
         
@@ -172,7 +186,15 @@ class RealNVP(eqx.Module):
     scale_init_t_net: float
     scale_init_scale_factor: float
     
-    def __init__(self, key: jax.random.key, masks: List[Array], hidden_dim: int, activation_fn: str='relu', scale_init_t_net: float=1.0, scale_init_scale_factor: float=1.0):
+    def __init__(
+            self, 
+            key: jax.random.key, 
+            masks: List[Array], 
+            hidden_dim: int, 
+            activation_fn: str='relu', 
+            scale_init_t_net: float=1.0, 
+            scale_init_scale_factor: float=1.0
+    ):
         """
         Initialize RealNVP flow.
         
@@ -212,16 +234,15 @@ class RealNVP(eqx.Module):
 
     @eqx.filter_jit
     def update_params(self, new_params: ParamsRealNVP) -> "RealNVP":
+        # update all parameters in each affine layer
         affine_couplings_new = [
             coupling.update_params(layer_params)
             for coupling, layer_params in zip(self.affine_couplings, new_params)
         ]
-
-        return eqx.tree_at(
-            lambda m: m.affine_couplings,
-            self,
-            affine_couplings_new
-    )
+        updated_self = eqx.tree_at(lambda m: m.affine_couplings, self, affine_couplings_new)
+        # update self.params attribute
+        updated_self = eqx.tree_at(lambda m: m.params, self, new_params)
+        return updated_self
 
     @eqx.filter_jit
     def forward(self, x: Array) -> Tuple[Array, Array]:
@@ -348,6 +369,23 @@ class RealNVP(eqx.Module):
         """Saves the parameters of the RealNVP in the specified path as a .npz file."""
         flat_params = {}
         for i, (t_params, s_params, scale_factor) in enumerate(self.params):
+            # save translation network parameters
+            for j, (W, b) in enumerate(t_params):
+                flat_params[f"t_net_{i}_W_{j}"] = np.array(W)
+                flat_params[f"t_net_{i}_b_{j}"] = np.array(b)
+            # save scale network parameters
+            for j, (W, b) in enumerate(s_params):
+                flat_params[f"s_net_{i}_W_{j}"] = np.array(W)
+                flat_params[f"s_net_{i}_b_{j}"] = np.array(b)
+            # save scale factor
+            flat_params[f"scale_factor_{i}"] = np.array(scale_factor)
+        np.savez(path, **flat_params)
+
+    @staticmethod
+    def _save_params(params: ParamsRealNVP, path: str):
+        """Saves externally provided parameters params: ParamsRealNVP in the specified path as a .npz file."""
+        flat_params = {}
+        for i, (t_params, s_params, scale_factor) in enumerate(params):
             # save translation network parameters
             for j, (W, b) in enumerate(t_params):
                 flat_params[f"t_net_{i}_W_{j}"] = np.array(W)
