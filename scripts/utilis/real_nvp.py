@@ -234,14 +234,15 @@ class RealNVP(eqx.Module):
 
     @eqx.filter_jit
     def update_params(self, new_params: ParamsRealNVP) -> "RealNVP":
+        updated_self = self
         # update all parameters in each affine layer
         affine_couplings_new = [
             coupling.update_params(layer_params)
             for coupling, layer_params in zip(self.affine_couplings, new_params)
         ]
-        updated_self = eqx.tree_at(lambda m: m.affine_couplings, self, affine_couplings_new)
+        updated_self = eqx.tree_at(lambda m: m.affine_couplings, updated_self, affine_couplings_new)
         # update self.params attribute
-        updated_self = eqx.tree_at(lambda m: m.params, self, new_params)
+        updated_self = eqx.tree_at(lambda m: m.params, updated_self, new_params)
         return updated_self
 
     @eqx.filter_jit
