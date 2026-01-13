@@ -209,18 +209,20 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
-experiment_name = 'test' # name of the experiment to save
-train = True # if True, perform training (output layer: scaler + classifier). Otherwise, test saved model (scaler + classifier)
-use_untrained_reservoir = True # if True, use untrained reservoir (robot + map + controller)
-load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # if use_untrained_reservoir is False, choose the reservoir to load (robot + map + controller)
+
+# Output layer (scaler + classifier)
+experiment_name = 'test3' # name of the experiment to save/load
+train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+
+# Reservoir (robot + map + controller)
+load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T12' # choose the reservoir to load (robot + map + controller)
+map_type = 'bijective' # 'linear', 'encoder-decoder', 'bijective'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
 data_folder = data_folder/experiment_name
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
-if use_untrained_reservoir:
-    load_model_path = saved_data_folder/'untrained_reservoir'
 
 
 # =====================================================
@@ -239,10 +241,16 @@ test_set["images"] = test_set["images"].reshape(test_set["images"].shape[0], -1)
 # Convert to jax
 train_set["images"] = jnp.array(train_set["images"])
 train_set["labels"] = jnp.array(train_set["labels"])
-train_set_size = len(train_set["labels"])
 
 test_set["images"] = jnp.array(test_set["images"])
 test_set["labels"] = jnp.array(test_set["labels"])
+
+# Take only a portion of the test/train sets
+key, subkey1, subkey2 = jax.random.split(key, 3)
+train_set, _, _ = split_dataset(subkey1, train_set, 0.001)
+test_set, _, _ = split_dataset(subkey2, test_set, 0.001)
+
+train_set_size = len(train_set["labels"])
 test_set_size = len(test_set["labels"])
 
 
@@ -278,25 +286,99 @@ robot = PlanarPCS_simple(
 )
 
 # Define mapping
-@jax.jit
-def map_direct(y, yd):
-    q, qd = y, yd
-    return q, qd
+match map_type:
+    case 'linear':
+        data_map = onp.load(load_model_path/'optimal_data_map.npz')
+        A = jnp.array(data_map['A'])
+        c = jnp.array(data_map['c'])
 
-@jax.jit
-def map_inverse(q, qd):
-    y, yd = q, qd
-    return y, yd 
+        def map_direct(y, yd, A, c):
+            q = A @ y + c
+            qd = A @ yd
+            return q, qd
+        map_direct = jax.jit(partial(map_direct, A=A, c=c))
+
+        def map_inverse(q, qd, A, c):
+            y = jnp.linalg.solve(A, (q - c).T).T
+            yd = jnp.linalg.solve(A, qd.T).T
+            return y, yd 
+        map_inverse = jax.jit(partial(map_inverse, A=A, c=c))
+        
+    case 'encoder-decoder':
+        mlp_map_loader = MLP(key, [1, 1]) # instance just for loading parameters
+        p_encoder = mlp_map_loader.load_params(load_model_path/'optimal_data_encoder.npz') # tuple ((W1, b1), (W2, b2), ...)
+        p_decoder = mlp_map_loader.load_params(load_model_path/'optimal_data_decoder.npz') # tuple ((W1, b1), (W2, b2), ...)
+
+        layers_dim = []
+        for i, layer in enumerate(p_encoder):
+            W = layer[0] # shape (n_out_layer, n_in_layer)
+            layers_dim.append(W.shape[1]) # n_in_layer
+        layers_dim.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
+        mlp_encoder_dummy = MLP(key, layers_dim)
+        mlp_encoder = mlp_encoder_dummy.update_params(p_encoder)
+
+        layers_dim = []
+        for i, layer in enumerate(p_decoder):
+            W = layer[0] # shape (n_out_layer, n_in_layer)
+            layers_dim.append(W.shape[1]) # n_in_layer
+        layers_dim.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
+        mlp_decoder_dummy = MLP(key, layers_dim)
+        mlp_decoder = mlp_decoder_dummy.update_params(p_decoder)
+        
+        def map_direct(y, yd, encoder):
+            q, qd = encoder.forward_xd(y, yd)
+            return q, qd
+        map_direct = jax.jit(partial(map_direct, encoder=mlp_encoder))
+
+        def map_inverse(q, qd, decoder):
+            y, yd = decoder.forward_xd_batch(q, qd)
+            return y, yd
+        map_inverse = jax.jit(partial(map_inverse, decoder=mlp_decoder))
+
+    case 'bijective':
+        realnvp_map_loader = RealNVP(key, [jnp.ones(1)], 1, activation_fn='tanh') # instance just for loading parameters
+        p_map = realnvp_map_loader.load_params(load_model_path/'optimal_data_map.npz')
+
+        n_layers = len(p_map) # number of coupling layers
+        masks = create_alternating_masks(input_dim=3*n_pcs, num_layers=n_layers)
+        hid_dim = p_map[0][0][0][0].shape[0]
+
+        realnvp_map_dummy = RealNVP(key, masks, hid_dim, activation_fn='tanh')
+        realnvp_map = realnvp_map_dummy.update_params(p_map)
+
+        def map_direct(y, yd, map):
+            q, qd = map.forward_with_derivatives(y, yd)
+            return q, qd
+        map_direct = jax.jit(partial(map_direct, map=realnvp_map))
+
+        def map_inverse(q, qd, map):
+            y, yd = map.inverse_with_derivatives_batch(q, qd)
+            return y, yd
+        map_inverse = jax.jit(partial(map_inverse, map=realnvp_map))
 
 # Define controller
-@jax.jit
-def controller(z, u):
-    W = jnp.zeros((int(len(z)/2), len(z)))
-    b = jnp.zeros(int(len(z)/2))
-    V = jnp.ones(int(len(z)/2))
-    return jnp.tanh(W @ z + b + V * u)
+mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
+p_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
+layers_dim = []
+for i, layer in enumerate(p_controller):
+    W = layer[0] # shape (n_out_layer, n_in_layer)
+    layers_dim.append(W.shape[1]) # n_in_layer
+    if i == 0:
+        n_input = W.shape[1] # save input dim for the controller
+layers_dim.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
 
-# If train is False, 
+mlp_controller_dummy = MLP(key, layers_dim)
+mlp_controller = mlp_controller_dummy.update_params(p_controller)
+    
+def controller(z, u, mlp_controller):
+    if n_input == 3*n_pcs + 1:
+        q, qd = jnp.split(z, 2)
+        input_controller = jnp.concatenate([q, jnp.array([u])])
+    else:
+        input_controller = jnp.concatenate([z, jnp.array([u])])
+    tau = mlp_controller(input_controller)
+    return tau
+controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
 
 # Instantiate the reservoir
 reservoir = pcsReservoir(
@@ -310,7 +392,7 @@ reservoir = pcsReservoir(
 dt_u = 0.042 # time step for the input u. (in the RON paper dt = 0.042 s)
 dt_sim = 1e-4 # time step for the simulation
 
-reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap roservoir's forward
+reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap reservoir's forward
 time_u = jnp.linspace(0, dt_u * (len(train_set["images"][0]) - 1), len(train_set["images"][0])) # define time vector for the input image 
 saveat = jnp.arange(0, time_u[-1], dt_u) # for saving simulation results
 
@@ -323,7 +405,7 @@ if train:
     # Train the output layer (classifier) (1): pass all the inputs in the train set to the model
     print(f'--- Generating previsions for training ---')
     key, subkey = jax.random.split(key)
-    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=100) # create indices for the batches
+    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=10) # create indices for the batches
     activations, labels = [], []
     start = time.perf_counter()
     for i in tqdm(range(len(batch_ids)), 'Model forward'):
@@ -371,12 +453,12 @@ if not train:
 # Forward on the test set
 activations, labels = [], []
 key, subkey = jax.random.split(key)
-batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=5000) # create indices for the batches
+batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=10) # create indices for the batches
 start = time.perf_counter()
 for i in tqdm(range(len(batch_ids)), 'Model forward'):
     batch_i_ids = batch_ids[i]
     test_batch = extract_batch(test_set, batch_i_ids)
-    _, _, _, _, activations_batch = reservoir_forward(test_batch["images"], time_u, saveat) # shape (batch_size, num_hidden_units)
+    _, _, _, _, activations_batch = reservoir_forward(test_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
     activations.append(activations_batch)
     labels.append(test_batch["labels"])
 
