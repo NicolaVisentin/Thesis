@@ -210,13 +210,13 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'T12' # name of the experiment to perform/load
+experiment = 'T18' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
-ron_case = 'input' # 'simple' 'coupled' 'input'
+ron_case = 'simple' # 'simple' 'coupled' 'input'
 
 # FB controller
-controller_to_train = 'mlp' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
+controller_to_train = 'tanh_simple' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
 
 # Mapping
 map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
@@ -519,7 +519,9 @@ match map_to_train:
             key_map,
             masks=masks,
             hidden_dim=nets_hidden_dim,
-            activation_fn=activation_fn_map
+            activation_fn=activation_fn_map,
+            scale_init_t_net=0.01,
+            scale_init_scale_factor=0.01
         )
         p_map = tuple(map.params)
 

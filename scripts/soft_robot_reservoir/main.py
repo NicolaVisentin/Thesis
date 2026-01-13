@@ -46,9 +46,7 @@ main_folder = curr_folder.parent.parent                                         
 plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
 dataset_folder = main_folder/'datasets'                                            # folder with the dataset
 data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
-
-data_folder.mkdir(parents=True, exist_ok=True)
-plots_folder.mkdir(parents=True, exist_ok=True)
+saved_data_folder = main_folder/'saved data'                                       # folder with saved data (trained architectures)
 
 # Functions for plotting robot
 def draw_robot(
@@ -211,7 +209,18 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
-train = True # if True, perform training. Otherwise, test saved model
+experiment_name = 'test' # name of the experiment to save
+train = True # if True, perform training (output layer: scaler + classifier). Otherwise, test saved model (scaler + classifier)
+use_untrained_reservoir = True # if True, use untrained reservoir (robot + map + controller)
+load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # if use_untrained_reservoir is False, choose the reservoir to load (robot + map + controller)
+
+# Rename folders for plots/data
+plots_folder = plots_folder/experiment_name
+data_folder = data_folder/experiment_name
+data_folder.mkdir(parents=True, exist_ok=True)
+plots_folder.mkdir(parents=True, exist_ok=True)
+if use_untrained_reservoir:
+    load_model_path = saved_data_folder/'untrained_reservoir'
 
 
 # =====================================================
@@ -242,23 +251,25 @@ test_set_size = len(test_set["labels"])
 # =====================================================
 
 # Define robot
-n_pcs = 2
-L0 = 1e-1 * jnp.ones(n_pcs)
-D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs))
-r0 = 2e-2 * jnp.ones(n_pcs)
-rho0 = 1070 * jnp.ones(n_pcs)
-E0 = 2e3 * jnp.ones(n_pcs)
-G0 = 1e3 * jnp.ones(n_pcs)
+data_robot_load = onp.load(load_model_path/'optimal_data_robot.npz')
+
+L = jnp.array(data_robot_load['L'])
+D = jnp.array(data_robot_load['D'])
+r = jnp.array(data_robot_load['r'])
+rho = jnp.array(data_robot_load['rho'])
+E = jnp.array(data_robot_load['E'])
+G = jnp.array(data_robot_load['G'])
+n_pcs = len(L)
 
 pcs_parameters = {
     "th0": jnp.array(jnp.pi/2),
-    "L": L0,
-    "r": r0,
-    "rho": rho0,
+    "L": L,
+    "r": r,
+    "rho": rho,
     "g": jnp.array([0.0, 9.81]), # !! gravity UP !!
-    "E": E0,
-    "G": G0,
-    "D": D0
+    "E": E,
+    "G": G,
+    "D": D
 }
 robot = PlanarPCS_simple(
     num_segments = n_pcs,
@@ -284,6 +295,8 @@ def controller(z, u):
     b = jnp.zeros(int(len(z)/2))
     V = jnp.ones(int(len(z)/2))
     return jnp.tanh(W @ z + b + V * u)
+
+# If train is False, 
 
 # Instantiate the reservoir
 reservoir = pcsReservoir(
