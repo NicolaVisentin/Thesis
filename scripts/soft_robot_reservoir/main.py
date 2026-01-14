@@ -209,10 +209,39 @@ def animate_robot_matplotlib(
 # =====================================================
 # Script settings
 # =====================================================
+"""
+This code:
+    1.  Takes a certain pcs reservoir's architecture (robot + map + controller) specified by the user in `load_model_path`
+        (! map type must be specified by hand in `map_type`).
+
+    2.  Loads the MNIST dataset and extract part of it. In particular, a portion `train_set_portion` is extracted from the 
+        full train MNIST set and a portion `test_set_portion` from the test MNIST set.
+
+    3a. If `train` is True, scaler and classifier are trained with the given reservoir. Trained scaler and classifier are 
+        then saved in data folder named `experiment_name`. 
+    3b. If `train` is False, loads a given scaler and classifier from data folder named `experiment_name`.
+
+    4.  The full architecture (reservoir + scaler + classifier) is tested on the specified portion of the test set.
+
+    5.  An example from the MNIST test set, specified in `example_idx`, is loaded and used for inference (a black image can
+        be tested if example_idx='black').
+
+    6.  Another example (the following image) is taken from the MNIST dataset and used for inference. Dynamics of the reservoir
+        is compared with the previous one.
+
+    7.  Saves plots and metrics on the test set (and train set if training was performed) in `experiment_name` data and plots 
+        folders. Also saves the dynamics of the reservoir for the given example.
+"""
+
+# General
+example_idx = 0 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
+train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
+test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
+batch_size = 600 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'test3' # name of the experiment to save/load
-train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+experiment_name = 'test_RON' # name of the experiment to save/load
+train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T12' # choose the reservoir to load (robot + map + controller)
@@ -246,14 +275,17 @@ test_set["images"] = jnp.array(test_set["images"])
 test_set["labels"] = jnp.array(test_set["labels"])
 
 # Take only a portion of the test/train sets
+fraction_train = train_set_portion if train_set_portion < 1.1 else train_set_portion/len(train_set["labels"])
+fraction_test = test_set_portion if test_set_portion < 1.1 else test_set_portion/len(test_set["labels"])
+
 key, subkey1, subkey2 = jax.random.split(key, 3)
-train_set, _, _ = split_dataset(subkey1, train_set, 0.001)
-test_set, _, _ = split_dataset(subkey2, test_set, 0.001)
+train_set, _, _ = split_dataset(subkey1, train_set, fraction_train)
+test_set, _, _ = split_dataset(subkey2, test_set, fraction_test)
 
 train_set_size = len(train_set["labels"])
 test_set_size = len(test_set["labels"])
-
-
+print(train_set_size, test_set_size)
+exit()
 # =====================================================
 # Define the reservoir
 # =====================================================
@@ -405,17 +437,17 @@ if train:
     # Train the output layer (classifier) (1): pass all the inputs in the train set to the model
     print(f'--- Generating previsions for training ---')
     key, subkey = jax.random.split(key)
-    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=10) # create indices for the batches
-    activations, labels = [], []
+    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=batch_size) # create indices for the batches
+    last_states, labels = [], []
     start = time.perf_counter()
     for i in tqdm(range(len(batch_ids)), 'Model forward'):
         batch_i_ids = batch_ids[i]
         train_batch = extract_batch(train_set, batch_i_ids)
-        _, _, _, _, activations_batch = reservoir_forward(train_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
-        activations.append(activations_batch)
+        _, _, _, _, last_states_batch = reservoir_forward(train_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
+        last_states.append(last_states_batch)
         labels.append(train_batch["labels"])
 
-    activations = jnp.concatenate(activations) # shape (num_train_images, num_hidden_units)
+    last_states = jnp.concatenate(last_states) # shape (num_train_images, num_hidden_units)
     labels = jnp.concatenate(labels) # shape (num_train_images,)
     stop = time.perf_counter() 
     print(f'Elapsed time: {stop-start}')
@@ -423,8 +455,8 @@ if train:
     # Train the output layer (classifier) (2): logistic regression of the output layer
     print(f'\n--- Training the classifier (regression) ---')
     start = time.perf_counter()
-    scaler = preprocessing.StandardScaler().fit(onp.array(activations))
-    activations = scaler.transform(onp.array(activations))
+    scaler = preprocessing.StandardScaler().fit(onp.array(last_states))
+    activations = scaler.transform(onp.array(last_states))
     classifier = LogisticRegression(max_iter=1000).fit(onp.array(activations), onp.array(labels))
     stop = time.perf_counter()
     print(f'Elapsed time: {stop-start}')
@@ -439,11 +471,10 @@ if train:
 
 
 # =====================================================
-# Testing
+# Testing on the test set
 # =====================================================
 if train:
     print()
-print(f'--- Evaluating perfomances ---')
 
 # If training was not performed, load saved data
 if not train:
@@ -451,18 +482,20 @@ if not train:
     classifier = joblib.load(data_folder/'classifier.pkl')
 
 # Forward on the test set
-activations, labels = [], []
+print(f'--- Evaluating perfomances (test set) ---')
+last_states, labels = [], []
 key, subkey = jax.random.split(key)
-batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=10) # create indices for the batches
+batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=batch_size) # create indices for the batches
 start = time.perf_counter()
 for i in tqdm(range(len(batch_ids)), 'Model forward'):
     batch_i_ids = batch_ids[i]
     test_batch = extract_batch(test_set, batch_i_ids)
-    _, _, _, _, activations_batch = reservoir_forward(test_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
-    activations.append(activations_batch)
+    _, _, _, _, last_states_batch = reservoir_forward(test_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
+    last_states.append(last_states_batch)
     labels.append(test_batch["labels"])
 
-activations = jnp.concatenate(activations) # shape (num_test_images, num_hidden_units)
+last_states = jnp.concatenate(last_states) # shape (num_test_images, num_hidden_units)
+activations = scaler.transform(onp.array(last_states))
 labels = jnp.concatenate(labels) # shape (num_test_images,)
 stop = time.perf_counter() 
 print(f'Elapsed time: {stop-start}')
@@ -471,34 +504,61 @@ print(f'Elapsed time: {stop-start}')
 test_accuracy = classifier.score(activations, labels)
 print(f'Accuracy on the test set: {test_accuracy}')
 
+# Visualize the activations for all the test set
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 5), sharex=True)
+for i in range(last_states.shape[1]):
+    ax1.scatter(last_states[:,i], (i+1)*np.ones(len(last_states)), label=f'Component {i+1}')
+ax1.set_title('Last states')
+ax1.set_xlabel(r'$y(t_{f})$')
+ax1.set_ylabel('component')
+ax1.grid(True)
+
+for i in range(activations.shape[1]):
+    ax2.scatter(activations[:,i], (i+1)*np.ones(len(activations)), label=f'Component {i+1}')
+ax2.set_title('Activations')
+ax2.set_xlabel(r'$\tilde{y}$')
+ax2.set_ylabel('component')
+ax2.grid(True)
+
+plt.tight_layout()
+plt.savefig(plots_folder/'all_testset_activations', bbox_inches='tight')
+#plt.show()
+
 
 # =====================================================
-# Visualization (example)
+# Testing on a single image
 # =====================================================
-print(f'\n--- Example ---')
+print(f'\n--- Testing single example ---')
 
-# Take one example and try inference
-example_idx = 1234
-image = test_set["images"][example_idx] # shape (784,)
-image_raw = test_set_raw["images"][example_idx,0] # shape (28, 28)
-label = test_set["labels"][example_idx]
+# Load image to test
+if example_idx == 'black':
+    image = jnp.zeros((784,)) # completely black image (null input), shape (784,)
+    image_raw = jnp.zeros((28,28)) # shape (28, 28)
+    label = 0
+else:
+    image = test_set["images"][example_idx] # shape (784,)
+    image_raw = test_set_raw["images"][example_idx,0] # shape (28, 28)
+    label = test_set["labels"][example_idx]
 
+# Try inference
 start = time.perf_counter()
-time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, activations = reservoir(image, time_u, saveat)
+time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, last_states = reservoir(image, time_u, saveat)
 y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1)
 q_ts, qd_ts = jnp.split(state_pcs_ts, 2, axis=1)
 stop = time.perf_counter()
 print(f'Elapsed time (simulation): {stop-start}')
 
-activations = activations[None,:] # sklear requires input (n_inputs, dim_inputs)
-activations = scaler.transform(activations)
+last_states = last_states[None,:] # sklear requires input (n_inputs, dim_inputs)
+activations = scaler.transform(last_states)
 pred = classifier.predict(activations)[0] # prediction
 probs = classifier.predict_proba(activations).squeeze() # probabilities
 
 # Show prediction
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
 ax1.imshow(image_raw, cmap='gray')
 ax1.set_title('Input')
+
 ax2.bar(np.arange(10), probs, color='skyblue')
 ax2.set_title(f'Prediction: {pred}')
 ax2.set_xlabel('classes')
@@ -523,27 +583,25 @@ plt.savefig(plots_folder/'Example_inference_evolution', bbox_inches='tight')
 #plt.show()
 
 # Show actuation signal tau(t)
-fig, axs = plt.subplots(3,2, figsize=(12,9))
+fig, axs = plt.subplots(3,2, figsize=(16,13))
 for i, ax in enumerate(axs.flatten()):
-    ax.plot(time_ts, actuation_ts[:,i], 'r')
-    ax.grid(True)
+    ax2 = ax.twinx()
+    ax2.plot(time_u, image, 'k', alpha=0.3, label=r'reservoir input $u(t)$')
+    ax2.set_ylabel(r'$u$')
+    ax2.set_ylim([-0.1, 2])
+
+    ax.plot(time_ts, actuation_ts[:,i], 'r', label=r'robot actuation $\tau(t)$')
     ax.set_xlabel('t [s]')
     ax.set_ylabel(r'$\tau$')
+
+    ax.grid(True)
     ax.set_title(f'Component {i+1}')
+    ax.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+
 plt.tight_layout()
 plt.savefig(plots_folder/'Example_inference_actuation', bbox_inches='tight') 
 #plt.show()
-
-# Show reservoir input u(t)
-plt.figure()
-plt.plot(time_u, image, 'b')
-plt.grid(True)
-plt.xlabel('t [s]')
-plt.ylabel('u')
-plt.title('Reservoir input')
-plt.tight_layout()
-plt.savefig(plots_folder/'Example_inference_input', bbox_inches='tight') 
-plt.show()
 
 # Show robot animation
 animate_robot_matplotlib(
@@ -558,3 +616,81 @@ animate_robot_matplotlib(
     fps = 30,
     save_path = plots_folder/'Example_inference_animation.gif',
 )
+
+
+# =========================================================
+# Compare with another image
+# =========================================================
+print(f'\n--- Testing another example (for comparison) ---')
+
+# Load another image from MNIST dataset
+if example_idx == 'black':
+    image2 = test_set["images"][0] # shape (784,)
+else:
+    image2 = test_set["images"][example_idx+1] # shape (784,)
+
+# Try inference
+start = time.perf_counter()
+time_ts2, state_reservoir_ts2, state_pcs_ts2, actuation_ts2, last_states2 = reservoir(image2, time_u, saveat)
+y_ts2, yd_ts2 = jnp.split(state_reservoir_ts2, 2, axis=1)
+q_ts2, qd_ts2 = jnp.split(state_pcs_ts2, 2, axis=1)
+stop = time.perf_counter()
+print(f'Elapsed time (simulation): {stop-start}')
+
+# Compare reservoir/robot evolutions
+fig, axs = plt.subplots(3,2, figsize=(12,9))
+for i, ax in enumerate(axs.flatten()):
+    ax.plot(time_ts, y_ts[:,i], 'b', label='reservoir (ex. 1)')
+    ax.plot(time_ts, q_ts[:,i], 'r', label='soft robot (ex. 1)')
+    ax.plot(time_ts2, y_ts2[:,i], 'b--', label='reservoir (ex. 2)')
+    ax.plot(time_ts2, q_ts2[:,i], 'r--', label='soft robot (ex. 2)')
+    ax.grid(True)
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel('y, q')
+    ax.set_title(f'Component {i+1}')
+    ax.legend()
+plt.tight_layout()
+plt.savefig(plots_folder/'Comparison_inference_evolution', bbox_inches='tight') 
+#plt.show()
+
+# Compare actuation signals tau(t)
+fig, axs = plt.subplots(3,2, figsize=(16,13))
+for i, ax in enumerate(axs.flatten()):
+    ax2 = ax.twinx()
+    ax2.plot(time_u, image, 'k', alpha=0.3, label=r'reservoir input $u(t)$ (ex. 1)')
+    ax2.plot(time_u, image2, 'k--', alpha=0.3, label=r'reservoir input $u(t)$ (ex. 2)')
+    ax2.set_ylabel(r'$u$')
+    ax2.set_ylim([-0.1, 2])
+
+    ax.plot(time_ts, actuation_ts[:,i], 'r', label=r'robot actuation $\tau(t)$ (ex. 1)')
+    ax.plot(time_ts2, actuation_ts2[:,i], 'r--', label=r'robot actuation $\tau(t)$ (ex. 2)')
+    ax.set_xlabel('t [s]')
+    ax.set_ylabel(r'$\tau$')
+    y_min, y_max = ax.get_ylim()
+    ax.set_ylim([y_min, 1.5*y_max])
+
+    ax.grid(True)
+    ax.set_title(f'Component {i+1}')
+    ax.legend(loc='upper left')
+    ax2.legend(loc='upper right')
+
+plt.tight_layout()
+plt.savefig(plots_folder/'Comparison_inference_actuation', bbox_inches='tight') 
+plt.show()
+
+
+# =========================================================
+# Save text file with performances and data
+# =========================================================
+
+if not train:
+    train_set_size = '(training was not performed)'
+    train_accuracy = '(training was not performed)'
+
+with open(data_folder/'performances.txt', 'w') as file:
+    file.write(f"SETUP\n")
+    file.write(f"   Train set size: {train_set_size}\n")
+    file.write(f"   Test set size:  {test_set_size}\n\n")
+    file.write(f"METRICS\n")
+    file.write(f"   Accuracy (train set): {train_accuracy}\n")
+    file.write(f"   Accuracy (test set):  {test_accuracy}\n")
