@@ -59,8 +59,8 @@ class pcsReservoir:
             Soft robot's state time history z(t) = [q(t), qd(t)]. Shape (n_steps, 2*3*n_pcs)
         actuation_ts : Array
             Soft robot's control signal time history. Shape (n_steps, 2*3*n_pcs)
-        activations : Array
-            Final reservoir's activations: last element of y_ts. Shape (n_y,)
+        last_states : Array
+            Final reservoir's state: last element of y_ts. Shape (n_y,)
         """
         # Simulation parameters
         t0 = 0
@@ -121,5 +121,5 @@ class pcsReservoir:
         state_pcs_ts = sim_out_pcs.y
         actuation_ts = sim_out_pcs.u
         state_reservoir_ts = jnp.concatenate((y, yd), axis=1)
-        activations = y[-1]
-        return time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, activations
+        last_states = y[-1]
+        return time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, last_states
