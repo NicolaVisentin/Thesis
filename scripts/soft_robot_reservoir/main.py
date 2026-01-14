@@ -284,8 +284,8 @@ test_set, _, _ = split_dataset(subkey2, test_set, fraction_test)
 
 train_set_size = len(train_set["labels"])
 test_set_size = len(test_set["labels"])
-print(train_set_size, test_set_size)
-exit()
+
+
 # =====================================================
 # Define the reservoir
 # =====================================================
