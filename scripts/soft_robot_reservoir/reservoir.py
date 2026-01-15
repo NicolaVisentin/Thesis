@@ -33,7 +33,7 @@ class pcsReservoir:
         self.hid_dim = 3*self.robot.num_segments # reservoir dim = pcs dim
         
     @partial(jax.jit, static_argnums=(0,))    
-    def __call__(self, u: Array, time_u: Array, saveat: Array, dt: float=0.042) -> Tuple[Array, Array, Array, Array]:
+    def __call__(self, u: Array, time_u: Array, saveat: Array, dt: float=1e-4) -> Tuple[Array, Array, Array, Array]:
         """
         Forward pass of the reservoir. Given a certain input in time, performs simulation of
         the reservoir and returns final activations.
@@ -47,7 +47,7 @@ class pcsReservoir:
         saveat : Array
             Time vector for saving the solution of the simulation (use same t0 and t1 of time_u).
         dt : float
-            Constant time step for the simulation (default: 0.042 s).
+            Constant time step for the simulation (default: 0.0001 s).
 
         Returns
         -------
