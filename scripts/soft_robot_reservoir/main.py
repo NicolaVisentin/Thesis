@@ -234,14 +234,14 @@ This script:
 """
 
 # General
-example_idx = 0 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
+example_idx = 2 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
 test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
 batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
 experiment_name = 'train_output_layer' # name of the experiment to save/load
-train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
@@ -542,7 +542,7 @@ else:
 
 # Try inference
 start = time.perf_counter()
-time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, last_states = reservoir(image, time_u, saveat)
+time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, last_states = reservoir(image, time_u, saveat, dt_sim)
 y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1)
 q_ts, qd_ts = jnp.split(state_pcs_ts, 2, axis=1)
 stop = time.perf_counter()
@@ -631,7 +631,7 @@ else:
 
 # Try inference
 start = time.perf_counter()
-time_ts2, state_reservoir_ts2, state_pcs_ts2, actuation_ts2, last_states2 = reservoir(image2, time_u, saveat)
+time_ts2, state_reservoir_ts2, state_pcs_ts2, actuation_ts2, last_states2 = reservoir(image2, time_u, saveat, dt_sim)
 y_ts2, yd_ts2 = jnp.split(state_reservoir_ts2, 2, axis=1)
 q_ts2, qd_ts2 = jnp.split(state_pcs_ts2, 2, axis=1)
 stop = time.perf_counter()
