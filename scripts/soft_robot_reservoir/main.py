@@ -210,18 +210,18 @@ def animate_robot_matplotlib(
 # Script settings
 # =====================================================
 """
-This code:
+This script:
     1.  Takes a certain pcs reservoir's architecture (robot + map + controller) specified by the user in `load_model_path`
         (! map type must be specified by hand in `map_type`).
 
     2.  Loads the MNIST dataset and extract part of it. In particular, a portion `train_set_portion` is extracted from the 
         full train MNIST set and a portion `test_set_portion` from the test MNIST set.
 
-    3a. If `train` is True, scaler and classifier are trained with the given reservoir. Trained scaler and classifier are 
-        then saved in data folder named `experiment_name`. 
-    3b. If `train` is False, loads a given scaler and classifier from data folder named `experiment_name`.
+    3a. If `train` is True, output layer (scaler + classifier) is trained with the given reservoir. Trained scaler and 
+        classifier are then saved in data folder named `experiment_name`. 
+    3b. If `train` is False, loads a given output layer (scaler + classifier) from data folder named `experiment_name`.
 
-    4.  The full architecture (reservoir + scaler + classifier) is tested on the specified portion of the test set.
+    4.  The full architecture (reservoir + output layer) is tested on the specified portion of the test set.
 
     5.  An example from the MNIST test set, specified in `example_idx`, is loaded and used for inference (a black image can
         be tested if example_idx='black').
@@ -237,15 +237,15 @@ This code:
 example_idx = 0 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
 test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
-batch_size = 600 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
+batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'test_RON' # name of the experiment to save/load
-train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+experiment_name = 'train_output_layer' # name of the experiment to save/load
+train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
-load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T12' # choose the reservoir to load (robot + map + controller)
-map_type = 'bijective' # 'linear', 'encoder-decoder', 'bijective'
+load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
+map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -691,6 +691,10 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"SETUP\n")
     file.write(f"   Train set size: {train_set_size}\n")
     file.write(f"   Test set size:  {test_set_size}\n\n")
+    file.write(f"RESERVOIR PROPERTIES\n")
+    file.write(f"   Model path: {load_model_path}\n")
+    file.write(f"   Dimension:  {3*n_pcs}\n")
+    file.write(f"   Map:        {map_type}\n\n")
     file.write(f"METRICS\n")
     file.write(f"   Accuracy (train set): {train_accuracy}\n")
     file.write(f"   Accuracy (test set):  {test_accuracy}\n")
