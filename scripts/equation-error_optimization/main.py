@@ -1380,7 +1380,7 @@ with open(data_folder/'metrics.txt', 'w') as file:
     file.write(f"   RON case:   {ron_case}\n")
     file.write(f"   Mapping:    {map_to_train}")
     if map_to_train == 'reconstruction':
-        file.write(f", (reconstruction loss on {reconstruction_type})\n")
+        file.write(f", (reconstruction loss up to {reconstruction_type})\n")
     else:
         file.write(f"\n")
     file.write(f"   Controller: {controller_to_train}\n\n")
