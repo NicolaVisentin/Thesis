@@ -1,9 +1,0 @@
-SETUP
-   RON case:   simple
-   Mapping:    svd
-   Controller: tanh_qd
-
-METRICS AFTER OPTIMIZATION
-   Final test RMS error:                        2.4463145452137653
-   Final test RMS power:                        0.08624561443705606
-   Final test RMSE reconstruction (y, yd, ydd): (6.152347052902828e-14, 4.978148317274102e-15, 1.4658153246112115e-14)

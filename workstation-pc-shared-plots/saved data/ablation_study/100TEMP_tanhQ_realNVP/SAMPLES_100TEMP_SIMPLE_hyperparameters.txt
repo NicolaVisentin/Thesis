@@ -1,3 +1,0 @@
-Epochs: 300
-Batch size: 64
-Samples: 30
