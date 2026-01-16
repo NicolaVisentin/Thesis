@@ -285,10 +285,6 @@ test_set, _, _ = split_dataset(subkey2, test_set, fraction_test)
 train_set_size = len(train_set["labels"])
 test_set_size = len(test_set["labels"])
 
-### REMOVE ###
-print('dataset sizes: ', train_set_size, test_set_size)
-##############
-
 
 # =====================================================
 # Define the reservoir
@@ -456,22 +452,11 @@ if train:
     stop = time.perf_counter() 
     print(f'Elapsed time: {stop-start}')
 
-    ### REMOVE ###
-    print('last_states.shape: ', last_states.shape)
-    print('Is there any NaN?: ', jnp.isnan(last_states).any())
-    ##############
-
     # Train the output layer (classifier) (2): logistic regression of the output layer
     print(f'\n--- Training the classifier (regression) ---')
     start = time.perf_counter()
     scaler = preprocessing.StandardScaler().fit(onp.array(last_states))
     activations = scaler.transform(onp.array(last_states))
-
-    ### REMOVE ###
-    print('activations.shape: ', activations.shape)
-    print('Is there any NaN?: ', jnp.isnan(activations).any())
-    ##############
-
     classifier = LogisticRegression(max_iter=1000).fit(onp.array(activations), onp.array(labels))
     stop = time.perf_counter()
     print(f'Elapsed time: {stop-start}')
@@ -498,9 +483,9 @@ if not train:
 
 # Forward on the test set
 print(f'--- Evaluating perfomances (test set) ---')
-last_states, labels = [], []
 key, subkey = jax.random.split(key)
 batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=batch_size) # create indices for the batches
+last_states, labels = [], []
 start = time.perf_counter()
 for i in tqdm(range(len(batch_ids)), 'Model forward'):
     batch_i_ids = batch_ids[i]
@@ -510,8 +495,11 @@ for i in tqdm(range(len(batch_ids)), 'Model forward'):
     labels.append(test_batch["labels"])
 
 last_states = jnp.concatenate(last_states) # shape (num_test_images, num_hidden_units)
-activations = scaler.transform(onp.array(last_states))
+print('CHECKPOINT1: ', last_states[0]) # REMOVE
 labels = jnp.concatenate(labels) # shape (num_test_images,)
+print('CHECKPOINT2: ', labels[0]) # REMOVE
+activations = scaler.transform(onp.array(last_states))
+print('CHECKPOINT3: ', activations[0]) # REMOVE
 stop = time.perf_counter() 
 print(f'Elapsed time: {stop-start}')
 
