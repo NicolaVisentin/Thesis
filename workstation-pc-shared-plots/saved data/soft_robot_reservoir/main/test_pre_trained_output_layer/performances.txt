@@ -1,0 +1,12 @@
+SETUP
+   Train set size: (training was not performed)
+   Test set size:  6000
+
+RESERVOIR PROPERTIES
+   Model path: /home/vise/Universita/Thesis/codes/saved data/equation-error_optimization/main/T10
+   Dimension:  6
+   Map:        linear
+
+METRICS
+   Accuracy (train set): (training was not performed)
+   Accuracy (test set):  0.1005

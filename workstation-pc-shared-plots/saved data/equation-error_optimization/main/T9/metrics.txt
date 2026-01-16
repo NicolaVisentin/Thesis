@@ -1,0 +1,9 @@
+SETUP
+   RON case:   coupled
+   Mapping:    norm_flow
+   Controller: mlp
+
+METRICS AFTER OPTIMIZATION
+   Final test RMS error:                        0.07977131953850285
+   Final test RMS power:                        0.50308916093095
+   Final test RMSE reconstruction (y, yd, ydd): (7.709705308709108e-15, 1.8792048194515714e-15, 6.406901392524508e-15)

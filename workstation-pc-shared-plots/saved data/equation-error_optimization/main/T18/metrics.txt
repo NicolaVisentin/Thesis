@@ -1,0 +1,9 @@
+SETUP
+   RON case:   simple
+   Mapping:    norm_flow
+   Controller: tanh_simple
+
+METRICS AFTER OPTIMIZATION
+   Final test RMS error:                        0.5530639780484414
+   Final test RMS power:                        0.03119420889973473
+   Final test RMSE reconstruction (y, yd, ydd): (7.91914851895446e-14, 8.757346324665682e-15, 3.3256935873323515e-14)
