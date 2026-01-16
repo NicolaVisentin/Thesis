@@ -240,7 +240,7 @@ test_set_portion = 6000 # fraction (or number of images) of the original test se
 batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'smaller_dataset' # name of the experiment to save/load
+experiment_name = 'test' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
@@ -284,6 +284,10 @@ test_set, _, _ = split_dataset(subkey2, test_set, fraction_test)
 
 train_set_size = len(train_set["labels"])
 test_set_size = len(test_set["labels"])
+
+### REMOVE ###
+print('dataset sizes: ', train_set_size, test_set_size)
+##############
 
 
 # =====================================================
@@ -452,11 +456,22 @@ if train:
     stop = time.perf_counter() 
     print(f'Elapsed time: {stop-start}')
 
+    ### REMOVE ###
+    print('last_states.shape: ', last_states.shape)
+    print('Is there any NaN?: ', jnp.isnan(last_states).any())
+    ##############
+
     # Train the output layer (classifier) (2): logistic regression of the output layer
     print(f'\n--- Training the classifier (regression) ---')
     start = time.perf_counter()
     scaler = preprocessing.StandardScaler().fit(onp.array(last_states))
     activations = scaler.transform(onp.array(last_states))
+
+    ### REMOVE ###
+    print('activations.shape: ', activations.shape)
+    print('Is there any NaN?: ', jnp.isnan(activations).any())
+    ##############
+
     classifier = LogisticRegression(max_iter=1000).fit(onp.array(activations), onp.array(labels))
     stop = time.perf_counter()
     print(f'Elapsed time: {stop-start}')
