@@ -236,12 +236,12 @@ This script:
 # General
 example_idx = 2 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
-test_set_portion = 1 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
+test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
 batch_size = 100 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'pre_trained_output_layer' # name of the experiment to save/load
-train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+experiment_name = 'smaller_dataset' # name of the experiment to save/load
+train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
@@ -449,6 +449,8 @@ if train:
 
     last_states = jnp.concatenate(last_states) # shape (num_train_images, num_hidden_units)
     labels = jnp.concatenate(labels) # shape (num_train_images,)
+    last_states.block_until_ready()
+    labels.block_until_ready()
     stop = time.perf_counter() 
     print(f'Elapsed time: {stop-start}')
 
@@ -496,6 +498,8 @@ for i in tqdm(range(len(batch_ids)), 'Model forward'):
 
 last_states = jnp.concatenate(last_states) # shape (num_test_images, num_hidden_units)
 labels = jnp.concatenate(labels) # shape (num_test_images,)
+last_states.block_until_ready()
+labels.block_until_ready()
 activations = scaler.transform(onp.array(last_states))
 stop = time.perf_counter() 
 print(f'Elapsed time: {stop-start}')
