@@ -1,4 +1,0 @@
-Same as 2_TANHQ_SVD but performed on usual 30 samples then training the best result for 1500 epochs.
-
-For the corresponding data see "100TEMP_tanhQ_svd" folder in "saved data/ablation_study/".
-For the corresponding plots see "100TEMP_tanhQ_svd" folder in "plots and videos/ablation_study/" and "plots and videos/ablation_study/analysis/".

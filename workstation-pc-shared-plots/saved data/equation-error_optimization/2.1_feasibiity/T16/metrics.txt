@@ -1,3 +1,0 @@
-Final test RMS error:                0.1707744436558765
-Final test RMS reconstruction error: 0.04532367764305549
-Final test RMS power:                0.09327741855179791
