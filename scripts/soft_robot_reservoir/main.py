@@ -240,8 +240,8 @@ test_set_portion = 6000 # fraction (or number of images) of the original test se
 batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'train_output_layer' # name of the experiment to save/load
-train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+experiment_name = 'smaller_dataset' # name of the experiment to save/load
+train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
