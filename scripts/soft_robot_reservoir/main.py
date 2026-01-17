@@ -259,11 +259,9 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 
 # Load MNIST dataset
-train_set_raw, test_set_raw = load_mnist_data(dataset_folder/'MNIST') # shape (n_images, 1, 28, 28)
+train_set, test_set = load_mnist_data(dataset_folder/'MNIST') # shape (n_images, 1, 28, 28)
 
 # Convert (n_imgs, 1, 28, 28) --> (n_imgs, 784)
-train_set = copy.deepcopy(train_set_raw)
-test_set  = copy.deepcopy(test_set_raw)
 train_set["images"] = train_set["images"].reshape(train_set["images"].shape[0], -1)
 test_set["images"] = test_set["images"].reshape(test_set["images"].shape[0], -1)
 
@@ -541,7 +539,7 @@ if example_idx == 'black':
     label = 0
 else:
     image = test_set["images"][example_idx] # shape (784,)
-    image_raw = test_set_raw["images"][example_idx,0] # shape (28, 28)
+    image_raw = image.reshape(28,28) # shape (28, 28)
     label = test_set["labels"][example_idx]
 
 # Try inference
