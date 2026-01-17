@@ -240,8 +240,8 @@ test_set_portion = 6000 # fraction (or number of images) of the original test se
 batch_size = 100 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'smaller_dataset' # name of the experiment to save/load
-train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+experiment_name = 'pre_trained_output_layer' # name of the experiment to save/load
+train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
@@ -615,7 +615,7 @@ animate_robot_matplotlib(
     interval = 1e-3, 
     slider = False,
     animation = True,
-    show = True,
+    show = False,
     duration = 10,
     fps = 30,
     save_path = plots_folder/'Example_inference_animation.gif',
@@ -652,7 +652,7 @@ for i, ax in enumerate(axs.flatten()):
     ax.set_xlabel('t [s]')
     ax.set_ylabel('y, q')
     ax.set_title(f'Component {i+1}')
-    ax.legend()
+    ax.legend(loc='upper left')
 plt.tight_layout()
 plt.savefig(plots_folder/'Comparison_inference_evolution', bbox_inches='tight') 
 #plt.show()
@@ -680,7 +680,7 @@ for i, ax in enumerate(axs.flatten()):
 
 plt.tight_layout()
 plt.savefig(plots_folder/'Comparison_inference_actuation', bbox_inches='tight') 
-plt.show()
+#plt.show()
 
 
 # =========================================================
@@ -702,3 +702,9 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"METRICS\n")
     file.write(f"   Accuracy (train set): {train_accuracy}\n")
     file.write(f"   Accuracy (test set):  {test_accuracy}\n")
+
+
+# =========================================================
+# Show all plots
+# =========================================================
+plt.show()
