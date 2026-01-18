@@ -922,20 +922,28 @@ if False:
 
     L_opt = jnp.array(data_robot_opt['L'])
     D_opt = jnp.array(data_robot_opt['D'])
+    r_opt = jnp.array(data_robot_opt['r'])
+    rho_opt = jnp.array(data_robot_opt['rho'])
+    E_opt = jnp.array(data_robot_opt['E'])
+    G_opt = jnp.array(data_robot_opt['G'])
     data_map_opt = onp.load(data_folder/'optimal_data_map.npz')
     A_opt = jnp.array(data_map_opt['A'])
     c_opt = jnp.array(data_map_opt['c'])
 
     L_raw_opt = InverseSoftplus(L_opt)
     D_raw_opt = InverseSoftplus(jnp.diag(D_opt))
+    r_raw_opt = InverseSoftplus(r_opt)
+    rho_raw_opt = InverseSoftplus(rho_opt)
+    E_raw_opt = InverseSoftplus(E_opt)
+    G_raw_opt = InverseSoftplus(G_opt)
     A_raw_opt = A2Araw(A_opt, A_thresh)
 
     MAP_opt = (A_raw_opt, c_opt)
     Phi_opt = (MAP_opt, CONTR_opt)
-    phi_opt = (L_raw_opt, D_raw_opt)
+    phi_opt = (L_raw_opt, D_raw_opt, r_raw_opt, rho_raw_opt, E_raw_opt, G_raw_opt)
     params_optimiz_opt = [Phi_opt, phi_opt]
 
-    robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
+    robot_opt = robot.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
     mlp_controller_opt = mlp_controller.update_params(CONTR_opt)
     robot_opt = robot.update_params({"L": L_opt, "D": D_opt})
     approximator = PlanarPCS_simple_modified(
