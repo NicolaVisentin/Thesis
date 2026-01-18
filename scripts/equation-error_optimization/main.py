@@ -444,10 +444,10 @@ ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
 u = dataset["u"] # sMNIST input. Shape (m, 1)
 
 # Convert into jax
-y_dataset = jnp.array(y)
-yd_dataset = jnp.array(yd)
-ydd_dataset = jnp.array(ydd)
-u_dataset = jnp.array(u)
+y_dataset = jnp.array(y, dtype=jnp.float64)
+yd_dataset = jnp.array(yd, dtype=jnp.float64)
+ydd_dataset = jnp.array(ydd, dtype=jnp.float64)
+u_dataset = jnp.array(u, dtype=jnp.float64)
 
 dataset = {
     "y": y_dataset,
@@ -602,10 +602,10 @@ if show_simulations:
             RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_noInput/RON_evolution_N6_noInput.npz')
         case 'input':
             RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_withInput/RON_evolution_N6_withInput.npz')
-    time_RONsaved = jnp.array(RON_evolution_data['time'])
-    y_RONsaved = jnp.array(RON_evolution_data['y'])
-    yd_RONsaved = jnp.array(RON_evolution_data['yd'])
-    u_RONsaved = jnp.array(RON_evolution_data['u'])
+    time_RONsaved = jnp.array(RON_evolution_data['time'], dtype=jnp.float64)
+    y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)
+    yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)
+    u_RONsaved = jnp.array(RON_evolution_data['u'], dtype=jnp.float64)
 
     # Define controller
     min_len = jnp.min(jnp.array([len(time_RONsaved), len(u_RONsaved)]))
@@ -1067,12 +1067,12 @@ if load_experiment:
     # Load parameters robot
     data_robot_opt = onp.load(data_folder/f'{prefix_load}optimal_data_robot.npz')
     
-    L_opt = jnp.array(data_robot_opt['L'])
-    D_opt = jnp.array(data_robot_opt['D'])
-    r_opt = jnp.array(data_robot_opt['r'])
-    rho_opt = jnp.array(data_robot_opt['rho'])
-    E_opt = jnp.array(data_robot_opt['E'])
-    G_opt = jnp.array(data_robot_opt['G'])
+    L_opt = jnp.array(data_robot_opt['L'], dtype=jnp.float64)
+    D_opt = jnp.array(data_robot_opt['D'], dtype=jnp.float64)
+    r_opt = jnp.array(data_robot_opt['r'], dtype=jnp.float64)
+    rho_opt = jnp.array(data_robot_opt['rho'], dtype=jnp.float64)
+    E_opt = jnp.array(data_robot_opt['E'], dtype=jnp.float64)
+    G_opt = jnp.array(data_robot_opt['G'], dtype=jnp.float64)
 
     L_raw_opt = InverseSoftplus(L_opt)
     D_raw_opt = InverseSoftplus(jnp.diag(D_opt))
@@ -1102,8 +1102,8 @@ if load_experiment:
             map_opt = map.update_params(p_map_opt)
         case _:
             data_map_opt = onp.load(data_folder/f'{prefix_load}optimal_data_map.npz')
-            A_opt = jnp.array(data_map_opt['A'])
-            c_opt = jnp.array(data_map_opt['c'])
+            A_opt = jnp.array(data_map_opt['A'], dtype=jnp.float64)
+            c_opt = jnp.array(data_map_opt['c'], dtype=jnp.float64)
             A_raw_opt = A2Araw(A_opt, A_thresh)
             p_map_opt = (A_raw_opt, c_opt)
             map_opt = None
