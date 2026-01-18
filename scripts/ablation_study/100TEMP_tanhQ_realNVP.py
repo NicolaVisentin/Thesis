@@ -289,7 +289,7 @@ if train_samples:
     # MLP fb controller
     key, key_controller, key_init = jax.random.split(key, 3)
     mlp_sizes = [3*n_pcs, 3*n_pcs] 
-    mlp_controller = MLP(key=key_controller, layer_sizes=mlp_sizes, scale_init=0.0001) # dummy instance
+    mlp_controller = MLP(key=key_controller, layer_sizes=mlp_sizes, scale_init=0.0001, last_layer='tanh') # dummy instance
 
     p_controller_before = mlp_controller.init_params_batch(key_init, n_samples) # generates as many params as the number of samples
 else:
@@ -346,7 +346,7 @@ else:
     # MLP fb controller
     key, key_controller = jax.random.split(key)
     mlp_sizes = [3*n_pcs, 3*n_pcs] 
-    mlp_controller = MLP(key=key_controller, layer_sizes=mlp_sizes, scale_init=0.0001) # dummy instance
+    mlp_controller = MLP(key=key_controller, layer_sizes=mlp_sizes, scale_init=0.0001, last_layer='tanh') # dummy instance
 
     all_controller_before = mlp_controller.load_params(data_folder/f'{load_case_prefix}_all_data_controller_before.npz')
 
