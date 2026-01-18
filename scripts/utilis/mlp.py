@@ -197,11 +197,11 @@ class MLP(eqx.Module):
             params = []
             for i in range(num_layers):
                 if load_as_batch:
-                    W = jnp.array(data[f"W_{i}"][None,:])
-                    b = jnp.array(data[f"b_{i}"][None,:])
+                    W = jnp.array(data[f"W_{i}"][None,:], dtype=jnp.float64)
+                    b = jnp.array(data[f"b_{i}"][None,:], dtype=jnp.float64)
                 else:
-                    W = jnp.array(data[f"W_{i}"])
-                    b = jnp.array(data[f"b_{i}"])
+                    W = jnp.array(data[f"W_{i}"], dtype=jnp.float64)
+                    b = jnp.array(data[f"b_{i}"], dtype=jnp.float64)
                 params.append((W, b))
         return params
     

@@ -414,8 +414,8 @@ class RealNVP(eqx.Module):
                 t_params = []
                 j = 0
                 while f"t_net_{i}_W_{j}" in keys:
-                    W = jnp.array(data[f"t_net_{i}_W_{j}"])
-                    b = jnp.array(data[f"t_net_{i}_b_{j}"])
+                    W = jnp.array(data[f"t_net_{i}_W_{j}"], dtype=jnp.float64)
+                    b = jnp.array(data[f"t_net_{i}_b_{j}"], dtype=jnp.float64)
                     t_params.append((W, b))
                     j += 1
                 
@@ -423,13 +423,13 @@ class RealNVP(eqx.Module):
                 s_params = []
                 j = 0
                 while f"s_net_{i}_W_{j}" in keys:
-                    W = jnp.array(data[f"s_net_{i}_W_{j}"])
-                    b = jnp.array(data[f"s_net_{i}_b_{j}"])
+                    W = jnp.array(data[f"s_net_{i}_W_{j}"], dtype=jnp.float64)
+                    b = jnp.array(data[f"s_net_{i}_b_{j}"], dtype=jnp.float64)
                     s_params.append((W, b))
                     j += 1
                 
                 # load scale factor
-                scale_factor = jnp.array(data[f"scale_factor_{i}"])
+                scale_factor = jnp.array(data[f"scale_factor_{i}"], dtype=jnp.float64)
                 
                 params.append((t_params, s_params, scale_factor))
             
