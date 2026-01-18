@@ -91,7 +91,7 @@ class AffineCoupling(eqx.Module):
         key_s, key_t, key_param = jax.random.split(key, 3)        
         
         layer_sizes_scale = [self.input_dim, self.hidden_dim, self.hidden_dim, self.input_dim]
-        self.scale_net = MLP(key_s, layer_sizes_scale, activation_fn=self.activation_fn)
+        self.scale_net = MLP(key_s, layer_sizes_scale, activation_fn=self.activation_fn, last_layer=activation_fn)
 
         layer_sizes_trans = [self.input_dim, self.hidden_dim, self.hidden_dim, self.input_dim]
         self.translation_net = MLP(key_t, layer_sizes_trans, scale_init_t_net, activation_fn=self.activation_fn)
@@ -120,9 +120,9 @@ class AffineCoupling(eqx.Module):
         x_a = x * self.mask # extract unchanged part of x
         s = self.scale_net(x_a)
         if self.scale_net.activation_fn == 'relu':
-            s = jax.nn.relu(s) * self.scale_param # ! MLP class does not apply activation on the last layer, so we manually add it. Moreover, we add scaling factor
+            s = s * self.scale_param # scaling factor
         else:
-            s = jnp.tanh(s) * self.scale_param # ! MLP class does not apply activation on the last layer, so we manually add it. Moreover, we add scaling factor
+            s = s * self.scale_param # scaling factor
         return s
     
     @eqx.filter_jit

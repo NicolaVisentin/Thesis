@@ -23,14 +23,17 @@ class MLP(eqx.Module):
     scale_init : float
         Scaling factor for the initialization of the parameters.
     activation_fn : str
-        Activation function. Either 'tanh' or 'relu' (default: tanh).
+        Activation function. Either 'tanh' or 'relu' (default: 'tanh').
+    last_layer : str
+        Activation on the last layer. 'tanh', 'relu' or 'linear' (default: 'linear').
     """
     layer_sizes: Sequence[int] = eqx.field(static=True)
     params: Params
     scale_init: float
     activation_fn: str = eqx.field(static=True)
+    last_layer: str = eqx.field(static=True)
 
-    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: float=1.0, activation_fn: str='tanh'):
+    def __init__(self, key: jax.random.key, layer_sizes: Sequence[int], scale_init: float=1.0, activation_fn: str='tanh', last_layer: str='linear'):
         """
         Initializes an MLP (tanh/relu activations) with given layer sizes.
 
@@ -42,10 +45,15 @@ class MLP(eqx.Module):
             List with the sizes of the layers, i.e. [in_size, hid1, hid2, ..., out_size].
         scale_init : float
             Optional scaling factor for the initialization of the weights (default: 1.0).
+        activation_fn : str
+            Activation function. Either 'tanh' or 'relu' (default: 'tanh').
+        last_layer : str
+            Activation on the last layer. 'tanh', 'relu' or 'linear' (default: 'linear').
         """
         self.layer_sizes = layer_sizes
         self.scale_init = scale_init
         self.activation_fn = activation_fn
+        self.last_layer = last_layer
         self.params = self._init_params(key)
     
     def _init_params(self, key: jax.random.key) -> Params:
@@ -92,15 +100,22 @@ class MLP(eqx.Module):
         else:
             for W, b in self.params[:-1]:
                 x = jax.nn.relu(W @ x + b)
-        # last layer: no activation
+        # last layer
         W, b = self.params[-1]
-        out = W @ x + b
+        match self.last_layer:
+            case 'linear':
+                out = W @ x + b
+            case 'relu':
+                out = jax.nn.relu(W @ x + b)
+            case 'tahn':
+                out = jnp.tanh(W @ x + b)
+
         return out
     
     @staticmethod
     @eqx.filter_jit
     def _forward_single(params: Params, x: Array) -> Array:
-        """Forward pass for a single input sample x. Uses external parameters. ! ONLY WORKS WITH TANH ACTIVATIONS !"""
+        """Forward pass for a single input sample x. Uses external parameters. ! ONLY WORKS WITH TANH ACTIVATIONS AND LINEAR LAST LAYER !"""
         # pass from input to second-last layer (use activation)
         for W, b in params[:-1]:
             x = jnp.tanh(W @ x + b)
@@ -118,7 +133,7 @@ class MLP(eqx.Module):
     
     @eqx.filter_jit
     def _forward_batch(self, params: Params, x_batch: Array) -> Array:
-        """Forward pass for a batch of input samples. Uses external parameters. ! ONLY WORKS WITH TANH ACTIVATIONS !"""
+        """Forward pass for a batch of input samples. Uses external parameters. ! ONLY WORKS WITH TANH ACTIVATIONS AND LINEAR LAST LAYER !"""
         batched_forward = jax.vmap(self._forward_single, in_axes=(None,0))
         out_batch = batched_forward(params, x_batch)
         return out_batch
@@ -192,7 +207,7 @@ class MLP(eqx.Module):
         """Load parameters of the network from a .npz file. If load_as_batch is True, then loads
         the parameters as they were a batch of 1 element (i.e. adds a dimension to each parameter)."""
         with np.load(path) as data:
-            keys = sorted(data.files)  # sorted to ensure correct order: W_0, b_0, ...
+            keys = sorted(data.files) # sorted to ensure correct order: W_0, b_0, ...
             num_layers = len(keys) // 2
             params = []
             for i in range(num_layers):
