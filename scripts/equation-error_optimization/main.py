@@ -210,16 +210,19 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'T18' # name of the experiment to perform/load
+experiment = 'TEST' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
-ron_case = 'simple' # 'simple' 'coupled' 'input'
+ron_case = 'input' # 'simple' 'coupled' 'input'
 
-# FB controller
-controller_to_train = 'tanh_simple' # 'tanh_simple', 'tanh_qd', 'tanh_complete', 'mlp'
+# controller
+train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
+                               # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
+fb_controller_to_train = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'tanh', 'mlp'
 
 # Mapping
-map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 
@@ -279,7 +282,7 @@ def Loss(
         params_optimiz : Sequence, 
         data_batch : Dict, 
         robot : PlanarPCS_simple,
-        controller : MLP,
+        controller : MLP | Tuple[MLP, MLP],
         map: RealNVP | Tuple[MLP, MLP] = None,
 ) -> Tuple[float, Dict]:
     """
@@ -293,7 +296,7 @@ def Loss(
         Parameters for the opimization. In this case a list with:
         - **p_robot**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
         - **p_map**: Trainable parameters of the mapping function.
-        - **p_controller**: Trainable parameters of the fb controller.              
+        - **p_controller**: Trainable parameters of the controller.              
     data_batch : Dict
         Dictionary with datapoints and labels to compute the loss. In this case has keys:
         - **"y"**: Batch of datapoints y. Shape (batch_size, n_ron)
@@ -302,8 +305,9 @@ def Loss(
         - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
     robot
         "Dummy" instance of the soft robot class (actual parameters are in params_optimiz).
-    controller : MLP
-        "Dummy" instance of the controller (actual parameters are in params_optimiz).
+    controller : MLP | Tuple[MLP, MLP]
+        "Dummy" instance of the controller (actual parameters are in params_optimiz). Can be either a unique controller
+        tau = MLP(z, u) or a tuple with two controllers tau_fb = MLP(z) and tau_ff = MLP(u) such that tau = tau_fb + tau_ff.
     map : RealNVP | Tuple[MLP, MLP] | None
         "Dummy" instance of the map (actual parameters are in params_optimiz). Can be a RealNVP class, a tuple 
         containing encoder/decoder or None if linear mapping is used (default: None).
@@ -349,8 +353,14 @@ def Loss(
         case 'norm_flow':
             map_updated = map.update_params(p_map)
 
-    # ...controller    
-    controller_updated = controller.update_params(p_controller)
+    # ...controller
+    if train_unique_controller:
+        controller_updated = controller.update_params(p_controller)
+    else:
+        fb_controller, ff_controller = controller
+        p_fb_controller, p_ff_controller = p_controller
+        fb_controller_updated = fb_controller.update_params(p_fb_controller)
+        ff_controller_updated = ff_controller.update_params(p_ff_controller)
 
     # compute q and qd -> direct map
     match map_to_train:
@@ -364,22 +374,21 @@ def Loss(
 
     # actuation
     z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
-    if ron_case == 'input':
-        if controller_to_train == 'tanh_simple':
-            contr_inp = jnp.concatenate([q_batch, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1)
-        elif controller_to_train == 'tanh_qd':
-            contr_inp = jnp.concatenate([qd_batch, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1)
-        else:
-            contr_inp = jnp.concatenate([z_batch, u_batch], axis=1) # shape (batch_size, 2*3*n_pcs+1)
-    else:
-        if controller_to_train == 'tanh_simple':
-            contr_inp = q_batch # shape (batch_size, 3*n_pcs)
-        elif controller_to_train == 'tanh_qd':
-            contr_inp = qd_batch # shape (batch_size, 3*n_pcs)
-        else:
-            contr_inp = z_batch # shape (batch_size, 2*3*n_pcs)
 
-    tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs)
+    if fb_controller_to_train == 'tanh_simple' or fb_controller_to_train == 'linear_simple':
+        fb_contr_inp = q_batch # shape (batch_size, 3*n_pcs)
+    else:
+        fb_contr_inp = z_batch # shape (batch_size, 2*3*n_pcs)
+
+    if ron_case == 'input':
+        contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1) or (batch_size, 2*3*n_pcs+1)
+    else:
+        contr_inp = fb_contr_inp # shape (batch_size, 3*n_pcs) or (batch_size, 2*3*n_pcs)
+
+    if train_unique_controller:
+        tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs)
+    else:
+        tau_batch = fb_controller_updated.forward_batch(fb_contr_inp) + ff_controller_updated.forward_batch(u_batch) # shape (batch_size, 3*n_pcs)
     actuation_arg = (tau_batch,)
 
     # predictions
@@ -390,11 +399,11 @@ def Loss(
     # comptue ydd_hat -> inverse map
     match map_to_train:
         case 'diag' | 'svd':
-            ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # shape (batch_size, 3*n_ron)
+            ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # shape (batch_size, n_ron)
         case 'reconstruction':
-            ydd_hat_batch = decoder_updated.forward_xdd_batch(q_batch, qd_batch, qdd_batch) # shape (batch_size, 3*n_ron)
+            ydd_hat_batch = decoder_updated.forward_xdd_batch(q_batch, qd_batch, qdd_batch) # shape (batch_size, n_ron)
         case 'norm_flow':
-            _, _, ydd_hat_batch = map_updated.inverse_with_derivatives_batch(q_batch, qd_batch, qdd_batch) # shape (batch_size, 3*n_ron)
+            _, _, ydd_hat_batch = map_updated.inverse_with_derivatives_batch(q_batch, qd_batch, qdd_batch) # shape (batch_size, n_ron)
 
     # compute MSE loss (compare predictions ydd_hat with labels ydd)
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
@@ -543,33 +552,106 @@ G_raw = InverseSoftplus(G0)
 p_robot = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
 
 # ...controller
-match controller_to_train:
-    case 'tanh_simple' | 'tanh_qd':
-        scale_init = 0.00001
-        if ron_case == 'input':
-            mlp_sizes = [3*n_pcs + 1, 3*n_pcs]
-        else:
-            mlp_sizes = [3*n_pcs, 3*n_pcs]
+if train_unique_controller:
+    match fb_controller_to_train:
+        case 'tanh_simple':
+            scale_init = 0.00001
+            last_layer_activation = 'tanh'
+            if ron_case == 'input':
+                mlp_sizes = [3*n_pcs + 1, 3*n_pcs]
+            else:
+                mlp_sizes = [3*n_pcs, 3*n_pcs]
 
-    case 'tanh_complete':
-        scale_init = 0.00001
-        if ron_case == 'input':
-            mlp_sizes = [2*3*n_pcs + 1, 3*n_pcs]
-        else:
-            mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+        case 'linear_simple':
+            scale_init = 0.00001
+            last_layer_activation = 'linear'
+            if ron_case == 'input':
+                mlp_sizes = [3*n_pcs + 1, 3*n_pcs]
+            else:
+                mlp_sizes = [3*n_pcs, 3*n_pcs]
+
+        case 'tanh_complete':
+            scale_init = 0.00001
+            last_layer_activation = 'tanh'
+            if ron_case == 'input':
+                mlp_sizes = [2*3*n_pcs + 1, 3*n_pcs]
+            else:
+                mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+
+        case 'linear_complete':
+            scale_init = 0.00001
+            last_layer_activation = 'linear'
+            if ron_case == 'input':
+                mlp_sizes = [2*3*n_pcs + 1, 3*n_pcs]
+            else:
+                mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+            
+        case 'mlp':
+            scale_init = 0.001
+            last_layer_activation = 'linear'
+            if ron_case == 'input':
+                mlp_sizes = [2*3*n_pcs + 1, 64, 64, 3*n_pcs]
+            else:
+                mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
+
+        case _:
+            raise ValueError('Unknown controller')
         
-    case 'mlp':
-        scale_init = 0.001
-        if ron_case == 'input':
-            mlp_sizes = [2*3*n_pcs + 1, 64, 64, 3*n_pcs]
-        else:
-            mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
+    mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init, last_layer=last_layer_activation) # initialize MLP feedback control law
+    p_controller = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 
-    case _:
-        raise ValueError('Unknown controller')
+else:
+    match fb_controller_to_train:
+        case 'tanh_simple':
+            fb_scale_init = 0.00001
+            fb_last_layer_activation = 'tanh'
+            fb_mlp_sizes = [3*n_pcs, 3*n_pcs]
+
+        case 'linear_simple':
+            fb_last_layer_activation = 'linear'
+            fb_scale_init = 0.00001
+            fb_mlp_sizes = [3*n_pcs, 3*n_pcs]
+
+        case 'tanh_complete':
+            fb_scale_init = 0.00001
+            fb_last_layer_activation = 'tanh'
+            fb_mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+
+        case 'linear_complete':
+            fb_scale_init = 0.00001
+            fb_last_layer_activation = 'linear'
+            fb_mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+            
+        case 'mlp':
+            fb_scale_init = 0.001
+            fb_last_layer_activation = 'linear'
+            fb_mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
+
+        case _:
+            raise ValueError('Unknown fb controller')
     
-mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init) # initialize MLP feedback control law
-p_controller = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
+    match ff_controller_to_train:
+        case 'tanh':
+            ff_scale_init = 0.00001
+            ff_last_layer_activation = 'tanh'
+            ff_mlp_sizes = [1, 3*n_pcs]
+
+        case 'mlp':
+            ff_scale_init = 0.001
+            ff_last_layer_activation = 'linear'
+            ff_mlp_sizes = [1, 64, 64, 3*n_pcs]
+
+        case _:
+            raise ValueError('Unknown fb controller')
+        
+    key, key_fb, key_ff = jax.random.split(key, 3)
+    fb_mlp_controller = MLP(key=key_fb, layer_sizes=fb_mlp_sizes, scale_init=fb_scale_init, last_layer=fb_last_layer_activation) # initialize MLP feedback control law
+    ff_mlp_controller = MLP(key=key_ff, layer_sizes=ff_mlp_sizes, scale_init=ff_scale_init, last_layer=ff_last_layer_activation) # initialize MLP feedforward control law
+    mlp_controller = (fb_mlp_controller, ff_mlp_controller)
+
+    p_fb_controller = tuple(fb_mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
+    p_ff_controller = tuple(ff_mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
+    p_controller = (p_fb_controller, p_ff_controller)
 
 # Collect parameters
 params_optimiz = (p_robot, p_map, p_controller)
@@ -614,26 +696,30 @@ if show_simulations:
         ys=u_RONsaved[:min_len]
     )
 
-    def tau_law(system_state: SystemState, controller: MLP, u_interp_fn: AbstractTerm):
-        """Implements user-defined control tau(t) = MLP(q(t),qd(t),u(t))."""
+    def tau_law(system_state: SystemState, controller: MLP | Tuple[MLP, MLP], u_interp_fn: AbstractTerm):
+        """Implements user-defined control tau(t) = tau_fn(q(t),qd(t),u(t))."""
         u = u_interp_fn.evaluate(system_state.t)
         q, qd = jnp.split(system_state.y, 2)
         z = system_state.y
-        if ron_case == 'input':
-            if controller_to_train == 'tanh_simple':
-                contr_inp = jnp.concatenate([q, u])
-            elif controller_to_train == 'tanh_qd':
-                contr_inp = jnp.concatenate([qd, u])
-            else:
-                contr_inp = jnp.concatenate([z, u])
+
+        if not train_unique_controller:
+            fb_controller, ff_controller = controller
+
+        if fb_controller_to_train == 'tanh_simple' or fb_controller_to_train == 'linear_simple':
+            fb_contr_inp = q
         else:
-            if controller_to_train == 'tanh_simple':
-                contr_inp = q
-            elif controller_to_train == 'tanh_qd':
-                contr_inp = qd
-            else:
-                contr_inp = z                
-        tau = controller(contr_inp)
+            fb_contr_inp = z
+
+        if ron_case == 'input':
+            contr_inp = jnp.concatenate([fb_contr_inp, u])
+        else:
+            contr_inp = fb_contr_inp
+
+        if train_unique_controller:
+            tau = controller(contr_inp)
+        else:
+            tau = fb_controller(fb_contr_inp) + ff_controller(u)
+
         return tau, None
     
     tau_fb = jax.jit(partial(tau_law, controller=mlp_controller, u_interp_fn=u_interpolator)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
@@ -772,7 +858,7 @@ if show_simulations:
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
     #plt.show()
 
-    # Plot actuation
+    # Plot total actuation
     fig, axs = plt.subplots(3,1, figsize=(10,6))
     for i in range(n_pcs):
         axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
@@ -796,6 +882,63 @@ if show_simulations:
     plt.tight_layout()
     plt.savefig(plots_folder/'Actuation_before', bbox_inches='tight')
     #plt.show()
+
+    if not train_unique_controller:
+        tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len])
+        if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
+            tau_fb_component_ts = fb_mlp_controller.forward_batch(q_PCS)
+        else:
+            tau_fb_component_ts = fb_mlp_controller.forward_batch(sim_out_pcs.y)
+
+        # Plot feedforward actuation
+        fig, axs = plt.subplots(3,1, figsize=(10,6))
+        for i in range(n_pcs):
+            axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
+            axs[0].grid(True)
+            axs[0].set_xlabel('t [s]')
+            axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+            axs[0].set_title('Bending ff actuation')
+            axs[0].legend()
+            axs[1].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i+1], label=f'segment {i+1}')
+            axs[1].grid(True)
+            axs[1].set_xlabel('t [s]')
+            axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+            axs[1].set_title('Axial ff actuation')
+            axs[1].legend()
+            axs[2].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i+2], label=f'segment {i+1}')
+            axs[2].grid(True)
+            axs[2].set_xlabel('t [s]')
+            axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+            axs[2].set_title('Shear ff actuation')
+            axs[2].legend()
+        plt.tight_layout()
+        plt.savefig(plots_folder/'Actuation_ff_before', bbox_inches='tight')
+        #plt.show()
+
+        # Plot feedback actuation
+        fig, axs = plt.subplots(3,1, figsize=(10,6))
+        for i in range(n_pcs):
+            axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
+            axs[0].grid(True)
+            axs[0].set_xlabel('t [s]')
+            axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+            axs[0].set_title('Bending fb actuation')
+            axs[0].legend()
+            axs[1].plot(timePCS, tau_fb_component_ts[:,3*i+1], label=f'segment {i+1}')
+            axs[1].grid(True)
+            axs[1].set_xlabel('t [s]')
+            axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+            axs[1].set_title('Axial fb actuation')
+            axs[1].legend()
+            axs[2].plot(timePCS, tau_fb_component_ts[:,3*i+2], label=f'segment {i+1}')
+            axs[2].grid(True)
+            axs[2].set_xlabel('t [s]')
+            axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+            axs[2].set_title('Shear fb actuation')
+            axs[2].legend()
+        plt.tight_layout()
+        plt.savefig(plots_folder/'Actuation_fb_before', bbox_inches='tight')
+        #plt.show()
 
     # Animate robot
     animate_robot_matplotlib(
@@ -989,7 +1132,15 @@ if not load_experiment:
 
     # Update optimal controller, robot and map
     robot_opt = robot.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
-    mlp_controller_opt = mlp_controller.update_params(p_controller_opt)
+
+    if train_unique_controller:
+        mlp_controller_opt = mlp_controller.update_params(p_controller_opt)
+    else:
+        p_fb_controller_opt, p_ff_controller_opt = p_controller_opt
+        fb_mlp_controller_opt = fb_mlp_controller.update_params(p_fb_controller_opt)
+        ff_mlp_controller_opt = ff_mlp_controller.update_params(p_ff_controller_opt)
+        mlp_controller_opt = (fb_mlp_controller_opt, ff_mlp_controller_opt)
+
     match map_to_train:
         case 'reconstruction':
             p_encoder_opt, p_decoder_opt = p_map_opt
@@ -1013,7 +1164,13 @@ if not load_experiment:
         E=onp.array(E_opt),
         G=onp.array(G_opt),
     )
-    mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
+
+    if train_unique_controller:
+        mlp_controller_opt.save_params(data_folder/'optimal_data_controller.npz')
+    else:
+        fb_mlp_controller_opt.save_params(data_folder/'optimal_data_fb_controller.npz')
+        ff_mlp_controller_opt.save_params(data_folder/'optimal_data_ff_controller.npz')
+
     match map_to_train:
         case 'reconstruction':
             encoder_opt.save_params(data_folder/'optimal_data_encoder.npz')
@@ -1085,8 +1242,16 @@ if load_experiment:
     robot_opt = robot.update_params({"L": L_opt, "D": D_opt, "r": r_opt, "rho": rho_opt, "E": E_opt, "G": G_opt})
     
     # Load parameters controller
-    p_controller_opt = mlp_controller.load_params(data_folder/f'{prefix_load}optimal_data_controller.npz')
-    mlp_controller_opt = mlp_controller.update_params(p_controller_opt)
+    if train_unique_controller:
+        p_controller_opt = mlp_controller.load_params(data_folder/f'{prefix_load}optimal_data_controller.npz')
+        mlp_controller_opt = mlp_controller.update_params(p_controller_opt)
+    else:
+        p_fb_controller_opt = fb_mlp_controller.load_params(data_folder/f'{prefix_load}optimal_data_fb_controller.npz')
+        p_ff_controller_opt = ff_mlp_controller.load_params(data_folder/f'{prefix_load}optimal_data_ff_controller.npz')
+        fb_mlp_controller_opt = fb_mlp_controller.update_params(p_fb_controller_opt)
+        ff_mlp_controller_opt = ff_mlp_controller.update_params(p_ff_controller_opt)
+        p_controller_opt = (p_fb_controller_opt, p_ff_controller_opt)
+        mlp_controller_opt = (fb_mlp_controller_opt, ff_mlp_controller_opt)
     
     # Load parameters map
     match map_to_train:
@@ -1241,7 +1406,7 @@ if show_simulations:
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
     #plt.show()
 
-    # Plot actuation
+    # Plot total actuation
     fig, axs = plt.subplots(3,1, figsize=(10,6))
     for i in range(n_pcs):
         axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
@@ -1265,6 +1430,63 @@ if show_simulations:
     plt.tight_layout()
     plt.savefig(plots_folder/'Actuation_after', bbox_inches='tight')
     #plt.show()
+
+    if not train_unique_controller:
+        tau_ff_component_ts = ff_mlp_controller_opt.forward_batch(u_RONsaved[:min_len])
+        if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
+            tau_fb_component_ts = fb_mlp_controller_opt.forward_batch(q_PCS)
+        else:
+            tau_fb_component_ts = fb_mlp_controller_opt.forward_batch(sim_out_pcs.y)
+
+        # Plot feedforward actuation
+        fig, axs = plt.subplots(3,1, figsize=(10,6))
+        for i in range(n_pcs):
+            axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
+            axs[0].grid(True)
+            axs[0].set_xlabel('t [s]')
+            axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+            axs[0].set_title('Bending ff actuation')
+            axs[0].legend()
+            axs[1].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i+1], label=f'segment {i+1}')
+            axs[1].grid(True)
+            axs[1].set_xlabel('t [s]')
+            axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+            axs[1].set_title('Axial ff actuation')
+            axs[1].legend()
+            axs[2].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i+2], label=f'segment {i+1}')
+            axs[2].grid(True)
+            axs[2].set_xlabel('t [s]')
+            axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+            axs[2].set_title('Shear ff actuation')
+            axs[2].legend()
+        plt.tight_layout()
+        plt.savefig(plots_folder/'Actuation_ff_after', bbox_inches='tight')
+        #plt.show()
+
+        # Plot feedback actuation
+        fig, axs = plt.subplots(3,1, figsize=(10,6))
+        for i in range(n_pcs):
+            axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
+            axs[0].grid(True)
+            axs[0].set_xlabel('t [s]')
+            axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+            axs[0].set_title('Bending fb actuation')
+            axs[0].legend()
+            axs[1].plot(timePCS, tau_fb_component_ts[:,3*i+1], label=f'segment {i+1}')
+            axs[1].grid(True)
+            axs[1].set_xlabel('t [s]')
+            axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+            axs[1].set_title('Axial fb actuation')
+            axs[1].legend()
+            axs[2].plot(timePCS, tau_fb_component_ts[:,3*i+2], label=f'segment {i+1}')
+            axs[2].grid(True)
+            axs[2].set_xlabel('t [s]')
+            axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+            axs[2].set_title('Shear fb actuation')
+            axs[2].legend()
+        plt.tight_layout()
+        plt.savefig(plots_folder/'Actuation_fb_after', bbox_inches='tight')
+        #plt.show()
 
     # Animate robot
     animate_robot_matplotlib(
@@ -1333,24 +1555,31 @@ match map_to_train:
         qd_test_power = test_set["yd"] @ jnp.transpose(A_opt) # shape (testset_size, 3*n_pcs)
 
 z_test_power = jnp.concatenate([q_test_power, qd_test_power], axis=1) # shape (testset_size, 2*3*n_pcs)
-if ron_case == 'input':
-    if controller_to_train == 'tanh_simple':
-        contr_inp = jnp.concatenate([q_test_power, test_set["u"]], axis=1) # shape (batch_size, 3*n_pcs+1)
-    elif controller_to_train == 'tanh_qd':
-        contr_inp = jnp.concatenate([qd_test_power, test_set["u"]], axis=1) # shape (batch_size, 3*n_pcs+1)
-    else:
-        contr_inp = jnp.concatenate([z_test_power, test_set["u"]], axis=1) # shape (batch_size, 2*3*n_pcs+1)
+if fb_controller_to_train == 'tanh_simple' or fb_controller_to_train == 'linear_simple':
+    fb_contr_inp = q_test_power # shape (testset_size, 3*n_pcs)
 else:
-    if controller_to_train == 'tanh_simple':
-        contr_inp = q_test_power # shape (testset_size, 3*n_pcs)
-    elif controller_to_train == 'tanh_qd':
-        contr_inp = qd_test_power # shape (testset_size, 3*n_pcs)
-    else:
-        contr_inp = z_test_power # shape (testset_size, 2*3*n_pcs)
+    fb_contr_inp = z_test_power # shape (testset_size, 2*3*n_pcs)
 
-tau_test_power = mlp_controller_opt.forward_batch(contr_inp) # shape (testset_size, 3*n_pcs)
-power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
-power_msv_after = jnp.mean(power**2) # scalar
+if ron_case == 'input':
+    contr_inp = jnp.concatenate([fb_contr_inp, test_set["u"]], axis=1) # shape (testset_size, 3*n_pcs+1) or (testset_size, 2*3*n_pcs+1)
+else:
+    contr_inp = fb_contr_inp # shape (testset_size, 3*n_pcs) or (testset_size, 2*3*n_pcs)
+
+if train_unique_controller:
+    tau_test_power = mlp_controller_opt.forward_batch(contr_inp) # shape (testset_size, 3*n_pcs)
+    power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
+    power_msv_after = jnp.mean(power**2) # scalar
+else:
+    tau_test_power_fb = fb_mlp_controller_opt.forward_batch(fb_contr_inp) # shape (testset_size, 3*n_pcs)
+    tau_test_power_ff = ff_mlp_controller_opt.forward_batch(test_set["u"]) # shape (testset_size, 3*n_pcs)
+    tau_test_power = tau_test_power_fb + tau_test_power_ff # shape (testset_size, 3*n_pcs)
+    power = jnp.sum(tau_test_power * qd_test_power, axis=1) # shape (testset_size,)
+    power_msv_after = jnp.mean(power**2) # scalar
+
+    power_fb = jnp.sum(tau_test_power_fb * qd_test_power, axis=1) # shape (testset_size,)
+    power_ff = jnp.sum(tau_test_power_ff * qd_test_power, axis=1) # shape (testset_size,)
+    power_msv_after_fb = jnp.mean(power_fb**2) # scalar
+    power_msv_after_ff = jnp.mean(power_ff**2) # scalar
 
 # Compute reconstruction error
 match map_to_train:
@@ -1383,8 +1612,14 @@ with open(data_folder/'metrics.txt', 'w') as file:
         file.write(f", (reconstruction loss up to {reconstruction_type})\n")
     else:
         file.write(f"\n")
-    file.write(f"   Controller: {controller_to_train}\n\n")
+    if train_unique_controller:
+        file.write(f"   Controller: {fb_controller_to_train} (unique)\n\n")
+    else:
+        file.write(f"   Controller: {fb_controller_to_train} (fb) + {ff_controller_to_train} (ff)\n\n")
     file.write(f"METRICS AFTER OPTIMIZATION\n")
     file.write(f"   Final test RMS error:                        {RMSE}\n")
-    file.write(f"   Final test RMS power:                        {onp.sqrt(power_msv_after)}\n")
+    if train_unique_controller:
+        file.write(f"   Final test RMS power:                        {onp.sqrt(power_msv_after)}\n")
+    else:
+        file.write(f"   Final test RMS power:                        {onp.sqrt(power_msv_after)} (fb: {onp.sqrt(power_msv_after_fb)}, ff: {onp.sqrt(power_msv_after_ff)})\n")
     file.write(f"   Final test RMSE reconstruction (y, yd, ydd): ({reconstruction_rmse_y}, {reconstruction_rmse_yd}, {reconstruction_rmse_ydd})\n")
