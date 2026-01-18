@@ -107,7 +107,7 @@ class MLP(eqx.Module):
                 out = W @ x + b
             case 'relu':
                 out = jax.nn.relu(W @ x + b)
-            case 'tahn':
+            case 'tanh':
                 out = jnp.tanh(W @ x + b)
 
         return out
