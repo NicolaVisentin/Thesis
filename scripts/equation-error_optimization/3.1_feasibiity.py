@@ -461,18 +461,21 @@ match controller_to_train:
     case 'tanh_simple':
         mlp_sizes = [3*n_pcs, 3*n_pcs]
         scale_init = 0.00001
+        mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init, last_layer='tanh') # initialize MLP feedback control law
     case 'tanh_complete':
         mlp_sizes = [2*3*n_pcs, 3*n_pcs]
         scale_init = 0.00001
+        mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init, last_layer='tanh') # initialize MLP feedback control law
     case 'mlp':
         mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
         scale_init = 0.001
+        mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init) # initialize MLP feedback control law
     case 'none':
         mlp_sizes = [2*3*n_pcs, 3*n_pcs]
         scale_init = 0.0
+        mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init) # initialize MLP feedback control law
     case _:
         raise ValueError('Unknown controller')
-mlp_controller = MLP(key=subkey, layer_sizes=mlp_sizes, scale_init=scale_init) # initialize MLP feedback control law
 
 p_controller = tuple(mlp_controller.params) # tuple of tuples with layers: ((W1, b1), (W2, b2), ...)
 
