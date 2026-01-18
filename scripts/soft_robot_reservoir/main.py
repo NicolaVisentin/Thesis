@@ -291,12 +291,12 @@ test_set_size = len(test_set["labels"])
 # Define robot
 data_robot_load = onp.load(load_model_path/'optimal_data_robot.npz')
 
-L = jnp.array(data_robot_load['L'])
-D = jnp.array(data_robot_load['D'])
-r = jnp.array(data_robot_load['r'])
-rho = jnp.array(data_robot_load['rho'])
-E = jnp.array(data_robot_load['E'])
-G = jnp.array(data_robot_load['G'])
+L = jnp.array(data_robot_load['L'], dtype=jnp.float64)
+D = jnp.array(data_robot_load['D'], dtype=jnp.float64)
+r = jnp.array(data_robot_load['r'], dtype=jnp.float64)
+rho = jnp.array(data_robot_load['rho'], dtype=jnp.float64)
+E = jnp.array(data_robot_load['E'], dtype=jnp.float64)
+G = jnp.array(data_robot_load['G'], dtype=jnp.float64)
 n_pcs = len(L)
 
 pcs_parameters = {
@@ -319,8 +319,8 @@ robot = PlanarPCS_simple(
 match map_type:
     case 'linear':
         data_map = onp.load(load_model_path/'optimal_data_map.npz')
-        A = jnp.array(data_map['A'])
-        c = jnp.array(data_map['c'])
+        A = jnp.array(data_map['A'], dtype=jnp.float64)
+        c = jnp.array(data_map['c'], dtype=jnp.float64)
 
         def map_direct(y, yd, A, c):
             q = A @ y + c
