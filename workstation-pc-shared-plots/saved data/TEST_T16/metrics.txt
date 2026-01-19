@@ -1,0 +1,9 @@
+SETUP
+   RON case:   simple
+   Mapping:    svd
+   Controller: linear_simple (unique)
+
+METRICS AFTER OPTIMIZATION
+   Final test RMS error:                        0.5896407519232763
+   Final test RMS power:                        0.02540782836961324
+   Final test RMSE reconstruction (y, yd, ydd): (2.9004242071855145e-13, 2.9957524575525375e-15, 8.712515520621528e-15)

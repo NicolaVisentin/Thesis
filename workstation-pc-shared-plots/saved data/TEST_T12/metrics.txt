@@ -1,0 +1,9 @@
+SETUP
+   RON case:   input
+   Mapping:    norm_flow
+   Controller: mlp (unique)
+
+METRICS AFTER OPTIMIZATION
+   Final test RMS error:                        0.09660653096611162
+   Final test RMS power:                        0.8900018995716333
+   Final test RMSE reconstruction (y, yd, ydd): (5.932396627615461e-15, 2.055638569818833e-15, 6.6360355753553326e-15)

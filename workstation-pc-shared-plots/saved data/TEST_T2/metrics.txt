@@ -1,0 +1,9 @@
+SETUP
+   RON case:   simple
+   Mapping:    reconstruction, (reconstruction loss up to ydd)
+   Controller: linear_complete (unique)
+
+METRICS AFTER OPTIMIZATION
+   Final test RMS error:                        0.18336247937334457
+   Final test RMS power:                        0.15408581977111824
+   Final test RMSE reconstruction (y, yd, ydd): (0.002657825556540292, 0.0036237115249307733, 0.01406321307078924)
