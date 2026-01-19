@@ -1,0 +1,9 @@
+SETUP
+   RON case:   input
+   Mapping:    svd
+   Controller: mlp (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Final test RMS error:                        0.11813142340921003
+   Final test RMS power:                        1.876025254036798 (fb: 1.8725109746798483, ff: 0.02685007138358095)
+   Final test RMSE reconstruction (y, yd, ydd): (6.6688067153179395e-15, 1.128072154233916e-15, 3.589635731935188e-15)
