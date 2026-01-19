@@ -237,18 +237,18 @@ This script:
 example_idx = 2 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
 test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
-batch_size = 100 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
+batch_size = 500 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'smaller_dataset_new' # name of the experiment to save/load
+experiment_name = 'smaller_dataset_new4' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
-load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
+load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T62' # choose the reservoir to load (robot + map + controller)
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective'
-unique_controller = True # True if tau = tau_tot(z,u). False if tau = tau_fb(z) + tau_ff(u). !!! If True, the controller tau_tot is defined in fb_controller_type
+unique_controller = False # True if tau = tau_tot(z,u). False if tau = tau_fb(z) + tau_ff(u). !!! If True, the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_type = '' # 'linear', 'tanh', 'mlp'
+ff_controller_type = 'linear' # 'linear', 'tanh', 'mlp'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -459,12 +459,13 @@ else:
     
     # total controller
     def controller(z, u, mlp_fb_controller, mlp_ff_controller):
-        if n_input_fb == 3*n_pcs + 1:
+        tau_ff = mlp_ff_controller(jnp.array([u]))
+        if n_input_fb == 3*n_pcs:
             q, qd = jnp.split(z, 2)
-            input_fb_controller = jnp.concatenate([q, jnp.array([u])])
+            tau_fb = mlp_fb_controller(q)
         else:
-            input_fb_controller = jnp.concatenate([z, jnp.array([u])])
-        tau = mlp_fb_controller(input_fb_controller) + mlp_ff_controller(u)
+            tau_fb = mlp_fb_controller(z)
+        tau = tau_fb + tau_ff
         return tau
     controller = jax.jit(partial(controller, mlp_fb_controller=mlp_fb_controller, mlp_ff_controller=mlp_ff_controller))
 
