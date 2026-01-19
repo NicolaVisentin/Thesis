@@ -1,9 +1,0 @@
-SETUP
-   RON case:   input
-   Mapping:    reconstruction, (reconstruction loss up to ydd)
-   Controller: tanh_complete (fb) + linear (ff)
-
-METRICS AFTER OPTIMIZATION
-   Final test RMS error:                        1.0946236677092793
-   Final test RMS power:                        0.05030137895761249 (fb: 0.034496246351469036, ff: 0.02640046951352007)
-   Final test RMSE reconstruction (y, yd, ydd): (0.00534283181244302, 0.01161788300180114, 0.05807665200564243)
