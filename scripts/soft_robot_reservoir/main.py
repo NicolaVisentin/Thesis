@@ -212,7 +212,7 @@ def animate_robot_matplotlib(
 """
 This script:
     1.  Takes a certain pcs reservoir's architecture (robot + map + controller) specified by the user in `load_model_path`
-        (! map type must be specified by hand in `map_type`).
+        (! map type and controller type must be specified by hand in `map_type` and `controller_type`).
 
     2.  Loads the MNIST dataset and extract part of it. In particular, a portion `train_set_portion` is extracted from the 
         full train MNIST set and a portion `test_set_portion` from the test MNIST set.
@@ -246,6 +246,9 @@ train = False # if True, perform training (output layer). Otherwise, test saved 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective'
+controller_type = 'separate' # 'separate', 'unique'
+fb_controller_type = '' # 'linear_simple', 'linear_complete', 
+ff_controller_type = ''
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -266,11 +269,11 @@ train_set["images"] = train_set["images"].reshape(train_set["images"].shape[0], 
 test_set["images"] = test_set["images"].reshape(test_set["images"].shape[0], -1)
 
 # Convert to jax
-train_set["images"] = jnp.array(train_set["images"])
-train_set["labels"] = jnp.array(train_set["labels"])
+train_set["images"] = jnp.array(train_set["images"], dtype=jnp.float64)
+train_set["labels"] = jnp.array(train_set["labels"], dtype=jnp.float64)
 
-test_set["images"] = jnp.array(test_set["images"])
-test_set["labels"] = jnp.array(test_set["labels"])
+test_set["images"] = jnp.array(test_set["images"], dtype=jnp.float64)
+test_set["labels"] = jnp.array(test_set["labels"], dtype=jnp.float64)
 
 # Take only a portion of the test/train sets
 fraction_train = train_set_portion if train_set_portion < 1.1 else train_set_portion/len(train_set["labels"])
@@ -387,28 +390,55 @@ match map_type:
         map_inverse = jax.jit(partial(map_inverse, map=realnvp_map))
 
 # Define controller
-mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
-p_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
-layers_dim = []
-for i, layer in enumerate(p_controller):
-    W = layer[0] # shape (n_out_layer, n_in_layer)
-    layers_dim.append(W.shape[1]) # n_in_layer
-    if i == 0:
-        n_input = W.shape[1] # save input dim for the controller
-layers_dim.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
+if controller_type == 'unique':
+    mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
+    p_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
+    layers_dim = []
+    for i, layer in enumerate(p_controller):
+        W = layer[0] # shape (n_out_layer, n_in_layer)
+        layers_dim.append(W.shape[1]) # n_in_layer
+        if i == 0:
+            n_input = W.shape[1] # save input dim for the controller
+    layers_dim.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
 
-mlp_controller_dummy = MLP(key, layers_dim)
-mlp_controller = mlp_controller_dummy.update_params(p_controller)
+    mlp_controller_dummy = MLP(key, layers_dim)
+    mlp_controller = mlp_controller_dummy.update_params(p_controller)
+        
+    def controller(z, u, mlp_controller):
+        if n_input == 3*n_pcs + 1:
+            q, qd = jnp.split(z, 2)
+            input_controller = jnp.concatenate([q, jnp.array([u])])
+        else:
+            input_controller = jnp.concatenate([z, jnp.array([u])])
+        tau = mlp_controller(input_controller)
+        return tau
+    controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
+
+else:
+    mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
+    p_fb_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_fb_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
+    p_ff_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_ff_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
     
-def controller(z, u, mlp_controller):
-    if n_input == 3*n_pcs + 1:
-        q, qd = jnp.split(z, 2)
-        input_controller = jnp.concatenate([q, jnp.array([u])])
-    else:
-        input_controller = jnp.concatenate([z, jnp.array([u])])
-    tau = mlp_controller(input_controller)
-    return tau
-controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
+    layers_dim_fb = []
+    for i, layer in enumerate(p_fb_controller):
+        W = layer[0] # shape (n_out_layer, n_in_layer)
+        layers_dim_fb.append(W.shape[1]) # n_in_layer
+        if i == 0:
+            n_input_fb = W.shape[1] # save input dim for the controller
+    layers_dim_fb.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
+
+    mlp_fb_controller_dummy = MLP(key, layers_dim, last_layer=)
+    mlp_controller = mlp_controller_dummy.update_params(p_controller)
+        
+    def controller(z, u, mlp_controller):
+        if n_input == 3*n_pcs + 1:
+            q, qd = jnp.split(z, 2)
+            input_controller = jnp.concatenate([q, jnp.array([u])])
+        else:
+            input_controller = jnp.concatenate([z, jnp.array([u])])
+        tau = mlp_controller(input_controller)
+        return tau
+    controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
 
 # Instantiate the reservoir
 reservoir = pcsReservoir(
