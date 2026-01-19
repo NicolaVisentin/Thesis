@@ -240,15 +240,15 @@ test_set_portion = 6000 # fraction (or number of images) of the original test se
 batch_size = 100 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
-experiment_name = 'pre_trained_output_layer' # name of the experiment to save/load
-train = False # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
+experiment_name = 'smaller_dataset_new' # name of the experiment to save/load
+train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'T10' # choose the reservoir to load (robot + map + controller)
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective'
-controller_type = 'separate' # 'separate', 'unique'
-fb_controller_type = '' # 'linear_simple', 'linear_complete', 
-ff_controller_type = ''
+unique_controller = True # True if tau = tau_tot(z,u). False if tau = tau_fb(z) + tau_ff(u). !!! If True, the controller tau_tot is defined in fb_controller_type
+fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_type = '' # 'linear', 'tanh', 'mlp'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -390,9 +390,11 @@ match map_type:
         map_inverse = jax.jit(partial(map_inverse, map=realnvp_map))
 
 # Define controller
-if controller_type == 'unique':
-    mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
+mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
+if unique_controller:
+    # load parameters
     p_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
+    # find out layers and dimensions: layers_dim = [dim_in, dim_hid1, dim_hid2, ..., dim_out]
     layers_dim = []
     for i, layer in enumerate(p_controller):
         W = layer[0] # shape (n_out_layer, n_in_layer)
@@ -400,8 +402,13 @@ if controller_type == 'unique':
         if i == 0:
             n_input = W.shape[1] # save input dim for the controller
     layers_dim.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
-
-    mlp_controller_dummy = MLP(key, layers_dim)
+    # set activation fn for the last layer
+    if fb_controller_type == 'tanh_simlpe' or fb_controller_type == 'tanh_complete':
+        last_activation_fn = 'tanh'
+    else:
+        last_activation_fn = 'linear'
+    # re-build controller
+    mlp_controller_dummy = MLP(key, layers_dim, last_layer=last_activation_fn)
     mlp_controller = mlp_controller_dummy.update_params(p_controller)
         
     def controller(z, u, mlp_controller):
@@ -415,10 +422,10 @@ if controller_type == 'unique':
     controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
 
 else:
-    mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
+    # load parameters for fb and ff controllers
     p_fb_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_fb_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
     p_ff_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_ff_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
-    
+    # reconstruct fb controller
     layers_dim_fb = []
     for i, layer in enumerate(p_fb_controller):
         W = layer[0] # shape (n_out_layer, n_in_layer)
@@ -426,19 +433,40 @@ else:
         if i == 0:
             n_input_fb = W.shape[1] # save input dim for the controller
     layers_dim_fb.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
+    # set activation fn for the last layer
+    if fb_controller_type == 'tanh_simlpe' or fb_controller_type == 'tanh_complete':
+        last_activation_fn_fb = 'tanh'
+    else:
+        last_activation_fn_fb = 'linear'
+    # re-build controller
+    mlp_fb_controller_dummy = MLP(key, layers_dim_fb, last_layer=last_activation_fn_fb)
+    mlp_fb_controller = mlp_fb_controller_dummy.update_params(p_fb_controller)
 
-    mlp_fb_controller_dummy = MLP(key, layers_dim, last_layer=)
-    mlp_controller = mlp_controller_dummy.update_params(p_controller)
-        
-    def controller(z, u, mlp_controller):
-        if n_input == 3*n_pcs + 1:
+    # reconstruct ff controller
+    layers_dim_ff = []
+    for i, layer in enumerate(p_ff_controller):
+        W = layer[0] # shape (n_out_layer, n_in_layer)
+        layers_dim_ff.append(W.shape[1]) # n_in_layer
+    layers_dim_ff.append(W.shape[0]) # last layer: add output dimension (i.e. n_out_layer for the last layer)
+    # set activation fn for the last layer
+    if ff_controller_type == 'tanh':
+        last_activation_fn_ff = 'tanh'
+    else:
+        last_activation_fn_ff = 'linear'
+    # re-build controller
+    mlp_ff_controller_dummy = MLP(key, layers_dim_ff, last_layer=last_activation_fn_ff)
+    mlp_ff_controller = mlp_ff_controller_dummy.update_params(p_ff_controller)
+    
+    # total controller
+    def controller(z, u, mlp_fb_controller, mlp_ff_controller):
+        if n_input_fb == 3*n_pcs + 1:
             q, qd = jnp.split(z, 2)
-            input_controller = jnp.concatenate([q, jnp.array([u])])
+            input_fb_controller = jnp.concatenate([q, jnp.array([u])])
         else:
-            input_controller = jnp.concatenate([z, jnp.array([u])])
-        tau = mlp_controller(input_controller)
+            input_fb_controller = jnp.concatenate([z, jnp.array([u])])
+        tau = mlp_fb_controller(input_fb_controller) + mlp_ff_controller(u)
         return tau
-    controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
+    controller = jax.jit(partial(controller, mlp_fb_controller=mlp_fb_controller, mlp_ff_controller=mlp_ff_controller))
 
 # Instantiate the reservoir
 reservoir = pcsReservoir(
@@ -726,7 +754,11 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"RESERVOIR PROPERTIES\n")
     file.write(f"   Model path: {load_model_path}\n")
     file.write(f"   Dimension:  {3*n_pcs}\n")
-    file.write(f"   Map:        {map_type}\n\n")
+    file.write(f"   Map:        {map_type}\n")
+    if unique_controller:
+        file.write(f"   Controller: {fb_controller_type} (unique)\n\n")
+    else:
+        file.write(f"   Controller: {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
     file.write(f"METRICS\n")
     file.write(f"   Accuracy (train set): {train_accuracy}\n")
     file.write(f"   Accuracy (test set):  {test_accuracy}\n")
