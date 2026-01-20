@@ -249,6 +249,7 @@ map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective'
 unique_controller = False # True if tau = tau_tot(z,u). False if tau = tau_fb(z) + tau_ff(u). !!! If True, the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -478,9 +479,7 @@ reservoir = pcsReservoir(
 )
 
 # Other stuff
-dt_u = 0.042 # time step for the input u. (in the RON paper dt = 0.042 s)
 dt_sim = 1e-4 # time step for the simulation
-
 reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap reservoir's forward
 time_u = jnp.linspace(0, dt_u * (len(train_set["images"][0]) - 1), len(train_set["images"][0])) # define time vector for the input image 
 saveat = jnp.arange(0, time_u[-1], dt_u) # for saving simulation results
@@ -769,7 +768,6 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
     file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
     file.write(f"   Elapsed time forward pass (test set):  {elatime_forward_pass_testing}\n")
-    file.write(f"   Accuracy (train set): {elatime_forward_pass_testing}\n")
     file.write(f"   Accuracy (train set): {train_accuracy}\n")
     file.write(f"   Accuracy (test set):  {test_accuracy}\n")
 
