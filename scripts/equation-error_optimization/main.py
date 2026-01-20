@@ -213,7 +213,11 @@ load_experiment = False # choose whether to load saved experiment or to perform 
 experiment = 'T66' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
+
+# Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
+ron_dataset = 'N6_withInput/dataset_m1e5_N6_withInput' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'N6_withInput/RON_evolution_N6_withInput' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
@@ -440,13 +444,7 @@ def Loss(
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-match ron_case:
-    case 'simple':
-        dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
-    case 'coupled':
-        dataset = onp.load(dataset_folder/'soft robot optimization/N6_noInput/dataset_m1e5_N6_noInput.npz')
-    case 'input':
-        dataset = onp.load(dataset_folder/'soft robot optimization/N6_withInput/dataset_m1e5_N6_withInput.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization'/f'{ron_dataset}.npz')
 y = dataset["y"] # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"] # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -682,13 +680,7 @@ robot = PlanarPCS_simple(
 # If required, simulate robot and compare its behaviour in time with the RON's one
 if show_simulations:
     # Load simulation results from RON
-    match ron_case:
-        case 'simple':
-            RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
-        case 'coupled':
-            RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_noInput/RON_evolution_N6_noInput.npz')
-        case 'input':
-            RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_withInput/RON_evolution_N6_withInput.npz')
+    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization'/f'{ron_evolution_example}.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'], dtype=jnp.float64)
     y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)
     yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)
