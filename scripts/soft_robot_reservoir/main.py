@@ -212,7 +212,7 @@ def animate_robot_matplotlib(
 """
 This script:
     1.  Takes a certain pcs reservoir's architecture (robot + map + controller) specified by the user in `load_model_path`
-        (! map type and controller type must be specified by hand in `map_type` and `controller_type`).
+        (! map type and controller type must be specified by hand in `map_type` and `fb_controller_type`, `ff_controller_type`).
 
     2.  Loads the MNIST dataset and extract part of it. In particular, a portion `train_set_portion` is extracted from the 
         full train MNIST set and a portion `test_set_portion` from the test MNIST set.
@@ -237,7 +237,7 @@ This script:
 example_idx = 2 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
 test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
-batch_size = 500 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
+batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
 experiment_name = 'smaller_dataset_new4' # name of the experiment to save/load
