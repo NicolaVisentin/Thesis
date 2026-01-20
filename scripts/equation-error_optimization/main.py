@@ -1622,6 +1622,7 @@ with open(data_folder/'metrics.txt', 'w') as file:
     else:
         file.write(f"   Controller: {fb_controller_to_train} (fb) + {ff_controller_to_train} (ff)\n\n")
     file.write(f"METRICS AFTER OPTIMIZATION\n")
+    file.write(f"   Elapsed time for optimization:               {elatime_optimiz}\n")
     file.write(f"   Final test RMS error:                        {RMSE}\n")
     if train_unique_controller:
         file.write(f"   Final test RMS power:                        {onp.sqrt(power_msv_after)}\n")

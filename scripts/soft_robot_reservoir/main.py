@@ -509,7 +509,8 @@ if train:
     last_states.block_until_ready()
     labels.block_until_ready()
     stop = time.perf_counter() 
-    print(f'Elapsed time: {stop-start}')
+    elatime_forward_pass_training = stop - start
+    print(f'Elapsed time: {elatime_forward_pass_training}')
 
     # Train the output layer (classifier) (2): logistic regression of the output layer
     print(f'\n--- Training the classifier (regression) ---')
@@ -518,7 +519,8 @@ if train:
     activations = scaler.transform(onp.array(last_states))
     classifier = LogisticRegression(max_iter=1000).fit(onp.array(activations), onp.array(labels))
     stop = time.perf_counter()
-    print(f'Elapsed time: {stop-start}')
+    elatime_train_output_layer = stop - start
+    print(f'Elapsed time: {elatime_train_output_layer}')
 
     # Save the trained classifier and scaler
     joblib.dump(scaler, data_folder/'scaler.pkl')
@@ -559,7 +561,8 @@ last_states.block_until_ready()
 labels.block_until_ready()
 activations = scaler.transform(onp.array(last_states))
 stop = time.perf_counter() 
-print(f'Elapsed time: {stop-start}')
+elatime_forward_pass_testing = stop - start
+print(f'Elapsed time: {elatime_forward_pass_testing}')
 
 # Accuracy
 test_accuracy = classifier.score(activations, labels)
@@ -747,6 +750,8 @@ plt.savefig(plots_folder/'Comparison_inference_actuation', bbox_inches='tight')
 if not train:
     train_set_size = '(training was not performed)'
     train_accuracy = '(training was not performed)'
+    elatime_forward_pass_training = '(training was not performed)'
+    elatime_train_output_layer = '(training was not performed)'
 
 with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"SETUP\n")
@@ -761,6 +766,10 @@ with open(data_folder/'performances.txt', 'w') as file:
     else:
         file.write(f"   Controller: {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
     file.write(f"METRICS\n")
+    file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
+    file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
+    file.write(f"   Elapsed time forward pass (test set):  {elatime_forward_pass_testing}\n")
+    file.write(f"   Accuracy (train set): {elatime_forward_pass_testing}\n")
     file.write(f"   Accuracy (train set): {train_accuracy}\n")
     file.write(f"   Accuracy (test set):  {test_accuracy}\n")
 
