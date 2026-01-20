@@ -237,7 +237,7 @@ This script:
 example_idx = 0 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
 test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
-batch_size = 3000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
+batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 
 # Output layer (scaler + classifier)
 experiment_name = 'A1_smaller_dataset' # name of the experiment to save/load
