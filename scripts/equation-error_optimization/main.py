@@ -1601,6 +1601,9 @@ reconstruction_rmse_yd = jnp.sqrt(jnp.mean(jnp.sum((test_set["yd"] - yd_decoded)
 reconstruction_rmse_ydd = jnp.sqrt(jnp.mean(jnp.sum((test_set["ydd"] - ydd_decoded)**2, axis=1)))
 
 # Save some metrics
+if load_experiment:
+    elatime_optimiz == '(optimization not performed)'
+
 with open(data_folder/'metrics.txt', 'w') as file:
     file.write(f"SETUP\n")
     file.write(f"   RON case:   {ron_case}\n")
