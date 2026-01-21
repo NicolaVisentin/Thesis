@@ -217,7 +217,7 @@ show_simulations = True # choose whether to perform time simulations of the appr
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
 ron_dataset = 'N6_DT0.006_RHO0.99/dataset_m1e5_N6_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'N6_DT0.006_RHO0.99/RON_evolution_N6_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'N6_DT0.006_RHO0.99/RON_evolution_N6_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
@@ -1602,7 +1602,7 @@ reconstruction_rmse_ydd = jnp.sqrt(jnp.mean(jnp.sum((test_set["ydd"] - ydd_decod
 
 # Save some metrics
 if load_experiment:
-    elatime_optimiz == '(optimization not performed)'
+    elatime_optimiz = '(optimization not performed)'
 
 with open(data_folder/'metrics.txt', 'w') as file:
     file.write(f"SETUP\n")
