@@ -1,0 +1,16 @@
+SETUP
+   Train set size: 6000
+   Test set size:  6000
+
+RESERVOIR PROPERTIES
+   Model path: /home/nicolavisentin/codes/saved data/equation-error_optimization/main/T53
+   Dimension:  6
+   Map:        encoder-decoder
+   Controller: tanh_complete (fb) + mlp (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 4366.08959335892
+   Elapsed time training output layer:    0.03049295989330858
+   Elapsed time forward pass (test set):  4364.501964490046
+   Accuracy (train set): 0.34
+   Accuracy (test set):  0.329
