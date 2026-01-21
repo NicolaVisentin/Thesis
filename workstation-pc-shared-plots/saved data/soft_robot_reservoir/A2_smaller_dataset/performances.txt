@@ -1,0 +1,16 @@
+SETUP
+   Train set size: 6000
+   Test set size:  6000
+
+RESERVOIR PROPERTIES
+   Model path: /home/nicolavisentin/codes/saved data/equation-error_optimization/main/A2
+   Dimension:  6
+   Map:        encoder-decoder
+   Controller: mlp (fb) + mlp (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 642.10307968501
+   Elapsed time training output layer:    0.10057838598731905
+   Elapsed time forward pass (test set):  637.7530747010605
+   Accuracy (train set): 0.6236666666666667
+   Accuracy (test set):  0.636

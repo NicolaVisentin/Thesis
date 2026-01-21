@@ -1,0 +1,10 @@
+SETUP
+   RON case:   input
+   Mapping:    reconstruction, (reconstruction loss up to ydd)
+   Controller: linear_complete (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               3872.20015273802
+   Final test RMS error:                        0.15791409449259705
+   Final test RMS power:                        0.14585613745156262 (fb: 0.16546917242756057, ff: 0.03948166806214357)
+   Final test RMSE reconstruction (y, yd, ydd): (0.0013075110039982235, 0.0024353069948256827, 0.009042142266996444)
