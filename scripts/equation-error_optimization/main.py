@@ -210,26 +210,27 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'A1' # name of the experiment to perform/load
+experiment = 'B1' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
-ron_dataset = 'N6_DT0.006_RHO0.99/dataset_m1e5_N6_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'N6_DT0.006_RHO0.99/RON_evolution_N6_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
                                # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
-fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
+fb_controller_to_train = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_to_train = 'linear' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robot
+n_pcs = 4 # number of segments for the PCS
 train_robot = True # if False, does not optimize the soft robot
 
 
@@ -486,14 +487,13 @@ train_size, n_ron = train_set["y"].shape
 print('--- BEFORE OPTIMIZATION ---')
 
 # Initialize parameters
-n_pcs = 2
 key, key_map, key_controller = jax.random.split(key, 3)
 
 # ...mapping
 match map_to_train:
     case 'diag':
         A_thresh = 1e-4 # threshold on the singular values
-        A0 = jnp.diag(jnp.array([1e0, 1e-1, 1e-1, 1e0, 1e-1, 1e-1]))
+        A0 = jnp.diag(jnp.tile(jnp.array([1e0, 1e-1, 1e-1])), n_pcs)
         c0 = jnp.zeros(3*n_pcs)
 
         map = None
@@ -780,9 +780,18 @@ if show_simulations:
         case 'norm_flow':
             y_hat_pcs, yd_hat_pcs = map.inverse_with_derivatives_batch(q_PCS, qd_PCS) # shape (n_steps, n_ron)
     
+    # Show max 15 DOFs in the plots
+    if 3*n_pcs > 15:
+        n_show = 15
+    else:
+        n_show = 3*n_pcs
+
+    n_cols = min(3, n_show)
+    n_rows = int(np.ceil(n_show / n_cols))
+
     # Plot PCS strains
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_pcs):
+    for i in range(n_show):
         axs[0].plot(timePCS, q_PCS[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -806,8 +815,8 @@ if show_simulations:
     #plt.show()
 
     # Plot actuation power
-    fig, axs = plt.subplots(3,1, figsize=(10,6))
-    for i in range(n_pcs):
+    fig, axs = plt.subplots(3,1, figsize=(12,9))
+    for i in range(n_show):
         axs[0].plot(timePCS, qd_PCS[:,3*i] * u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -831,39 +840,58 @@ if show_simulations:
     #plt.show()
 
     # Plot y(t) and y_hat(t)
-    fig, axs = plt.subplots(3,2, figsize=(12,9))
-    for i, ax in enumerate(axs.flatten()):
-        ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
-        ax.plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
-        ax.grid(True)
-        ax.set_xlabel('t [s]')
-        ax.set_ylabel('y, q')
-        ax.set_title(f'Component {i+1}')
-        ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-        ax.legend()
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
+    if n_show == 1:
+        axs = np.array([axs])
+    else:
+        axs = axs.flatten()
+
+    for i in range(n_show):
+        axs[i].plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
+        axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+        axs[i].grid(True)
+        axs[i].set_xlabel('t [s]')
+        axs[i].set_ylabel('y, q')
+        axs[i].set_title(f'Component {i+1}')
+        axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+        axs[i].legend()
+
+    for i in range(3*n_pcs, len(axs)):
+        axs[i].set_visible(False)
+
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
-    fig, axs = plt.subplots(3,2, figsize=(12,9))
-    for i, ax in enumerate(axs.flatten()):
-        ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
-        ax.plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
-        ax.grid(True)
-        ax.set_xlabel(r'$y$')
-        ax.set_ylabel(r'$\dot{y}$')
-        ax.set_title(f'Component {i+1}')
-        ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-        ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
-        ax.legend()
+
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
+    if n_show == 1:
+        axs = np.array([axs])
+    else:
+        axs = axs.flatten()
+
+    for i in range(n_show):
+        axs[i].plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+        axs[i].plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+        axs[i].grid(True)
+        axs[i].set_xlabel(r'$y$')
+        axs[i].set_ylabel(r'$\dot{y}$')
+        axs[i].set_title(f'Component {i+1}')
+        axs[i].set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+        axs[i].set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+        axs[i].legend()
+
+    for i in range(3*n_pcs, len(axs)):
+        axs[i].set_visible(False)
+
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
     #plt.show()
 
     # Plot total actuation
-    fig, axs = plt.subplots(3,1, figsize=(10,6))
-    for i in range(n_pcs):
+    fig, axs = plt.subplots(3,1, figsize=(12,9))
+    for i in range(n_show):
         axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -894,8 +922,8 @@ if show_simulations:
             tau_fb_component_ts = fb_mlp_controller.forward_batch(sim_out_pcs.y)
 
         # Plot feedforward actuation
-        fig, axs = plt.subplots(3,1, figsize=(10,6))
-        for i in range(n_pcs):
+        fig, axs = plt.subplots(3,1, figsize=(12,9))
+        for i in range(n_show):
             axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -919,8 +947,8 @@ if show_simulations:
         #plt.show()
 
         # Plot feedback actuation
-        fig, axs = plt.subplots(3,1, figsize=(10,6))
-        for i in range(n_pcs):
+        fig, axs = plt.subplots(3,1, figsize=(12,9))
+        for i in range(n_show):
             axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -1330,7 +1358,7 @@ if show_simulations:
 
     # Plot PCS strains
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_pcs):
+    for i in range(n_show):
         axs[0].plot(timePCS, q_PCS[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -1354,8 +1382,8 @@ if show_simulations:
     #plt.show()
 
     # Plot actuation power
-    fig, axs = plt.subplots(3,1, figsize=(10,6))
-    for i in range(n_pcs):
+    fig, axs = plt.subplots(3,1, figsize=(12,9))
+    for i in range(n_show):
         axs[0].plot(timePCS, qd_PCS[:,3*i] * u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -1379,39 +1407,57 @@ if show_simulations:
     #plt.show()
     
     # Plot y(t) and y_hat(t)
-    fig, axs = plt.subplots(3,2, figsize=(12,9))
-    for i, ax in enumerate(axs.flatten()):
-        ax.plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
-        ax.plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
-        ax.grid(True)
-        ax.set_xlabel('t [s]')
-        ax.set_ylabel('y, q')
-        ax.set_title(f'Component {i+1}')
-        #ax.set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-        ax.legend()
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
+    if n_show == 1:
+        axs = np.array([axs])
+    else:
+        axs = axs.flatten()
+
+    for i in range(n_show):
+        axs[i].plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
+        axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+        axs[i].grid(True)
+        axs[i].set_xlabel('t [s]')
+        axs[i].set_ylabel('y, q')
+        axs[i].set_title(f'Component {i+1}')
+        #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+        axs[i].legend()
+
+    for i in range(3*n_pcs, len(axs)):
+        axs[i].set_visible(False)
+
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
     #plt.show()
 
     # Plot phase planes
-    fig, axs = plt.subplots(3,2, figsize=(12,9))
-    for i, ax in enumerate(axs.flatten()):
-        ax.plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
-        ax.plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
-        ax.grid(True)
-        ax.set_xlabel(r'$y$')
-        ax.set_ylabel(r'$\dot{y}$')
-        ax.set_title(f'Component {i+1}')
-        #ax.set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
-        #ax.set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
-        ax.legend()
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
+    if n_show == 1:
+        axs = np.array([axs])
+    else:
+        axs = axs.flatten()
+
+    for i in range(n_show):
+        axs[i].plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
+        axs[i].plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+        axs[i].grid(True)
+        axs[i].set_xlabel(r'$y$')
+        axs[i].set_ylabel(r'$\dot{y}$')
+        axs[i].set_title(f'Component {i+1}')
+        #axs[i].set_xlim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
+        #axs[i].set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
+        axs[i].legend()
+
+    for i in range(3*n_pcs, len(axs)):
+        axs[i].set_visible(False)
+
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
     #plt.show()
 
     # Plot total actuation
-    fig, axs = plt.subplots(3,1, figsize=(10,6))
-    for i in range(n_pcs):
+    fig, axs = plt.subplots(3,1, figsize=(12,9))
+    for i in range(n_show):
         axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -1442,8 +1488,8 @@ if show_simulations:
             tau_fb_component_ts = fb_mlp_controller_opt.forward_batch(sim_out_pcs.y)
 
         # Plot feedforward actuation
-        fig, axs = plt.subplots(3,1, figsize=(10,6))
-        for i in range(n_pcs):
+        fig, axs = plt.subplots(3,1, figsize=(12,9))
+        for i in range(n_show):
             axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -1467,8 +1513,8 @@ if show_simulations:
         #plt.show()
 
         # Plot feedback actuation
-        fig, axs = plt.subplots(3,1, figsize=(10,6))
-        for i in range(n_pcs):
+        fig, axs = plt.subplots(3,1, figsize=(12,9))
+        for i in range(n_show):
             axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -1612,16 +1658,18 @@ if load_experiment:
 
 with open(data_folder/'metrics.txt', 'w') as file:
     file.write(f"SETUP\n")
-    file.write(f"   RON case:   {ron_case}\n")
-    file.write(f"   Mapping:    {map_to_train}")
+    file.write(f"   Latent dimension: {n_ron}\n")
+    file.write(f"   PCS segments:     {n_pcs}\n")
+    file.write(f"   RON case:         {ron_case}\n")
+    file.write(f"   Mapping:          {map_to_train}")
     if map_to_train == 'reconstruction':
         file.write(f", (reconstruction loss up to {reconstruction_type})\n")
     else:
         file.write(f"\n")
     if train_unique_controller:
-        file.write(f"   Controller: {fb_controller_to_train} (unique)\n\n")
+        file.write(f"   Controller:       {fb_controller_to_train} (unique)\n\n")
     else:
-        file.write(f"   Controller: {fb_controller_to_train} (fb) + {ff_controller_to_train} (ff)\n\n")
+        file.write(f"   Controller:       {fb_controller_to_train} (fb) + {ff_controller_to_train} (ff)\n\n")
     file.write(f"METRICS AFTER OPTIMIZATION\n")
     file.write(f"   Elapsed time for optimization:               {elatime_optimiz}\n")
     file.write(f"   Final test RMS error:                        {RMSE}\n")
