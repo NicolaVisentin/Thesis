@@ -229,6 +229,9 @@ ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = Fals
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
+# Robot
+train_robot = True # if False, does not optimize the soft robot
+
 
 # =====================================================
 # Functions
@@ -342,7 +345,8 @@ def Loss(
     E = jax.nn.softplus(E_raw)
     G = jax.nn.softplus(G_raw)
     
-    robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
+    if train_robot:
+        robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
 
     # ...map
     match map_to_train:
