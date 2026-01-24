@@ -791,7 +791,7 @@ if show_simulations:
 
     # Plot PCS strains
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_show):
+    for i in range(int(n_show/3)):
         axs[0].plot(timePCS, q_PCS[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -816,7 +816,7 @@ if show_simulations:
 
     # Plot actuation power
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_show):
+    for i in range(int(n_show/3)):
         axs[0].plot(timePCS, qd_PCS[:,3*i] * u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -891,7 +891,7 @@ if show_simulations:
 
     # Plot total actuation
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_show):
+    for i in range(int(n_show/3)):
         axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -923,7 +923,7 @@ if show_simulations:
 
         # Plot feedforward actuation
         fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(n_show):
+        for i in range(int(n_show/3)):
             axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -948,7 +948,7 @@ if show_simulations:
 
         # Plot feedback actuation
         fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(n_show):
+        for i in range(int(n_show/3)):
             axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -1358,7 +1358,7 @@ if show_simulations:
 
     # Plot PCS strains
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_show):
+    for i in range(int(n_show/3)):
         axs[0].plot(timePCS, q_PCS[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -1383,7 +1383,7 @@ if show_simulations:
 
     # Plot actuation power
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_show):
+    for i in range(int(n_show/3)):
         axs[0].plot(timePCS, qd_PCS[:,3*i] * u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -1457,7 +1457,7 @@ if show_simulations:
 
     # Plot total actuation
     fig, axs = plt.subplots(3,1, figsize=(12,9))
-    for i in range(n_show):
+    for i in range(int(n_show/3)):
         axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
         axs[0].grid(True)
         axs[0].set_xlabel('t [s]')
@@ -1489,7 +1489,7 @@ if show_simulations:
 
         # Plot feedforward actuation
         fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(n_show):
+        for i in range(int(n_show/3)):
             axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
@@ -1514,7 +1514,7 @@ if show_simulations:
 
         # Plot feedback actuation
         fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(n_show):
+        for i in range(int(n_show/3)):
             axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
             axs[0].grid(True)
             axs[0].set_xlabel('t [s]')
