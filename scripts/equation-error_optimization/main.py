@@ -347,6 +347,8 @@ def Loss(
     
     if train_robot:
         robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
+    else:
+        robot_updated = robot
 
     # ...map
     match map_to_train:
