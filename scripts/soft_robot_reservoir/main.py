@@ -484,8 +484,9 @@ elif controller_type == 'ff+fb':
 else:
     # no fb controller case
     key, key_V, key_d = jax.random.split(key, 3)
-    V = jax.random.uniform(key_V, shape=(3*n_pcs,1), minval=0.0, maxval=1.0) # random input-to-hidden weights
-    d = jax.random.uniform(key_d, shape=(3*n_pcs,), minval=-1.0, maxval=1.0) # random input-to-hodden bias
+    scal_input = jnp.tile(jnp.array([0.001, 0.1, 0.01]), n_pcs)
+    V = scal_input[:,None] * jax.random.uniform(key_V, shape=(3*n_pcs,1), minval=0.0, maxval=1.0) # random input-to-hidden weights
+    d = scal_input * jax.random.uniform(key_d, shape=(3*n_pcs,), minval=-1.0, maxval=1.0) # random input-to-hodden bias
     def controller(z, u, V, d):
         tau_ff = jnp.tanh(V @ jnp.array([u]) + d)
         return tau_ff
