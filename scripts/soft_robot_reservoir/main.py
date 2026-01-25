@@ -433,7 +433,7 @@ if controller_type == 'unique':
         return tau
     controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
 
-elif controller_type == 'ff+fb':
+elif controller_type == 'fb+ff':
     # load parameters for fb and ff controllers
     p_fb_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_fb_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
     p_ff_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_ff_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
