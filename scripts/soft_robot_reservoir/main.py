@@ -245,8 +245,8 @@ train = True # if True, perform training (output layer). Otherwise, test saved '
 
 # Reservoir (robot + map + controller)
 load_model_path = saved_data_folder/'equation-error_optimization'/'main'/'A1' # choose the reservoir to load (robot + map + controller)
-map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective'
-unique_controller = False # True if tau = tau_tot(z,u). False if tau = tau_fb(z) + tau_ff(u). !!! If True, the controller tau_tot is defined in fb_controller_type
+map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
+controller_type = 'fb+ff' # if 'unique': tau = tau_tot(z,u). If 'fb+ff': tau = tau_fb(z) + tau_ff(u). If 'ff': tau = tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
 dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
@@ -389,10 +389,21 @@ match map_type:
             y, yd = map.inverse_with_derivatives_batch(q, qd)
             return y, yd
         map_inverse = jax.jit(partial(map_inverse, map=realnvp_map))
+    
+    case 'none':
+        @jax.jit
+        def map_direct(y, yd):
+            q, qd = y, yd
+            return q, qd
+
+        @jax.jit
+        def map_inverse(q, qd):
+            y, yd = q, qd
+            return y, yd
 
 # Define controller
 mlp_controller_loader = MLP(key, [1, 1]) # instance just for loading parameters
-if unique_controller:
+if controller_type == 'unique':
     # load parameters
     p_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
     # find out layers and dimensions: layers_dim = [dim_in, dim_hid1, dim_hid2, ..., dim_out]
@@ -422,7 +433,7 @@ if unique_controller:
         return tau
     controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
 
-else:
+elif controller_type == 'ff+fb':
     # load parameters for fb and ff controllers
     p_fb_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_fb_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
     p_ff_controller = mlp_controller_loader.load_params(load_model_path/'optimal_data_ff_controller.npz') # tuple ((W1, b1), (W2, b2), ...)
@@ -469,6 +480,16 @@ else:
         tau = tau_fb + tau_ff
         return tau
     controller = jax.jit(partial(controller, mlp_fb_controller=mlp_fb_controller, mlp_ff_controller=mlp_ff_controller))
+
+else:
+    # no fb controller case
+    key, key_V, key_d = jax.random.split(key, 3)
+    V = jax.random.uniform(key_V, shape=(1, 3*n_pcs), minval=0.0, maxval=1.0) # random input-to-hidden weights
+    d = jax.random.uniform(key_d, shape=(3*n_pcs,), minval=-1.0, maxval=1.0) # random input-to-hodden bias
+    def controller(z, u, V, d):
+        tau_ff = jnp.tanh(V @ jnp.array([u]) + d)
+        return tau_ff
+    controller = jax.jit(partial(controller, V=V, d=d))
 
 # Instantiate the reservoir
 reservoir = pcsReservoir(
@@ -760,10 +781,12 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Model path: {load_model_path}\n")
     file.write(f"   Dimension:  {3*n_pcs}\n")
     file.write(f"   Map:        {map_type}\n")
-    if unique_controller:
+    if controller_type == 'unique':
         file.write(f"   Controller: {fb_controller_type} (unique)\n\n")
-    else:
+    elif controller_type == 'fb+ff':
         file.write(f"   Controller: {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
+    else:
+        file.write(f"   Controller: no fb + random ff\n\n")
     file.write(f"METRICS\n")
     file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
     file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
