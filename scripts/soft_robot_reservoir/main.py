@@ -238,6 +238,7 @@ example_idx = 0 # if it is an integer i, loads the i-th image from MNIST test se
 train_set_portion = 6000 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
 test_set_portion = 6000 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
 batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
+dt_u = 0.042 # time step for the input u. (in the RON paper dt = 0.042 s)
 
 # Output layer (scaler + classifier)
 experiment_name = 'A1_smaller_dataset' # name of the experiment to save/load
@@ -249,7 +250,6 @@ map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
 controller_type = 'fb+ff' # if 'unique': tau = tau_tot(z,u). If 'fb+ff': tau = tau_fb(z) + tau_ff(u). If 'ff': tau = tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
-dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
