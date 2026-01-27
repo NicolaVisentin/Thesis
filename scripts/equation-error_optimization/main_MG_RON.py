@@ -210,7 +210,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'A1' # name of the experiment to perform/load
+experiment = 'TEST' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
@@ -220,10 +220,10 @@ ron_dataset = 'MG_RON_N6_DT0.05_inpscal0.1/dataset_m1e5_N6_DT0.05_inpscal0.1' # 
 ron_evolution_example = 'MG_RON_N6_DT0.05_inpscal0.1/RON_evolution_N6_DT0.05_inpscal0.1' # name of the case to load from 'soft robot optimization' folder
 
 # controller
-train_unique_controller = True # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
+train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
                                # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
 fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_to_train = 'linear' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
+ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
@@ -917,7 +917,7 @@ if show_simulations:
         #plt.show()
 
         if not train_unique_controller:
-            tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len])
+            tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len,None])
             if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
                 tau_fb_component_ts = fb_mlp_controller.forward_batch(q_PCS)
             else:
@@ -1485,7 +1485,7 @@ if show_simulations:
     #plt.show()
 
     if not train_unique_controller:
-        tau_ff_component_ts = ff_mlp_controller_opt.forward_batch(u_RONsaved[:min_len])
+        tau_ff_component_ts = ff_mlp_controller_opt.forward_batch(u_RONsaved[:min_len,None])
         if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
             tau_fb_component_ts = fb_mlp_controller_opt.forward_batch(q_PCS)
         else:
