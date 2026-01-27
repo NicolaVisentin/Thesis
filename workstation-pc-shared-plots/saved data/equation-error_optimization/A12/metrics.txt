@@ -1,0 +1,12 @@
+SETUP
+   Latent dimension: 6
+   PCS segments:     2
+   RON case:         input
+   Mapping:          reconstruction, (reconstruction loss up to ydd)
+   Controller:       linear_simple (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               4035.5994652158115
+   Final test RMS error:                        0.3451605246332459
+   Final test RMS power:                        1.4562732023965543 (fb: 1.3725879521508753, ff: 0.16730400864837827)
+   Final test RMSE reconstruction (y, yd, ydd): (0.002999743351570743, 0.004219798892326976, 0.017494791403653724)
