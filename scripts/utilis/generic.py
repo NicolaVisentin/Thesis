@@ -185,7 +185,7 @@ def extract_batch(
 
 
 # Load Mackey-Glass dataset
-def load_mackey_glass_data(csvfolder: Path, lag=84, washout=200):
+def load_mackey_glass_data(csvfolder: Path, lag=84, washout=200, train_portion=0.5, val_portion=0.25):
     """Get the Mackey-Glass dataset and return the train, validation and test datasets
     as numpy arrays.
 
@@ -203,8 +203,8 @@ def load_mackey_glass_data(csvfolder: Path, lag=84, washout=200):
     # 10k steps
     dataset = np.array([float(el) for el in data_lines.split(",")], dtype=np.float64)
 
-    end_train = int(dataset.shape[0] / 2)
-    end_val = end_train + int(dataset.shape[0] / 4)
+    end_train = int(dataset.shape[0] * train_portion)
+    end_val = end_train + int(dataset.shape[0] * val_portion)
     end_test = dataset.shape[0]
 
     train_dataset = dataset[: end_train - lag]
