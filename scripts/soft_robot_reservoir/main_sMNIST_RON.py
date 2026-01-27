@@ -214,7 +214,7 @@ This script:
     1.  Takes a certain pcs reservoir's architecture (robot + map + controller) specified by the user in `load_model_path`
         (! map type and controller type must be specified by hand in `map_type` and `fb_controller_type`, `ff_controller_type`).
 
-    2.  Loads the MNIST dataset and extract part of it. In particular, a portion `train_set_portion` is extracted from the 
+    2.  Loads the MNIST dataset and extracts part of it. In particular, a portion `train_set_portion` is extracted from the 
         full train MNIST set and a portion `test_set_portion` from the test MNIST set.
 
     3a. If `train` is True, output layer (scaler + classifier) is trained with the given reservoir. Trained scaler and 
