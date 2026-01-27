@@ -391,9 +391,9 @@ def Loss(
 
 # Load dataset: m data from a RON with n_ron oscillators
 if not coupled_case:
-    dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
+    dataset = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_simplified/dataset_m1e5_N6_simplified.npz')
 else:
-    dataset = onp.load(dataset_folder/'soft robot optimization/N6_noInput/dataset_m1e5_N6_noInput.npz')
+    dataset = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_noInput/dataset_m1e5_N6_noInput.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
@@ -502,9 +502,9 @@ robot = PlanarPCS_simple(
 
 # Load simulation results from RON
 if not coupled_case:
-    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
+    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_simplified/RON_evolution_N6_simplified_a.npz')
 else:
-    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_noInput/RON_evolution_N6_noInput.npz')
+    RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_noInput/RON_evolution_N6_noInput.npz')
 time_RONsaved = jnp.array(RON_evolution_data['time'], dtype=jnp.float64)
 y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)
 yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)

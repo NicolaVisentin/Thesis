@@ -259,16 +259,16 @@ def map(r, A, c):
     return z
 
 # RON dataset (decoupled case)
-RON_dataset = onp.load(dataset_folder/'soft robot optimization/N6_simplified/dataset_m1e5_N6_simplified.npz')
+RON_dataset = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_simplified/dataset_m1e5_N6_simplified.npz')
 
 # RON data (decoupled case)
-RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/N6_simplified/RON_evolution_N6_simplified_a.npz')
+RON_evolution_data = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_simplified/RON_evolution_N6_simplified_a.npz')
 time_RONsaved = jnp.array(RON_evolution_data['time'])
 y_RONsaved = jnp.array(RON_evolution_data['y'])
 yd_RONsaved = jnp.array(RON_evolution_data['yd'])
 
 # RON data (coupled case)
-RON_evolution_data_coupled = onp.load(dataset_folder/'soft robot optimization/N6_noInput/RON_evolution_N6_noInput.npz')
+RON_evolution_data_coupled = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_noInput/RON_evolution_N6_noInput.npz')
 time_RONsaved_coupled = jnp.array(RON_evolution_data_coupled['time'])
 y_RONsaved_coupled = jnp.array(RON_evolution_data_coupled['y'])
 yd_RONsaved_coupled = jnp.array(RON_evolution_data_coupled['yd'])

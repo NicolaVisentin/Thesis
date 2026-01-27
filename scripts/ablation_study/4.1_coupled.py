@@ -184,7 +184,7 @@ Araw2A_vmap = jax.vmap(Araw2A, in_axes=(0,None))
 # =====================================================
 
 # Load dataset: m data from a RON with n_ron oscillators
-dataset = onp.load(dataset_folder/'soft robot optimization/N6_noInput/dataset_m1e5_N6_noInput.npz')
+dataset = onp.load(dataset_folder/'soft robot optimization/sMNIST_RON_N6_noInput/dataset_m1e5_N6_noInput.npz')
 y = dataset["y"]     # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"]   # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)

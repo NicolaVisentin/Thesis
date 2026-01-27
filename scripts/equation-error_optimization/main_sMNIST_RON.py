@@ -216,8 +216,8 @@ show_simulations = True # choose whether to perform time simulations of the appr
 
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
-ron_dataset = 'N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
