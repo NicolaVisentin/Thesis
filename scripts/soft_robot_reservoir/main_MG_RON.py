@@ -11,7 +11,7 @@ import numpy as onp
 import jax
 import jax.numpy as jnp
 from sklearn import preprocessing
-from sklearn.linear_model import LogisticRegression
+from sklearn.linear_model import Ridge
 import joblib
 import copy
 
@@ -228,6 +228,8 @@ This script:
 
 # General
 dt_u = 0.05 # time step for the input u. (in the RON paper dt = 0.17 s)
+Nw = 200 # washout steps for the Mackey-Glass task
+Nl = 84 # prediction lag for the Mackey-Glass task
 
 # Output layer (scaler + predictor)
 experiment_name = 'A1' # name of the experiment to save/load
@@ -256,23 +258,15 @@ plots_folder.mkdir(parents=True, exist_ok=True)
     (train_dataset, train_target),
     (valid_dataset, valid_target),
     (test_dataset, test_target),
-) = load_mackey_glass_data(csvfolder=dataset_folder/'MG', lag=84, washout=200)
+) = load_mackey_glass_data(csvfolder=dataset_folder/'MG', lag=Nl, washout=Nw, train_portion=0.2, val_portion=0.6)
 
 # Convert to jax
-train_dataset = jnp.array([train_dataset], dtype=jnp.float64)
-valid_dataset = jnp.array([valid_dataset], dtype=jnp.float64)
-test_dataset = jnp.array([test_dataset], dtype=jnp.float64)
+train_dataset = jnp.array([train_dataset], dtype=jnp.float64).squeeze() # sequence from k=0 to k=N-Nl-1. Shape (N-Nl,)
+valid_dataset = jnp.array([valid_dataset], dtype=jnp.float64).squeeze() # sequence from k=0 to k=N-Nl-1. Shape (N-Nl,)
+test_dataset = jnp.array([test_dataset], dtype=jnp.float64).squeeze() # sequence from k=0 to k=N-Nl-1. Shape (N-Nl,)
 
-# Take only a portion of the test/train sets
-fraction_train = train_set_portion if train_set_portion < 1.1 else train_set_portion/len(train_set["labels"])
-fraction_test = test_set_portion if test_set_portion < 1.1 else test_set_portion/len(test_set["labels"])
-
-key, subkey1, subkey2 = jax.random.split(key, 3)
-train_set, _, _ = split_dataset(subkey1, train_set, fraction_train)
-test_set, _, _ = split_dataset(subkey2, test_set, fraction_test)
-
-train_set_size = len(train_set["labels"])
-test_set_size = len(test_set["labels"])
+N_train = len(train_dataset) # N for the train set sequence
+N_test = len(test_dataset) # N for the test set sequence
 
 
 # =====================================================
@@ -489,9 +483,10 @@ reservoir = pcsReservoir(
 
 # Other stuff
 dt_sim = 1e-4 # time step for the simulation
-reservoir_forward = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap reservoir's forward
-time_u = jnp.linspace(0, dt_u * (len(train_set["images"][0]) - 1), len(train_set["images"][0])) # define time vector for the input image 
-saveat = jnp.arange(0, time_u[-1], dt_u) # for saving simulation results
+time_u_train = dt_u * jnp.arange(0, N_train) # define time vector for the train input sequence
+time_u_test = dt_u * jnp.arange(0, N_test) # define time vector for the test input sequence
+saveat_train = time_u_train # for saving simulation results
+saveat_test = time_u_test # for saving simulation results
 
 
 # =====================================================
@@ -499,33 +494,29 @@ saveat = jnp.arange(0, time_u[-1], dt_u) # for saving simulation results
 # =====================================================
 
 if train:
-    # Train the output layer (predictor) (1): pass all the inputs in the train set to the model
-    print(f'--- Generating previsions for training ---')
-    key, subkey = jax.random.split(key)
-    batch_ids = batch_indx_generator(subkey, train_set_size, batch_size=batch_size) # create indices for the batches
-    last_states, labels = [], []
+    # Train the output layer (predictor) (1): pass the train input sequence to the model
+    print(f'--- Generating activations for training ---')
     start = time.perf_counter()
-    for i in tqdm(range(len(batch_ids)), 'Model forward'):
-        batch_i_ids = batch_ids[i]
-        train_batch = extract_batch(train_set, batch_i_ids)
-        _, _, _, _, last_states_batch = reservoir_forward(train_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
-        last_states.append(last_states_batch)
-        labels.append(train_batch["labels"])
-
-    last_states = jnp.concatenate(last_states) # shape (num_train_images, num_hidden_units)
-    labels = jnp.concatenate(labels) # shape (num_train_images,)
-    last_states.block_until_ready()
-    labels.block_until_ready()
+    (
+        time_ts,
+        state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
+        state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 3*n_pcs)
+        actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs)
+        _
+     ) = reservoir(train_dataset, time_u_train, saveat_train, dt_sim)
+    activations = state_reservoir_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
+    activations.block_until_ready()
     stop = time.perf_counter() 
     elatime_forward_pass_training = stop - start
     print(f'Elapsed time: {elatime_forward_pass_training}')
+    activations = onp.array(activations)
 
-    # Train the output layer (predictor) (2): logistic regression of the output layer
-    print(f'\n--- Training the predictor (regression) ---')
+    # Train the output layer (2): logistic regression of the output layer
+    print('\nTraining the output layer (regression)...')
     start = time.perf_counter()
-    scaler = preprocessing.StandardScaler().fit(onp.array(last_states))
-    activations = scaler.transform(onp.array(last_states))
-    predictor = LogisticRegression(max_iter=1000).fit(onp.array(activations), onp.array(labels))
+    scaler = preprocessing.StandardScaler().fit(activations)
+    activations = scaler.transform(activations)
+    predictor = Ridge(max_iter=1000).fit(activations, train_target)
     stop = time.perf_counter()
     elatime_train_output_layer = stop - start
     print(f'Elapsed time: {elatime_train_output_layer}')
@@ -535,8 +526,11 @@ if train:
     joblib.dump(predictor, data_folder/'predictor.pkl')
 
     # Train accuracy
-    train_accuracy = predictor.score(activations, labels)
-    print(f'Accuracy on the train set: {train_accuracy}')
+    pred = predictor.predict(activations)
+    rmse = jnp.sqrt(jnp.mean((pred - train_target) ** 2))
+    rms_target = jnp.sqrt(jnp.mean(train_target ** 2))
+    train_nrmse = (rmse / rms_target)
+    print(f'Train NRMSE: {train_nrmse}')
 
 
 # =====================================================
@@ -552,92 +546,54 @@ if not train:
 
 # Forward on the test set
 print(f'--- Evaluating perfomances (test set) ---')
-key, subkey = jax.random.split(key)
-batch_ids = batch_indx_generator(subkey, test_set_size, batch_size=batch_size) # create indices for the batches
-last_states, labels = [], []
 start = time.perf_counter()
-for i in tqdm(range(len(batch_ids)), 'Model forward'):
-    batch_i_ids = batch_ids[i]
-    test_batch = extract_batch(test_set, batch_i_ids)
-    _, _, _, _, last_states_batch = reservoir_forward(test_batch["images"], time_u, saveat, dt_sim) # shape (batch_size, num_hidden_units)
-    last_states.append(last_states_batch)
-    labels.append(test_batch["labels"])
+(
+    time_ts,
+    state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
+    state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 3*n_pcs)
+    actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs)
+    _
+) = reservoir(test_dataset, time_u_test, saveat_test, dt_sim)
 
-last_states = jnp.concatenate(last_states) # shape (num_test_images, num_hidden_units)
-labels = jnp.concatenate(labels) # shape (num_test_images,)
-last_states.block_until_ready()
-labels.block_until_ready()
-activations = scaler.transform(onp.array(last_states))
+activations = state_reservoir_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
+activations.block_until_ready()
 stop = time.perf_counter() 
 elatime_forward_pass_testing = stop - start
 print(f'Elapsed time: {elatime_forward_pass_testing}')
 
-# Accuracy
-test_accuracy = predictor.score(activations, labels)
-print(f'Accuracy on the test set: {test_accuracy}')
-
-# Visualize the activations for all the test set
-fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 5), sharex=True)
-for i in range(last_states.shape[1]):
-    ax1.scatter(last_states[:,i], (i+1)*np.ones(len(last_states)), label=f'Component {i+1}')
-ax1.set_title('Last states')
-ax1.set_xlabel(r'$y(t_{f})$')
-ax1.set_ylabel('component')
-ax1.grid(True)
-
-for i in range(activations.shape[1]):
-    ax2.scatter(activations[:,i], (i+1)*np.ones(len(activations)), label=f'Component {i+1}')
-ax2.set_title('Activations')
-ax2.set_xlabel(r'$\tilde{y}$')
-ax2.set_ylabel('component')
-ax2.grid(True)
-
-plt.tight_layout()
-plt.savefig(plots_folder/'all_testset_activations', bbox_inches='tight')
-#plt.show()
+# Prediction and test accuracy
+activations = onp.array(activations)
+activations = scaler.transform(activations)
+pred = predictor.predict(activations)
+rmse = jnp.sqrt(jnp.mean((pred - test_target) ** 2))
+rms_target = jnp.sqrt(jnp.mean(test_target ** 2))
+test_nrmse = (rmse / rms_target)
+print(f'Test NRMSE: {test_nrmse}')
 
 
 # =====================================================
-# Testing on a single image
+# Show results of the test
 # =====================================================
-print(f'\n--- Testing single example ---')
 
-# Load image to test
-if example_idx == 'black':
-    image = jnp.zeros((784,)) # completely black image (null input), shape (784,)
-    image_raw = jnp.zeros((28,28)) # shape (28, 28)
-    label = 0
-else:
-    image = test_set["images"][example_idx] # shape (784,)
-    image_raw = image.reshape(28,28) # shape (28, 28)
-    label = test_set["labels"][example_idx]
+# Prepare variables
+y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir states
+q_ts, qd_ts = jnp.split(state_pcs_ts, 2, axis=1) # robot states
+full_time = dt_u * onp.arange(0, N_test + Nl)
+full_sequence = onp.concatenate([onp.array(test_dataset), test_target[-Nl:]]) # full MG test sequence
 
-# Try inference
-start = time.perf_counter()
-time_ts, state_reservoir_ts, state_pcs_ts, actuation_ts, last_states = reservoir(image, time_u, saveat, dt_sim)
-y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1)
-q_ts, qd_ts = jnp.split(state_pcs_ts, 2, axis=1)
-stop = time.perf_counter()
-print(f'Elapsed time (simulation): {stop-start}')
+# Show predicted sequence
+fig, ax = plt.subplots(1,1, figsize=(20,6))
+ax.plot(full_time, full_sequence, 'k--', label='full sequence')
+ax.plot(full_time[Nw:N_test-Nl], full_sequence[Nw:N_test-Nl], 'k', label='test sequence')
+ax.plot(full_time[Nw+Nl:], pred, 'r', label='predicted sequence')
+ax.grid(True)
+ax.set_xlabel('t [s]')
+ax.set_ylabel('x')
+ax.set_title('Mackey-Glass sequence')
+ax.legend()
 
-last_states = last_states[None,:] # sklear requires input (n_inputs, dim_inputs)
-activations = scaler.transform(last_states)
-pred = predictor.predict(activations)[0] # prediction
-probs = predictor.predict_proba(activations).squeeze() # probabilities
-
-# Show prediction
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
-
-ax1.imshow(image_raw, cmap='gray')
-ax1.set_title('Input')
-
-ax2.bar(np.arange(10), probs, color='skyblue')
-ax2.set_title(f'Prediction: {pred}')
-ax2.set_xlabel('classes')
-ax2.set_ylabel('probability')
-ax2.set_xticks(np.arange(10))
 plt.tight_layout()
-plt.savefig(plots_folder/'Example_inference', bbox_inches='tight') 
+plt.savefig(plots_folder/'Prediction', bbox_inches='tight')
 #plt.show()
 
 # Show reservoir/robot evolution
@@ -658,9 +614,9 @@ plt.savefig(plots_folder/'Example_inference_evolution', bbox_inches='tight')
 fig, axs = plt.subplots(3,2, figsize=(16,13))
 for i, ax in enumerate(axs.flatten()):
     ax2 = ax.twinx()
-    ax2.plot(time_u, image, 'k', alpha=0.3, label=r'reservoir input $u(t)$')
+    ax2.plot(time_ts, test_dataset, 'k', alpha=0.3, label=r'reservoir input $u(t)$')
     ax2.set_ylabel(r'$u$')
-    ax2.set_ylim([-0.1, 2])
+    ax2.set_ylim([-0.6, 0.4])
 
     ax.plot(time_ts, actuation_ts[:,i], 'r', label=r'robot actuation $\tau(t)$')
     ax.set_xlabel('t [s]')
@@ -691,80 +647,19 @@ animate_robot_matplotlib(
 
 
 # =========================================================
-# Compare with another image
-# =========================================================
-print(f'\n--- Testing another example (for comparison) ---')
-
-# Load another image from MNIST dataset
-if example_idx == 'black':
-    image2 = test_set["images"][0] # shape (784,)
-else:
-    image2 = test_set["images"][example_idx+1] # shape (784,)
-
-# Try inference
-start = time.perf_counter()
-time_ts2, state_reservoir_ts2, state_pcs_ts2, actuation_ts2, last_states2 = reservoir(image2, time_u, saveat, dt_sim)
-y_ts2, yd_ts2 = jnp.split(state_reservoir_ts2, 2, axis=1)
-q_ts2, qd_ts2 = jnp.split(state_pcs_ts2, 2, axis=1)
-stop = time.perf_counter()
-print(f'Elapsed time (simulation): {stop-start}')
-
-# Compare reservoir/robot evolutions
-fig, axs = plt.subplots(3,2, figsize=(12,9))
-for i, ax in enumerate(axs.flatten()):
-    ax.plot(time_ts, y_ts[:,i], 'b', label='reservoir (ex. 1)')
-    ax.plot(time_ts, q_ts[:,i], 'r', label='soft robot (ex. 1)')
-    ax.plot(time_ts2, y_ts2[:,i], 'b--', label='reservoir (ex. 2)')
-    ax.plot(time_ts2, q_ts2[:,i], 'r--', label='soft robot (ex. 2)')
-    ax.grid(True)
-    ax.set_xlabel('t [s]')
-    ax.set_ylabel('y, q')
-    ax.set_title(f'Component {i+1}')
-    ax.legend(loc='upper left')
-plt.tight_layout()
-plt.savefig(plots_folder/'Comparison_inference_evolution', bbox_inches='tight') 
-#plt.show()
-
-# Compare actuation signals tau(t)
-fig, axs = plt.subplots(3,2, figsize=(16,13))
-for i, ax in enumerate(axs.flatten()):
-    ax2 = ax.twinx()
-    ax2.plot(time_u, image, 'k', alpha=0.3, label=r'reservoir input $u(t)$ (ex. 1)')
-    ax2.plot(time_u, image2, 'k--', alpha=0.3, label=r'reservoir input $u(t)$ (ex. 2)')
-    ax2.set_ylabel(r'$u$')
-    ax2.set_ylim([-0.1, 2])
-
-    ax.plot(time_ts, actuation_ts[:,i], 'r', label=r'robot actuation $\tau(t)$ (ex. 1)')
-    ax.plot(time_ts2, actuation_ts2[:,i], 'r--', label=r'robot actuation $\tau(t)$ (ex. 2)')
-    ax.set_xlabel('t [s]')
-    ax.set_ylabel(r'$\tau$')
-    y_min, y_max = ax.get_ylim()
-    ax.set_ylim([y_min, 1.5*y_max])
-
-    ax.grid(True)
-    ax.set_title(f'Component {i+1}')
-    ax.legend(loc='upper left')
-    ax2.legend(loc='upper right')
-
-plt.tight_layout()
-plt.savefig(plots_folder/'Comparison_inference_actuation', bbox_inches='tight') 
-#plt.show()
-
-
-# =========================================================
 # Save text file with performances and data
 # =========================================================
 
 if not train:
-    train_set_size = '(training was not performed)'
-    train_accuracy = '(training was not performed)'
+    N_train = '(training was not performed)'
+    train_nrmse = '(training was not performed)'
     elatime_forward_pass_training = '(training was not performed)'
     elatime_train_output_layer = '(training was not performed)'
 
 with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"SETUP\n")
-    file.write(f"   Train set size: {train_set_size}\n")
-    file.write(f"   Test set size:  {test_set_size}\n\n")
+    file.write(f"   Train set size: {N_train}\n")
+    file.write(f"   Test set size:  {N_test}\n\n")
     file.write(f"RESERVOIR PROPERTIES\n")
     file.write(f"   Model path: {load_model_path}\n")
     file.write(f"   Dimension:  {3*n_pcs}\n")
@@ -779,8 +674,8 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
     file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
     file.write(f"   Elapsed time forward pass (test set):  {elatime_forward_pass_testing}\n")
-    file.write(f"   Accuracy (train set): {train_accuracy}\n")
-    file.write(f"   Accuracy (test set):  {test_accuracy}\n")
+    file.write(f"   NRMSE (train set): {train_nrmse}\n")
+    file.write(f"   NRMSE (test set):  {test_nrmse}\n")
 
 
 # =========================================================
