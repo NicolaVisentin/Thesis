@@ -209,8 +209,8 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
-load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'T101' # name of the experiment to perform/load
+load_experiment = True # choose whether to load saved experiment or to perform training
+experiment = 'T16' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
@@ -222,11 +222,11 @@ ron_evolution_example = 'sMNIST_RON_N6_simplified/RON_evolution_N6_simplified_a'
 # controller
 train_unique_controller = True # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
                                # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
-fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+fb_controller_to_train = 'linear_simple' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_to_train = 'linear' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
-map_to_train = 'reconstruction' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robot
@@ -748,6 +748,16 @@ if show_simulations:
             q0, qd0 = map.forward_with_derivatives(y_RONsaved[0], yd_RONsaved[0])
     initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
+    # Show max 15 DOFs in the plots
+    if 3*n_pcs > 15:
+        n_show = 15
+    else:
+        n_show = 3*n_pcs
+
+    n_cols = min(3, n_show)
+    n_rows = int(np.ceil(n_show / n_cols))
+
+if True:
     # Simulate robot
     print('Simulating robot...')
     start = time.perf_counter()
@@ -779,15 +789,6 @@ if show_simulations:
             yd_hat_pcs = jnp.einsum("bij,bj->bi", jax.vmap(decoder.compute_jacobian)(q_PCS), qd_PCS) # yd_hat(t) = J_psi(q(t))*qd(t)
         case 'norm_flow':
             y_hat_pcs, yd_hat_pcs = map.inverse_with_derivatives_batch(q_PCS, qd_PCS) # shape (n_steps, n_ron)
-    
-    # Show max 15 DOFs in the plots
-    if 3*n_pcs > 15:
-        n_show = 15
-    else:
-        n_show = 3*n_pcs
-
-    n_cols = min(3, n_show)
-    n_rows = int(np.ceil(n_show / n_cols))
 
     # Plot PCS strains
     fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -851,7 +852,7 @@ if show_simulations:
         axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
         axs[i].grid(True)
         axs[i].set_xlabel('t [s]')
-        axs[i].set_ylabel('y, q')
+        axs[i].set_ylabel('y')
         axs[i].set_title(f'Component {i+1}')
         axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         axs[i].legend()
@@ -1418,7 +1419,7 @@ if show_simulations:
         axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
         axs[i].grid(True)
         axs[i].set_xlabel('t [s]')
-        axs[i].set_ylabel('y, q')
+        axs[i].set_ylabel('y')
         axs[i].set_title(f'Component {i+1}')
         #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         axs[i].legend()
