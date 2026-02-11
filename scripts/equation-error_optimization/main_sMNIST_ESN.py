@@ -748,6 +748,16 @@ if show_simulations:
             q0, qd0 = map.forward_with_derivatives(y_RONsaved[0], yd_RONsaved[0])
     initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
 
+    # Show max 15 DOFs in the plots
+    if 3*n_pcs > 15:
+        n_show = 15
+    else:
+        n_show = 3*n_pcs
+
+    n_cols = min(3, n_show)
+    n_rows = int(np.ceil(n_show / n_cols))
+
+if True:
     # Simulate robot
     print('Simulating robot...')
     start = time.perf_counter()
@@ -779,15 +789,6 @@ if show_simulations:
             yd_hat_pcs = jnp.einsum("bij,bj->bi", jax.vmap(decoder.compute_jacobian)(q_PCS), qd_PCS) # yd_hat(t) = J_psi(q(t))*qd(t)
         case 'norm_flow':
             y_hat_pcs, yd_hat_pcs = map.inverse_with_derivatives_batch(q_PCS, qd_PCS) # shape (n_steps, n_ron)
-    
-    # Show max 15 DOFs in the plots
-    if 3*n_pcs > 15:
-        n_show = 15
-    else:
-        n_show = 3*n_pcs
-
-    n_cols = min(3, n_show)
-    n_rows = int(np.ceil(n_show / n_cols))
 
     # Plot PCS strains
     fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -851,7 +852,7 @@ if show_simulations:
         axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
         axs[i].grid(True)
         axs[i].set_xlabel('t [s]')
-        axs[i].set_ylabel('y, q')
+        axs[i].set_ylabel('y')
         axs[i].set_title(f'Component {i+1}')
         axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         axs[i].legend()
@@ -1418,7 +1419,7 @@ if show_simulations:
         axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
         axs[i].grid(True)
         axs[i].set_xlabel('t [s]')
-        axs[i].set_ylabel('y, q')
+        axs[i].set_ylabel('y')
         axs[i].set_title(f'Component {i+1}')
         #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         axs[i].legend()

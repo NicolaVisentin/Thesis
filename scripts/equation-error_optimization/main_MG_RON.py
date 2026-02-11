@@ -853,7 +853,7 @@ if show_simulations:
             axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
             axs[i].grid(True)
             axs[i].set_xlabel('t [s]')
-            axs[i].set_ylabel('y, q')
+            axs[i].set_ylabel('y')
             axs[i].set_title(f'Component {i+1}')
             axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             axs[i].legend()
@@ -866,7 +866,6 @@ if show_simulations:
         #plt.show()
 
         # Plot phase planes
-
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
         if n_show == 1:
             axs = np.array([axs])
@@ -1422,7 +1421,7 @@ if show_simulations:
         axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
         axs[i].grid(True)
         axs[i].set_xlabel('t [s]')
-        axs[i].set_ylabel('y, q')
+        axs[i].set_ylabel('y')
         axs[i].set_title(f'Component {i+1}')
         #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         axs[i].legend()
