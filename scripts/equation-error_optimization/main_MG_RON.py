@@ -1410,7 +1410,7 @@ if show_simulations:
     #plt.show()
     
     # Plot y(t) and y_hat(t)
-    fig, axs = plt.subplots(3, 2, figsize=(16, 9))
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
     if n_show == 1:
         axs = np.array([axs])
     else:
