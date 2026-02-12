@@ -232,14 +232,14 @@ Nw = 200 # washout steps for the Mackey-Glass task
 Nl = 84 # prediction lag for the Mackey-Glass task
 
 # Output layer (scaler + predictor)
-experiment_name = 'A1' # name of the experiment to save/load
+experiment_name = 'TEST' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robot + map + controller)
-load_model_path = saved_data_folder/'equation-error_optimization'/'main_MG_RON'/'A1' # choose the reservoir to load (robot + map + controller)
-map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
-controller_type = 'unique' # if 'unique': tau = tau_tot(z,u). If 'fb+ff': tau = tau_fb(z) + tau_ff(u). If 'ff': tau = tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
-fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+load_model_path = saved_data_folder/'equation-error_optimization'/'main_MG_RON'/'A9' # choose the reservoir to load (robot + map + controller)
+map_type = 'none' # 'linear', 'encoder-decoder', 'bijective', 'none'
+controller_type = 'ff' # if 'unique': tau = tau_tot(z,u). If 'fb+ff': tau = tau_fb(z) + tau_ff(u). If 'ff': tau = tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
+fb_controller_type = 'tanh_simple' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
 
 # Rename folders for plots/data
