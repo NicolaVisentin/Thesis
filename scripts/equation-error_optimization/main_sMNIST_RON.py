@@ -24,6 +24,7 @@ import time
 import sys
 
 from soromox.systems.my_systems import PlanarPCS_simple
+from soromox.systems.pcs.planar_pcs import PlanarPCS
 from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
@@ -48,7 +49,7 @@ data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem     
 
 # Functions for plotting robot
 def draw_robot(
-        robot: PlanarPCS_simple, 
+        robot: PlanarPCS_simple | PlanarPCS, 
         q: Array, 
         num_points: int = 50
 ):
@@ -62,7 +63,7 @@ def draw_robot(
     return curve, pos_tip
 
 def animate_robot_matplotlib(
-    robot: PlanarPCS_simple,
+    robot: PlanarPCS_simple | PlanarPCS,
     t_list: Array,  # shape (T,)
     q_list: Array,  # shape (T, DOF)
     target: Array = None,
@@ -222,8 +223,8 @@ ron_evolution_example = 'sMNIST_RON_N6_simplified/RON_evolution_N6_simplified_a'
 # controller
 train_unique_controller = True # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
                                # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
-fb_controller_to_train = 'linear_simple' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_to_train = 'linear' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
+fb_controller_to_train = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
@@ -289,7 +290,7 @@ match map_to_train:
 def Loss(
         params_optimiz : Sequence, 
         data_batch : Dict, 
-        robot : PlanarPCS_simple,
+        robot : PlanarPCS_simple | PlanarPCS,
         controller : MLP | Tuple[MLP, MLP],
         map: RealNVP | Tuple[MLP, MLP] = None,
 ) -> Tuple[float, Dict]:
