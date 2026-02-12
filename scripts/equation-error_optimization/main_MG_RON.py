@@ -210,7 +210,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'B5' # name of the experiment to perform/load
+experiment = 'B13' # name of the experiment to perform/load
 use_scan = True # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
 
@@ -222,8 +222,8 @@ ron_evolution_example = 'MG_RON_N6_DT0.05_INPSCAL1.0/RON_evolution_N6_DT0.05_INP
 # controller
 train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
                                # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
-fb_controller_to_train = 'tanh_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
+fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_to_train = 'linear' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
@@ -1410,7 +1410,7 @@ if show_simulations:
     #plt.show()
     
     # Plot y(t) and y_hat(t)
-    fig, axs = plt.subplots(3, 2, figsize=(16, 9))
+    fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
     if n_show == 1:
         axs = np.array([axs])
     else:
