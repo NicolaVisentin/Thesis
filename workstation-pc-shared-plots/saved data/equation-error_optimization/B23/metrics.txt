@@ -1,0 +1,12 @@
+SETUP
+   Latent dimension: 6
+   PCS segments:     2
+   RON case:         input
+   Mapping:          svd
+   Controller:       linear_simple (fb) + tanh (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               3331.5354725900106
+   Final test RMS error:                        0.28112738265371906
+   Final test RMS power:                        0.013135198716507684 (fb: 0.02654270564340291, ff: 0.0206940424365543)
+   Final test RMSE reconstruction (y, yd, ydd): (7.202156033661552e-15, 1.847184903465079e-16, 1.0203763141146583e-15)
