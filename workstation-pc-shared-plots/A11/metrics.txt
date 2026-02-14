@@ -1,0 +1,10 @@
+SETUP
+   RON case:   input
+   Mapping:    svd
+   Controller: mlp (fb) + linear (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               (optimization not performed)
+   Final test RMS error:                        0.07376895356030565
+   Final test RMS power:                        3.0178850439181084 (fb: 2.984495531370091, ff: 0.17532371879248698)
+   Final test RMSE reconstruction (y, yd, ydd): (2.636856786533365e-15, 9.742644015259082e-16, 2.591119377016828e-15)
