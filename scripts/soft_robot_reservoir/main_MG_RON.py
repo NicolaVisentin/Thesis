@@ -498,13 +498,15 @@ if train:
     print(f'--- Generating activations for training ---')
     start = time.perf_counter()
     (
-        time_ts,
-        state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
-        state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 3*n_pcs)
-        actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs)
+        _,
+        state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
+        _, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs)
+        _, # pcs actuation. Shape (N-Nl, 3*n_pcs)
         _
      ) = reservoir(train_dataset, time_u_train, saveat_train, dt_sim)
-    activations = state_reservoir_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
+    
+    y_ts, _ = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
+    activations = y_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
     activations.block_until_ready()
     stop = time.perf_counter() 
     elatime_forward_pass_training = stop - start
@@ -549,13 +551,14 @@ print(f'--- Evaluating perfomances (test set) ---')
 start = time.perf_counter()
 (
     time_ts,
-    state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
-    state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 3*n_pcs)
+    state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
+    state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs)
     actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs)
     _
 ) = reservoir(test_dataset, time_u_test, saveat_test, dt_sim)
 
-activations = state_reservoir_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
+y_ts, _ = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
+activations = y_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
 activations.block_until_ready()
 stop = time.perf_counter() 
 elatime_forward_pass_testing = stop - start
