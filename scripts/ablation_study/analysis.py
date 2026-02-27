@@ -332,7 +332,7 @@ if do_ref_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_REF_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -348,7 +348,7 @@ if do_ref_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
@@ -836,7 +836,7 @@ if do_nopcs_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_NOPCS_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -852,7 +852,7 @@ if do_nopcs_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
@@ -1341,7 +1341,7 @@ if do_nomap_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_NOMAP_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -1357,7 +1357,7 @@ if do_nomap_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
@@ -1845,7 +1845,7 @@ if do_diagmap_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_DIAGMAP_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -1861,7 +1861,7 @@ if do_diagmap_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
@@ -2349,7 +2349,7 @@ if do_nomlp_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_NOMLP_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -2365,7 +2365,7 @@ if do_nomlp_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
@@ -2854,7 +2854,7 @@ if do_regulmlp_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_REGULMLP_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE') # mse, not loss!
@@ -2870,7 +2870,7 @@ if do_regulmlp_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (MSE curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_mse_ts[i], color=colors[i], label=f'train MSEs' if i == 0 else "") # mse, not loss!
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_mse_ts[i], '--', color=colors[i], label=f'validation MSEs' if i == 0 else "") # mse, not loss!
@@ -3363,7 +3363,7 @@ if do_regulmap_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_REGULMAP_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE') # mse, not loss!
@@ -3379,7 +3379,7 @@ if do_regulmap_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (MSE curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_mse_ts[i], color=colors[i], label=f'train MSEs' if i == 0 else "") # mse, not loss!
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_mse_ts[i], '--', color=colors[i], label=f'validation MSEs' if i == 0 else "") # mse, not loss!
@@ -3872,7 +3872,7 @@ if do_regulall_case or do_overall:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, SAMPLES_REGULALL_all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE') # mse, not loss!
@@ -3888,7 +3888,7 @@ if do_regulall_case or do_overall:
         #plt.show()
 
         # Plot comparison of all samples (MSE curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_mse_ts[i], color=colors[i], label=f'train MSEs' if i == 0 else "") # mse, not loss!
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_mse_ts[i], '--', color=colors[i], label=f'validation MSEs' if i == 0 else "") # mse, not loss!
@@ -4368,7 +4368,7 @@ if do_tanhQ_svd_case:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -4384,7 +4384,7 @@ if do_tanhQ_svd_case:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
@@ -4840,7 +4840,7 @@ if do_coupled_case:
         # Plot comparison of all samples (RMSE)
         colors = plt.cm.viridis(onp.linspace(0,1,n_samples))
 
-        plt.figure()
+        plt.figure(figsize=(5,4))
         plt.scatter(onp.arange(n_samples)+1, all_rmse_before, marker='x', c=colors, label='test RMSE before')
         plt.scatter(onp.arange(n_samples)+1, all_rmse_after, marker='o', c=colors, label='test RMSE after')
         plt.scatter(onp.arange(n_samples)+1, onp.sqrt(all_train_mse_ts[:,-1]), marker='+', c=colors, label='final train RMSE')
@@ -4856,7 +4856,7 @@ if do_coupled_case:
         #plt.show()
 
         # Plot comparison of all samples (loss curves)
-        plt.figure()
+        plt.figure(figsize=(5,4))
         for i in range(n_samples):
             plt.plot(range(n_epochs_samples), all_train_loss_ts[i], color=colors[i], label=f'train losses' if i == 0 else "")
             plt.plot(onp.arange(1, n_epochs_samples + 1), all_val_loss_ts[i], '--', color=colors[i], label=f'validation losses' if i == 0 else "")
