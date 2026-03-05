@@ -1,4 +1,6 @@
 # Custom
+videos/*
+
 libraries/*
 !libraries/.gitkeep
 
