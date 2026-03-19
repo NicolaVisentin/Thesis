@@ -640,7 +640,7 @@ for i, ax in enumerate(axs.flatten()):
 
 plt.tight_layout()
 plt.savefig(plots_folder/'Example_inference_actuation', bbox_inches='tight') 
-plt.show()
+#plt.show()
 
 # =====================================================
 # Plot the robot configuration upon time
@@ -652,11 +652,125 @@ renderer.animate(ts=time_ts, q_ts=q_ts, interval=100, mode="slider")
 # OpenCV-based rendering example
 # =====================================================
 opencv_renderer = OpenCVPlanarRenderer(
-    robot, num_points=50, width=700, height=700, length_scale=3.0
+    robot, num_points=200, width=700, height=700, length_scale=3.0
 )
 opencv_renderer.render_sequence(
     time_ts, q_ts, record_path="videos/planar_pcs_opencv.mp4"
 )
+
+# =====================================================
+# Viser web-based visualization (opens in browser)
+# =====================================================
+# ViserRenderer provides interactive 3D visualization in the browser
+# with GUI controls for playback, speed, and looping.
+# Plotly plots are automatically added to the GUI at the end of the sidebar
+import plotly.graph_objects as go
+from soromox.rendering import (
+    BackboneColorConfig,
+    MatplotlibRenderer,
+    Open3DRenderer,
+    RendererColorConfig,
+    ViserRenderer,
+    get_color_theme,
+)
+from soromox.systems import PCS
+
+params = {
+    "p0": jnp.array(
+        [jnp.pi / 2, jnp.pi / 2, 0.0, 0.0, 0.0, 0.0]
+    ),  # Initial position and orientation
+    "L": L,
+    "r": r,
+    "rho": rho,
+    "g": jnp.array([0.0, 0.0, 9.81]),  # Gravity vector [m/s^2]
+    "E": E,  # Elastic modulus [Pa]
+    "G": G,  # Shear modulus [Pa]
+}
+params["D"] = jnp.diag(jnp.array([D[0,0], D[0,0], D[0,0], D[1,1], D[2,2], D[2,2],
+                        D[3,3], D[3,3], D[3,3], D[4,4], D[5,5], D[5,5]]))
+
+robot = PCS(
+    num_segments=2,
+    params=params,
+)
+
+viser_renderer = ViserRenderer(robot, num_points=200, backbone_style="discrete")
+
+# Create custom strain plots for PCS
+# Reshape to (T, num_segments, 6)
+q_new = jnp.zeros((time_ts.shape[0], 12))
+q_ts = q_ts.at[:,0].set(100*q_ts[:,0])
+q_ts = q_ts.at[:,3].set(100*q_ts[:,3])
+#q_ts = q_ts.at[:,1].set(5*q_ts[:,1])
+#q_ts = q_ts.at[:,4].set(5*q_ts[:,4])
+q_ts = q_ts.at[:,2].set(5*q_ts[:,2])
+q_ts = q_ts.at[:,5].set(5*q_ts[:,5])
+q_new = (
+    q_new
+    .at[:, 0].set(q_ts[:, 0])
+    .at[:, 3].set(q_ts[:, 1])
+    .at[:, 4].set(q_ts[:, 2])
+    .at[:, 6].set(q_ts[:, 3])
+    .at[:, 9].set(q_ts[:, 4])
+    .at[:, 10].set(q_ts[:, 5])
+)
+q_reshaped = q_new.reshape(len(time_ts), 2, 6)
+
+# Rotational strains (first 3 components)
+fig_rot = go.Figure()
+for seg in range(2):
+    for i, label in enumerate(["κx", "κy", "κz"]):
+        fig_rot.add_trace(
+            go.Scatter(
+                x=time_ts,
+                y=q_reshaped[:, seg, i],
+                mode="lines",
+                name=f"Seg {seg} - {label}",
+            )
+        )
+fig_rot.update_layout(
+    title="PCS - Rotational Strains vs Time",
+    xaxis_title="Time [s]",
+    yaxis_title="Rotational Strain [rad/m]",
+    height=400,
+    margin={"l": 50, "r": 50, "t": 50, "b": 50},
+)
+
+# Linear strains (last 3 components)
+fig_lin = go.Figure()
+for seg in range(2):
+    for i, label in enumerate(["σx", "σy", "σz"]):
+        fig_lin.add_trace(
+            go.Scatter(
+                x=time_ts,
+                y=q_reshaped[:, seg, i + 3],
+                mode="lines",
+                name=f"Seg {seg} - {label}",
+            )
+        )
+fig_lin.update_layout(
+    title="PCS - Linear Strains vs Time",
+    xaxis_title="Time [s]",
+    yaxis_title="Linear Strain [-]",
+    height=400,
+    margin={"l": 50, "r": 50, "t": 50, "b": 50},
+)
+
+viser_renderer.render_sequence(
+    time_ts,
+    q_new,
+    playback_speed=1.0,
+    loop=True,
+    autoplay=True,
+    plot_configurations=False,
+    custom_plots={
+        "Rotational Strains": (fig_rot, 2.0),
+        "Linear Strains": (fig_lin, 2.0),
+    },
+    robot_name="PCS",
+)
+
+
 exit()
 
 # Show robot animation
