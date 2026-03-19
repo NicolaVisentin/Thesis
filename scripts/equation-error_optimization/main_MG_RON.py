@@ -455,7 +455,7 @@ dataset = onp.load(dataset_folder/'soft robot optimization'/f'{ron_dataset}.npz'
 y = dataset["y"] # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"] # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
-u = dataset["u"] # sMNIST input. Shape (m, 1)
+u = dataset["u"] # input. Shape (m, 1)
 
 # Convert into jax
 y_dataset = jnp.array(y, dtype=jnp.float64)
