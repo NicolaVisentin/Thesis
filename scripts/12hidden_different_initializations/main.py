@@ -49,8 +49,8 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 # =====================================================
 # Script settings
 # =====================================================
-train_samples = True             # if True, short training on many samples. If False, long training on the best sample
-load_case_prefix = 'SAMPLES_REF' # if train_samples is False, choose prefix of the experiment to load
+train_samples = False             # if True, short training on many samples. If False, long training on the best sample
+load_case_prefix = 'SAMPLES' # if train_samples is False, choose prefix of the experiment to load
 n_epochs_samples = 300           # number of epochs for short training (when train_samples is True)
 n_epochs_long = 1500             # number of epochs for long training (when train_samples is False)
 n_samples = 30                   # number of samples (when train_samples is True)
