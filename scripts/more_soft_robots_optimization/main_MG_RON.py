@@ -485,8 +485,8 @@ def Loss(
         Tau_batch = fb_controller_updated.forward_batch(fb_contr_inp) + ff_controller_updated.forward_batch(u_batch) # shape (batch_size, 3*n_pcs*n_robots)
 
     # predictions
-    forward_dynamics_vmap = jax.vmap(robots_updated.forward_dynamics, in_axes=(0,0))
-    Zd_batch = forward_dynamics_vmap(Z_batch, Tau_batch) # state derivative Zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs*n_robots)
+    forward_dynamics_vmap = jax.vmap(robots_updated.forward_dynamics, in_axes=(None,0,0))
+    Zd_batch = forward_dynamics_vmap(0, Z_batch, (Tau_batch,)) # state derivative Zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs*n_robots)
     _, Qdd_batch = jnp.split(Zd_batch, 2, axis=1) # shape (batch_size, 3*n_pcs*n_robots)
 
     # comptue ydd_hat -> inverse map
@@ -1078,7 +1078,7 @@ else:
     print('[simulation skipped]')
 
 # Correct signature for loss function
-Loss = partial(Loss, robot=robot, controller=mlp_controller, map=map)
+Loss = partial(Loss, robots=robots_system, controller=mlp_controller, map=map)
 
 # Test RMSE on the test set before optimization
 _, metrics = Loss(
@@ -1090,33 +1090,33 @@ pred = onp.array(metrics["predictions"])
 labels = onp.array(metrics["labels"])
 match map_to_train:
     case 'reconstruction':
-        q_encoded = encoder(test_set["y"][69])
-        qd_encoded = encoder.compute_jacobian(test_set["y"][69]) @ test_set["yd"][69]
-        qdd_encoded = encoder.forward_xdd(test_set["y"][69], test_set["yd"][69], test_set["ydd"][69])
-        y_decoded = decoder(q_encoded)
-        yd_decoded = decoder.compute_jacobian(q_encoded) @ qd_encoded
-        ydd_decoded = decoder.forward_xdd(q_encoded, qd_encoded, qdd_encoded)
+        Q_encoded = encoder(test_set["y"][69])
+        Qd_encoded = encoder.compute_jacobian(test_set["y"][69]) @ test_set["yd"][69]
+        Qdd_encoded = encoder.forward_xdd(test_set["y"][69], test_set["yd"][69], test_set["ydd"][69])
+        y_decoded = decoder(Q_encoded)
+        yd_decoded = decoder.compute_jacobian(Q_encoded) @ Qd_encoded
+        ydd_decoded = decoder.forward_xdd(Q_encoded, Qd_encoded, Qdd_encoded)
     case 'norm_flow':
-        q_encoded, qd_encoded, qdd_encoded = map.forward_with_derivatives(test_set["y"][69], test_set["yd"][69], test_set["ydd"][69])
-        y_decoded, yd_decoded, ydd_decoded = map.inverse_with_derivatives(q_encoded, qd_encoded, qdd_encoded)
+        Q_encoded, Qd_encoded, Qdd_encoded = map.forward_with_derivatives(test_set["y"][69], test_set["yd"][69], test_set["ydd"][69])
+        y_decoded, yd_decoded, ydd_decoded = map.inverse_with_derivatives(Q_encoded, Qd_encoded, Qdd_encoded)
     case _:
-        q_encoded = A0 @ test_set["y"][69] + c0
-        qd_encoded = A0 @ test_set["yd"][69]
-        qdd_encoded = A0 @ test_set["ydd"][69]
-        y_decoded = jnp.linalg.solve(A0, (q_encoded - c0).T).T
-        yd_decoded = jnp.linalg.solve(A0, qd_encoded.T).T
-        ydd_decoded = jnp.linalg.solve(A0, qdd_encoded.T).T
+        Q_encoded = A0 @ test_set["y"][69] + c0
+        Qd_encoded = A0 @ test_set["yd"][69]
+        Qdd_encoded = A0 @ test_set["ydd"][69]
+        y_decoded = jnp.linalg.solve(A0, (Q_encoded - c0).T).T
+        yd_decoded = jnp.linalg.solve(A0, Qd_encoded.T).T
+        ydd_decoded = jnp.linalg.solve(A0, Qdd_encoded.T).T
 
 print(f'Test accuracy: RMSE = {RMSE:.6e}')
 print(f'Example:\n'
       f'    datapoint (y, yd, ydd):   ({onp.array(test_set["y"][69])}, {onp.array(test_set["yd"][69])}, {onp.array(test_set["ydd"][69])})\n'
-      f'    encoding (q, qd, qdd):    ({onp.array(q_encoded)}, {onp.array(qd_encoded)}, {onp.array(qdd_encoded)})\n'
+      f'    encoding (Q, Qd, Qdd):    ({onp.array(Q_encoded)}, {onp.array(Qd_encoded)}, {onp.array(Qdd_encoded)})\n'
       f'    decoding (y_, yd_, ydd_): ({onp.array(y_decoded)}, {onp.array(yd_decoded)}, {onp.array(ydd_decoded)})\n\n'
       f'    prediction ydd_hat: {pred[69]}\n'
       f'    label ydd:          {labels[69]}\n'
       f'    error |e|:          {onp.abs( labels[69] - pred[69] )}\n'
 )
-
+exit()
 
 # =====================================================
 # Optimization
