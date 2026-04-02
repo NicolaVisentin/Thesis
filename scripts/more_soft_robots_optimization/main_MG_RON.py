@@ -25,6 +25,7 @@ import sys
 
 from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
+from robots_system import MultiPcsSystem, ParamsRobots
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -210,9 +211,9 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'C1' # name of the experiment to perform/load
+experiment = 'TEST' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
-show_simulations = True # choose whether to perform time simulations of the approximator (and comparison with RON)
+show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
@@ -220,8 +221,8 @@ ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to 
 ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
 
 # controller
-train_unique_controller = False # if True, tau = tau_tot(z, u), where tau_tot is specified in fb_controller_to_train. 
-                               # If False, tau = tau_fb(z) + tau_ff(u), where tau_fb is specified in fb_controller_to_train and tau_ff in ff_controller_to_train
+train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
+                               # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
 fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
@@ -229,9 +230,54 @@ ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = Fals
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
-# Robot
-n_pcs = 4 # number of segments for the PCS
+# Robots
+n_robots = 2 # number of soft robots in the reservoir
+n_pcs = 2 # number of segments for the single PCS
 train_robot = True # if False, does not optimize the soft robot
+
+
+### START REMOVE ############################################################
+L0 = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
+D0 = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
+r0 = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
+rho0 = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
+E0 = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
+G0 = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
+parameters = {
+    "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
+    "L": L0,
+    "r": r0,
+    "rho": rho0,
+    "g": jnp.tile(jnp.array([0.0, 9.81]), (n_robots,1)), # !! gravity UP !!
+    "E": E0,
+    "G": G0,
+    "D": D0,
+}
+new_parameters = {
+    "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
+    "L": L0+2,
+    "r": r0+2,
+    "rho": rho0+2,
+    "g": jnp.tile(jnp.array([0.0, 9.81])+2, (n_robots,1)), # !! gravity UP !!
+    "E": E0+2,
+    "G": G0+2,
+    "D": D0+2,
+}
+
+robots_system = MultiPcsSystem(n_robots, n_pcs, parameters)
+q1 = 1.1*jnp.ones(3*n_pcs)
+q2 = 1.2*jnp.ones(3*n_pcs)
+qd1 = 2.1*jnp.ones(3*n_pcs)
+qd2 = 2.2*jnp.ones(3*n_pcs)
+Q = jnp.concatenate([q1, q2])
+Qd = jnp.concatenate([qd1, qd2])
+Z = jnp.concatenate([Q,Qd])
+tau1 = 5.1*jnp.ones(3*n_pcs)
+tau2 = 5.2*jnp.ones(3*n_pcs)
+Tau = jnp.concatenate([tau1, tau2])
+Zd = robots_system.forward_dynamics(Z, Tau)
+print('REMOVE')
+### END REMOVE ############################################################
 
 
 # =====================================================
@@ -284,12 +330,59 @@ match map_to_train:
     case _:
         pass
 
+# Convert soft robots parameters
+def convert2original(raw_params: ParamsRobots) -> ParamsRobots:
+    """
+    Transform raw parameters to physical parameters.
+
+    Args
+    ----
+    raw_params : ParamsRobots
+        Dictionary of raw parameters.
+
+    Returns
+    -------
+    params : ParamsRobots
+        Dictionary of physical parameters with same keys.
+    """
+    return {
+        "L": jax.nn.softplus(raw_params["L"]),
+        "r": jax.nn.softplus(raw_params["r"]),
+        "rho": jax.nn.softplus(raw_params["rho"]),
+        "E": jax.nn.softplus(raw_params["E"]),
+        "G": jax.nn.softplus(raw_params["G"]),
+        "D": jax.vmap(jnp.diag)(jax.nn.softplus(raw_params["D"])),
+    }
+
+def convert2raw(params: ParamsRobots) -> ParamsRobots:
+    """
+    Transform physical parameters to raw parameters.
+
+    Args
+    ----
+    params : ParamsRobots
+        Dictionary of physical parameters.
+
+    Returns
+    -------
+    raw_params : ParamsRobots
+        Dictionary of raw parameters.
+    """
+    return {
+        "L": InverseSoftplus(params["L"]),
+        "r": InverseSoftplus(params["r"]),
+        "rho": InverseSoftplus(params["rho"]),
+        "E": InverseSoftplus(params["E"]),
+        "G": InverseSoftplus(params["G"]),
+        "D": InverseSoftplus(jax.vmap(jnp.diag)(params["D"])),
+    }
+
 # Loss function
 @jax.jit
 def Loss(
         params_optimiz : Sequence, 
         data_batch : Dict, 
-        robot : PlanarPCS_simple,
+        robots : MultiPcsSystem,
         controller : MLP | Tuple[MLP, MLP],
         map: RealNVP | Tuple[MLP, MLP] = None,
 ) -> Tuple[float, Dict]:
@@ -301,8 +394,8 @@ def Loss(
     Args
     ----
     params_optimiz : Sequence
-        Parameters for the opimization. In this case a list with:
-        - **p_robot**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw).
+        (Raw) parameters for the opimization. In this case a tuple with:
+        - **p_robots**: Dictionary with pcs params for all robots {"L":L_raw,"D":D_raw, ...} with L_raw of shape (n_robots,n_pcs), etc.
         - **p_map**: Trainable parameters of the mapping function.
         - **p_controller**: Trainable parameters of the controller.              
     data_batch : Dict
@@ -311,11 +404,11 @@ def Loss(
         - **"yd"**: Batch of datapoints yd. Shape (batch_size, n_ron)
         - **"u"**: Batch of datapoints u Shape (batch_size, n_input)
         - **"ydd"**: Batch of labels ydd. Shape (batch_size, n_ron)
-    robot
-        "Dummy" instance of the soft robot class (actual parameters are in params_optimiz).
+    robots : MultiPcsSystem
+        "Dummy" instance of the soft robots system class (actual parameters are in params_optimiz).
     controller : MLP | Tuple[MLP, MLP]
         "Dummy" instance of the controller (actual parameters are in params_optimiz). Can be either a unique controller
-        tau = MLP(z, u) or a tuple with two controllers tau_fb = MLP(z) and tau_ff = MLP(u) such that tau = tau_fb + tau_ff.
+        Tau = MLP(Z, u) or a tuple with two controllers Tau_fb = MLP(Z) and Tau_ff = MLP(u) such that Tau = Tau_fb + Tau_ff.
     map : RealNVP | Tuple[MLP, MLP] | None
         "Dummy" instance of the map (actual parameters are in params_optimiz). Can be a RealNVP class, a tuple 
         containing encoder/decoder or None if linear mapping is used (default: None).
@@ -334,22 +427,12 @@ def Loss(
     u_batch = data_batch["u"]
 
     # extract parameters
-    p_robot, p_map, p_controller = params_optimiz
+    p_robots_raw, p_map, p_controller = params_optimiz
 
     # convert parameters and update instances
     # ...robot
-    L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw = p_robot
-    L = jax.nn.softplus(L_raw)
-    D = jnp.diag(jax.nn.softplus(D_raw))
-    r = jax.nn.softplus(r_raw)
-    rho = jax.nn.softplus(rho_raw)
-    E = jax.nn.softplus(E_raw)
-    G = jax.nn.softplus(G_raw)
-    
-    if train_robot:
-        robot_updated = robot.update_params({"L": L, "D": D, "r": r, "rho": rho, "E": E, "G": G})
-    else:
-        robot_updated = robot
+    p_robots = convert2original(p_robots_raw)
+    robots_updated = robots.update_params(p_robots)
 
     # ...map
     match map_to_train:
@@ -373,48 +456,47 @@ def Loss(
         fb_controller_updated = fb_controller.update_params(p_fb_controller)
         ff_controller_updated = ff_controller.update_params(p_ff_controller)
 
-    # compute q and qd -> direct map
+    # compute Q and Qd -> direct map
     match map_to_train:
         case 'diag' | 'svd':
-            q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs)
-            qd_batch = yd_batch @ jnp.transpose(A) # shape (batch_size, 3*n_pcs)
+            Q_batch = y_batch @ jnp.transpose(A) + c # shape (batch_size, 3*n_pcs*n_robots)
+            Qd_batch = yd_batch @ jnp.transpose(A) # shape (batch_size, 3*n_pcs*n_robots)
         case 'reconstruction':
-            q_batch, qd_batch = encoder_updated.forward_xd_batch(y_batch, yd_batch) # shape (batch_size, 3*n_pcs)
+            Q_batch, Qd_batch = encoder_updated.forward_xd_batch(y_batch, yd_batch) # shape (batch_size, 3*n_pcs*n_robots)
         case 'norm_flow':
-            q_batch, qd_batch = map_updated.forward_with_derivatives_batch(y_batch, yd_batch) # shape (batch_size, 3*n_pcs)
+            Q_batch, Qd_batch = map_updated.forward_with_derivatives_batch(y_batch, yd_batch) # shape (batch_size, 3*n_pcs*n_robots)
 
     # actuation
-    z_batch = jnp.concatenate([q_batch, qd_batch], axis=1) # state z=[q^T, qd^T]. Shape (batch_size, 2*3*n_pcs)
+    Z_batch = jnp.concatenate([Q_batch, Qd_batch], axis=1) # state Z=[Q^T, Qd^T]^T. Shape (batch_size, 2*3*n_pcs*n_robots)
 
     if fb_controller_to_train == 'tanh_simple' or fb_controller_to_train == 'linear_simple':
-        fb_contr_inp = q_batch # shape (batch_size, 3*n_pcs)
+        fb_contr_inp = Q_batch # shape (batch_size, 3*n_pcs*n_robots)
     else:
-        fb_contr_inp = z_batch # shape (batch_size, 2*3*n_pcs)
+        fb_contr_inp = Z_batch # shape (batch_size, 2*3*n_pcs*n_robots)
 
     if ron_case == 'input':
-        contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs+1) or (batch_size, 2*3*n_pcs+1)
+        contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs*n_robots+1) or (batch_size, 2*3*n_pcs*n_robots+1)
     else:
-        contr_inp = fb_contr_inp # shape (batch_size, 3*n_pcs) or (batch_size, 2*3*n_pcs)
+        contr_inp = fb_contr_inp # shape (batch_size, 3*n_pcs*n_robots) or (batch_size, 2*3*n_pcs*n_robots)
 
     if train_unique_controller:
-        tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs)
+        Tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs*n_robots)
     else:
-        tau_batch = fb_controller_updated.forward_batch(fb_contr_inp) + ff_controller_updated.forward_batch(u_batch) # shape (batch_size, 3*n_pcs)
-    actuation_arg = (tau_batch,)
+        Tau_batch = fb_controller_updated.forward_batch(fb_contr_inp) + ff_controller_updated.forward_batch(u_batch) # shape (batch_size, 3*n_pcs*n_robots)
 
     # predictions
-    forward_dynamics_vmap = jax.vmap(robot_updated.forward_dynamics, in_axes=(None,0,0))
-    zd_batch = forward_dynamics_vmap(0, z_batch, actuation_arg) # state derivative zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs)
-    _, qdd_batch = jnp.split(zd_batch, 2, axis=1) 
+    forward_dynamics_vmap = jax.vmap(robots_updated.forward_dynamics, in_axes=(0,0))
+    Zd_batch = forward_dynamics_vmap(Z_batch, Tau_batch) # state derivative Zd=[qd^T, qdd^T]. Shape (batch_size, 2*3*n_pcs*n_robots)
+    _, Qdd_batch = jnp.split(Zd_batch, 2, axis=1) # shape (batch_size, 3*n_pcs*n_robots)
 
     # comptue ydd_hat -> inverse map
     match map_to_train:
         case 'diag' | 'svd':
-            ydd_hat_batch = jnp.linalg.solve(A, qdd_batch.T).T # shape (batch_size, n_ron)
+            ydd_hat_batch = jnp.linalg.solve(A, Qdd_batch.T).T # shape (batch_size, n_ron)
         case 'reconstruction':
-            ydd_hat_batch = decoder_updated.forward_xdd_batch(q_batch, qd_batch, qdd_batch) # shape (batch_size, n_ron)
+            ydd_hat_batch = decoder_updated.forward_xdd_batch(Q_batch, Qd_batch, Qdd_batch) # shape (batch_size, n_ron)
         case 'norm_flow':
-            _, _, ydd_hat_batch = map_updated.inverse_with_derivatives_batch(q_batch, qd_batch, qdd_batch) # shape (batch_size, n_ron)
+            _, _, ydd_hat_batch = map_updated.inverse_with_derivatives_batch(Q_batch, Qd_batch, Qdd_batch) # shape (batch_size, n_ron)
 
     # compute MSE loss (compare predictions ydd_hat with labels ydd)
     MSE = jnp.mean(jnp.sum((ydd_hat_batch - ydd_batch)**2, axis=1))
@@ -423,14 +505,14 @@ def Loss(
     if map_to_train == 'reconstruction':
         match reconstruction_type:
             case 'y':
-                y_hat_batch_rec = decoder_updated.forward_batch(q_batch)
+                y_hat_batch_rec = decoder_updated.forward_batch(Q_batch)
                 reconstruction_loss = 1e2 * jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1))
             case 'yd':
-                y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(q_batch, qd_batch)
+                y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(Q_batch, Qd_batch)
                 reconstruction_loss = 1e1 * jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1)) + 1e1 * jnp.mean(jnp.sum((yd_batch - yd_hat_batch_rec)**2, axis=1))
             case 'ydd':
-                y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(q_batch, qd_batch)
-                ydd_hat_batch_rec = decoder_updated.forward_xdd_batch(q_batch, qd_batch, encoder_updated.forward_xdd_batch(y_batch, yd_batch, ydd_batch))
+                y_hat_batch_rec, yd_hat_batch_rec = decoder_updated.forward_xd_batch(Q_batch, Qd_batch)
+                ydd_hat_batch_rec = decoder_updated.forward_xdd_batch(Q_batch, Qd_batch, encoder_updated.forward_xdd_batch(y_batch, yd_batch, ydd_batch))
                 reconstruction_loss = 1e1 * jnp.mean(jnp.sum((y_batch - y_hat_batch_rec)**2, axis=1)) + 1e1 * jnp.mean(jnp.sum((yd_batch - yd_hat_batch_rec)**2, axis=1)) + 1e1 * jnp.mean(jnp.sum((ydd_batch - ydd_hat_batch_rec)**2, axis=1))
         loss = MSE + reconstruction_loss
     else:
@@ -482,19 +564,19 @@ train_size, n_ron = train_set["y"].shape
 
 
 # =====================================================
-# Approximator before optimization
+# Physical reservoir before optimization
 # =====================================================
 print('--- BEFORE OPTIMIZATION ---')
 
-# Initialize parameters
+# Initialize parameters and instances
 key, key_map, key_controller = jax.random.split(key, 3)
 
 # ...mapping
 match map_to_train:
     case 'diag':
         A_thresh = 1e-4 # threshold on the singular values
-        A0 = jnp.diag(jnp.tile(jnp.array([1e0, 1e-1, 1e-1])), n_pcs)
-        c0 = jnp.zeros(3*n_pcs)
+        A0 = jnp.diag(jnp.tile(jnp.array([1e0, 1e-1, 1e-1]), n_robots*n_pcs)) # shape (3*n_pcs*n_robots, n_ron)
+        c0 = jnp.zeros(3*n_pcs*n_robots)
 
         map = None
         A_raw = A2Araw(A0, A_thresh)
@@ -504,7 +586,7 @@ match map_to_train:
         A_thresh = 1e-4 # threshold on the singular values
         s_init = 3e-3
         A0 = init_A_svd(key_map, n_ron, s_init, s_init + 1e-6)
-        c0 = jnp.zeros(3*n_pcs)
+        c0 = jnp.zeros(3*n_pcs*n_robots)
 
         map = None
         A_raw = A2Araw(A0, A_thresh)
@@ -512,8 +594,8 @@ match map_to_train:
 
     case 'reconstruction':
         key, key_encoder, key_decoder = jax.random.split(key, 3)
-        mlp_sizes_enc = [n_ron, 32, 32, 3*n_pcs]
-        mlp_sizes_dec = [3*n_pcs, 32, 32, n_ron]
+        mlp_sizes_enc = [n_ron, 32, 32, 3*n_pcs*n_robots]
+        mlp_sizes_dec = [3*n_pcs*n_robots, 32, 32, n_ron]
         encoder = MLP(key=key_encoder, layer_sizes=mlp_sizes_enc, scale_init=0.01)
         decoder = MLP(key=key_decoder, layer_sizes=mlp_sizes_dec, scale_init=0.01)
 
@@ -538,22 +620,31 @@ match map_to_train:
         )
         p_map = tuple(map.params)
 
-# ...robot
-L0 = 1e-1 * jnp.ones(n_pcs)
-D0 = jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs))
-r0 = 2e-2 * jnp.ones(n_pcs)
-rho0 = 1070 * jnp.ones(n_pcs)
-E0 = 2e3 * jnp.ones(n_pcs)
-G0 = 1e3 * jnp.ones(n_pcs)
+# ...robots
+L0 = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
+D0 = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
+r0 = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
+rho0 = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
+E0 = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
+G0 = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
 
-L_raw = InverseSoftplus(L0)
-D_raw = InverseSoftplus(jnp.diag(D0))
-r_raw = InverseSoftplus(r0)
-rho_raw = InverseSoftplus(rho0)
-E_raw = InverseSoftplus(E0)
-G_raw = InverseSoftplus(G0)
+p_robots_original = {
+    "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
+    "L": L0,
+    "r": r0,
+    "rho": rho0,
+    "g": jnp.tile(jnp.array([0.0, 9.81]), (n_robots,1)), # !! gravity UP !!
+    "E": E0,
+    "G": G0,
+    "D": D0,
+}
+robots_system = MultiPcsSystem(
+    n_robots = n_robots,
+    n_pcs = n_pcs,
+    params_robots = p_robots_original
+)
 
-p_robot = (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw)
+p_robots = convert2raw(p_robots_original)
 
 # ...controller
 if train_unique_controller:
@@ -562,41 +653,41 @@ if train_unique_controller:
             scale_init = 0.00001
             last_layer_activation = 'tanh'
             if ron_case == 'input':
-                mlp_sizes = [3*n_pcs + 1, 3*n_pcs]
+                mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
             else:
-                mlp_sizes = [3*n_pcs, 3*n_pcs]
+                mlp_sizes = [3*n_pcs*n_robots, 3*n_pcs*n_robots]
 
         case 'linear_simple':
             scale_init = 0.00001
             last_layer_activation = 'linear'
             if ron_case == 'input':
-                mlp_sizes = [3*n_pcs + 1, 3*n_pcs]
+                mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
             else:
-                mlp_sizes = [3*n_pcs, 3*n_pcs]
+                mlp_sizes = [3*n_pcs*n_robots, 3*n_pcs*n_robots]
 
         case 'tanh_complete':
             scale_init = 0.00001
             last_layer_activation = 'tanh'
             if ron_case == 'input':
-                mlp_sizes = [2*3*n_pcs + 1, 3*n_pcs]
+                mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
             else:
-                mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+                mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
 
         case 'linear_complete':
             scale_init = 0.00001
             last_layer_activation = 'linear'
             if ron_case == 'input':
-                mlp_sizes = [2*3*n_pcs + 1, 3*n_pcs]
+                mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
             else:
-                mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+                mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
             
         case 'mlp':
             scale_init = 0.001
             last_layer_activation = 'linear'
             if ron_case == 'input':
-                mlp_sizes = [2*3*n_pcs + 1, 64, 64, 3*n_pcs]
+                mlp_sizes = [2*3*n_pcs*n_robots + 1, 64, 64, 3*n_pcs*n_robots]
             else:
-                mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
+                mlp_sizes = [2*3*n_pcs*n_robots, 64, 64, 3*n_pcs*n_robots]
 
         case _:
             raise ValueError('Unknown controller')
@@ -609,27 +700,27 @@ else:
         case 'tanh_simple':
             fb_scale_init = 0.00001
             fb_last_layer_activation = 'tanh'
-            fb_mlp_sizes = [3*n_pcs, 3*n_pcs]
+            fb_mlp_sizes = [3*n_pcs*n_robots, 3*n_pcs*n_robots]
 
         case 'linear_simple':
             fb_last_layer_activation = 'linear'
             fb_scale_init = 0.00001
-            fb_mlp_sizes = [3*n_pcs, 3*n_pcs]
+            fb_mlp_sizes = [3*n_pcs*n_robots, 3*n_pcs*n_robots]
 
         case 'tanh_complete':
             fb_scale_init = 0.00001
             fb_last_layer_activation = 'tanh'
-            fb_mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+            fb_mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
 
         case 'linear_complete':
             fb_scale_init = 0.00001
             fb_last_layer_activation = 'linear'
-            fb_mlp_sizes = [2*3*n_pcs, 3*n_pcs]
+            fb_mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
             
         case 'mlp':
             fb_scale_init = 0.001
             fb_last_layer_activation = 'linear'
-            fb_mlp_sizes = [2*3*n_pcs, 64, 64, 3*n_pcs]
+            fb_mlp_sizes = [2*3*n_pcs*n_robots, 64, 64, 3*n_pcs*n_robots]
 
         case _:
             raise ValueError('Unknown fb controller')
@@ -638,17 +729,17 @@ else:
         case 'tanh':
             ff_scale_init = 0.00001
             ff_last_layer_activation = 'tanh'
-            ff_mlp_sizes = [1, 3*n_pcs]
+            ff_mlp_sizes = [1, 3*n_pcs*n_robots]
 
         case 'mlp':
             ff_scale_init = 0.001
             ff_last_layer_activation = 'linear'
-            ff_mlp_sizes = [1, 64, 64, 3*n_pcs]
+            ff_mlp_sizes = [1, 64, 64, 3*n_pcs*n_robots]
 
         case 'linear':
             ff_scale_init = 0.00001
             ff_last_layer_activation = 'linear'
-            ff_mlp_sizes = [1, 3*n_pcs]
+            ff_mlp_sizes = [1, 3*n_pcs*n_robots]
 
         case _:
             raise ValueError('Unknown fb controller')
@@ -663,25 +754,7 @@ else:
     p_controller = (p_fb_controller, p_ff_controller)
 
 # Collect parameters
-params_optimiz = (p_robot, p_map, p_controller)
-
-# Initialize robot
-parameters = {
-    "th0": jnp.array(jnp.pi/2),
-    "L": L0,
-    "r": r0,
-    "rho": rho0,
-    "g": jnp.array([0.0, 9.81]), # !! gravity UP !!
-    "E": E0,
-    "G": G0,
-    "D": D0
-}
-
-robot = PlanarPCS_simple(
-    num_segments = n_pcs,
-    params = parameters,
-    order_gauss = 5
-)
+params_optimiz = (p_robots, p_map, p_controller)
 
 # If required, simulate robot and compare its behaviour in time with the RON's one
 if show_simulations:
@@ -702,19 +775,19 @@ if show_simulations:
     )
 
     def tau_law(system_state: SystemState, controller: MLP | Tuple[MLP, MLP], u_interp_fn: AbstractTerm):
-        """Implements user-defined control tau(t) = tau_fn(q(t),qd(t),u(t))."""
+        """Implements user-defined control Tau(t) = Tau_fn(Q(t),Qd(t),u(t))."""
         u = u_interp_fn.evaluate(system_state.t)
         u = jnp.array([u])
-        q, qd = jnp.split(system_state.y, 2)
-        z = system_state.y
+        Q, Qd = jnp.split(system_state.y, 2)
+        Z = system_state.y
 
         if not train_unique_controller:
             fb_controller, ff_controller = controller
 
         if fb_controller_to_train == 'tanh_simple' or fb_controller_to_train == 'linear_simple':
-            fb_contr_inp = q
+            fb_contr_inp = Q
         else:
-            fb_contr_inp = z
+            fb_contr_inp = Z
 
         if ron_case == 'input':
             contr_inp = jnp.concatenate([fb_contr_inp, u])
@@ -742,14 +815,14 @@ if show_simulations:
     # Convert initial condition RON -> latent
     match map_to_train:
         case 'diag' | 'svd':
-            q0 = A0 @ y_RONsaved[0] + c0
-            qd0 = A0 @ yd_RONsaved[0]
+            Q0 = A0 @ y_RONsaved[0] + c0
+            Qd0 = A0 @ yd_RONsaved[0]
         case 'reconstruction':
-            q0 = encoder(y_RONsaved[0])
-            qd0 = encoder.compute_jacobian(q0) @ yd_RONsaved[0]
+            Q0 = encoder(y_RONsaved[0])
+            Qd0 = encoder.compute_jacobian(Q0) @ yd_RONsaved[0]
         case 'norm_flow':
-            q0, qd0 = map.forward_with_derivatives(y_RONsaved[0], yd_RONsaved[0])
-    initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([q0, qd0]))
+            Q0, Qd0 = map.forward_with_derivatives(y_RONsaved[0], yd_RONsaved[0])
+    initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([Q0, Qd0]))
 
     # Show max 15 DOFs in the plots
     if 3*n_pcs > 15:
@@ -760,6 +833,7 @@ if show_simulations:
     n_cols = min(3, n_show)
     n_rows = int(np.ceil(n_show / n_cols))
 
+### CHECKPOINT ###
     if True:
         # Simulate robot
         print('Simulating robot...')
@@ -1248,7 +1322,7 @@ if not load_experiment:
 
 
 # =====================================================
-# Approximator after optimization
+# Physical reservoir after optimization
 # =====================================================
 print('\n--- AFTER OPTIMIZATION ---')
 
