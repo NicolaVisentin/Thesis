@@ -12,7 +12,8 @@ ParamsRobots = dict[str,Array] # (batched) parameters of all robots: {"L":L, "D"
 # Class
 class MultiPcsSystem(DynamicalSystem):
     """
-    Class for system of multiple soft robots.
+    Class for system of multiple soft robots. Basically is a batched PyTree representation of multiple
+    `PlanarPCS_simple` robots, where each leaf contains data for all robots stacked along the first dimension.
 
     Attributes
     ----------
@@ -23,7 +24,7 @@ class MultiPcsSystem(DynamicalSystem):
     dim : int
         Dimension of the system.
     robots : PlanarPCS_simple
-        `PlanarPCS_simple` pytree with batched leaves.
+        Batched representation of multiple `PlanarPCS_simple` robots as a PyTree.
     """
     robots: PlanarPCS_simple
     n_robots: int = eqx.field(static=True)
@@ -65,7 +66,7 @@ class MultiPcsSystem(DynamicalSystem):
             *robot_list,
         )
 
-    def _get_robot(self, i: int) -> PlanarPCS_simple:
+    def get_robot(self, i: int) -> PlanarPCS_simple:
         """Extracts i-th robot from pytree. Returns the corresponding `PlanarPCS_simple` instance."""
         return jax.tree_util.tree_map(lambda x: x[i], self.robots)
     
