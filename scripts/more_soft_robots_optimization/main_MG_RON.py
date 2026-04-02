@@ -275,8 +275,8 @@ Z = jnp.concatenate([Q,Qd])
 tau1 = 5.1*jnp.ones(3*n_pcs)
 tau2 = 5.2*jnp.ones(3*n_pcs)
 Tau = jnp.concatenate([tau1, tau2])
-Zd = robots_system.forward_dynamics(Z, Tau)
-print('REMOVE')
+Zd = robots_system.forward_dynamics(0, Z, (Tau,))
+print('!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! REMOVE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
 ### END REMOVE ############################################################
 
 
@@ -757,11 +757,12 @@ else:
 params_optimiz = (p_robots, p_map, p_controller)
 
 # If required, simulate robot and compare its behaviour in time with the RON's one
+simulation_time = 10 # how many seconds for the simulation
 if show_simulations:
     # Load simulation results from RON
     RON_evolution_data = onp.load(dataset_folder/'soft robot optimization'/f'{ron_evolution_example}.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'], dtype=jnp.float64)
-    idx_max_time = jnp.searchsorted(time_RONsaved, 100) - 1 # get index of element < 100 s
+    idx_max_time = jnp.searchsorted(time_RONsaved, simulation_time) - 1 # get index of element < 100 s
     time_RONsaved = time_RONsaved[:idx_max_time] # only first ~100 s
     y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)[:idx_max_time] # only first ~100 s
     yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)[:idx_max_time] # only first ~100 s
@@ -795,11 +796,11 @@ if show_simulations:
             contr_inp = fb_contr_inp
 
         if train_unique_controller:
-            tau = controller(contr_inp)
+            Tau = controller(contr_inp)
         else:
-            tau = fb_controller(fb_contr_inp) + ff_controller(u)
+            Tau = fb_controller(fb_contr_inp) + ff_controller(u)
 
-        return tau, None
+        return Tau, None
     
     tau_fb = jax.jit(partial(tau_law, controller=mlp_controller, u_interp_fn=u_interpolator)) # signature u(SystemState) -> (control_u, control_state_dot) required by soromox
 
@@ -825,20 +826,19 @@ if show_simulations:
     initial_state_pcs = SystemState(t=t0, y=jnp.concatenate([Q0, Qd0]))
 
     # Show max 15 DOFs in the plots
-    if 3*n_pcs > 15:
+    if 3*n_pcs*n_robots > 15:
         n_show = 15
     else:
-        n_show = 3*n_pcs
+        n_show = 3*n_pcs*n_robots
 
     n_cols = min(3, n_show)
     n_rows = int(np.ceil(n_show / n_cols))
 
-### CHECKPOINT ###
     if True:
         # Simulate robot
         print('Simulating robot...')
         start = time.perf_counter()
-        sim_out_pcs = robot.rollout_closed_loop_to(
+        sim_out_pcs = robots_system.rollout_closed_loop_to(
             initial_state = initial_state_pcs,
             controller = tau_fb,
             t1 = t1, 
@@ -853,69 +853,73 @@ if show_simulations:
 
         # Extract results
         timePCS = sim_out_pcs.t
-        q_PCS, qd_PCS = jnp.split(sim_out_pcs.y, 2, axis=1)
-        u_pcs = sim_out_pcs.u
+        Z_ts = sim_out_pcs.y # shape (n_steps, 3*2*n_pcs*n_robots)
+        Q_ts, Qd_ts = jnp.split(Z_ts, 2, axis=1) # shape (n_steps, 3*n_pcs*n_robots) each
+        _, q_ts, qd_ts = jax.vmap(robots_system.transform_Z)(Z_ts) # shape (n_steps, n_robots, 3*n_pcs) each
+        Tau_ts = sim_out_pcs.u # shape (n_steps, 3*n_pcs*n_robots)
+        tau_ts = jax.vmap(robots_system.transform_Tau)(Tau_ts) # shape (n_steps, n_robots, 3*n_pcs) each
 
         # Convert output latent -> RON
         match map_to_train:
             case 'diag' | 'svd':
-                y_hat_pcs = jnp.linalg.solve(A0, (q_PCS - c0).T).T # y_hat(t) = inv(A) * ( q(t) - c )
-                yd_hat_pcs = jnp.linalg.solve(A0, qd_PCS.T).T # yd_hat(t) = inv(A) * qd(t)
+                y_hat_pcs = jnp.linalg.solve(A0, (Q_ts - c0).T).T # y_hat(t) = inv(A) * ( Q(t) - c )
+                yd_hat_pcs = jnp.linalg.solve(A0, Qd_ts.T).T # yd_hat(t) = inv(A) * Qd(t)
             case 'reconstruction':
-                y_hat_pcs = decoder.forward_batch(q_PCS) # y_hat(t) = psi(q(t)). Shape (n_steps, n_ron)
-                yd_hat_pcs = jnp.einsum("bij,bj->bi", jax.vmap(decoder.compute_jacobian)(q_PCS), qd_PCS) # yd_hat(t) = J_psi(q(t))*qd(t)
+                y_hat_pcs = decoder.forward_batch(Q_ts) # y_hat(t) = psi(Q(t)). Shape (n_steps, n_ron)
+                yd_hat_pcs = jnp.einsum("bij,bj->bi", jax.vmap(decoder.compute_jacobian)(Q_ts), Qd_ts) # yd_hat(t) = J_psi(Q(t))*Qd(t)
             case 'norm_flow':
-                y_hat_pcs, yd_hat_pcs = map.inverse_with_derivatives_batch(q_PCS, qd_PCS) # shape (n_steps, n_ron)
+                y_hat_pcs, yd_hat_pcs = map.inverse_with_derivatives_batch(Q_ts, Qd_ts) # shape (n_steps, n_ron)
 
         # Plot PCS strains
-        fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(int(n_show/3)):
-            axs[0].plot(timePCS, q_PCS[:,3*i], label=f'segment {i+1}')
-            axs[0].grid(True)
-            axs[0].set_xlabel('t [s]')
-            axs[0].set_ylabel(r"$\kappa_\mathrm{be}$ [rad/m]")
-            axs[0].set_title('Bending strain')
-            axs[0].legend()
-            axs[1].plot(timePCS, q_PCS[:,3*i+1], label=f'segment {i+1}')
-            axs[1].grid(True)
-            axs[1].set_xlabel('t [s]')
-            axs[1].set_ylabel(r"$\sigma_\mathrm{ax}$ [-]")
-            axs[1].set_title('Axial strain')
-            axs[1].legend()
-            axs[2].plot(timePCS, q_PCS[:,3*i+2], label=f'segment {i+1}')
-            axs[2].grid(True)
-            axs[2].set_xlabel('t [s]')
-            axs[2].set_ylabel(r"$\sigma_\mathrm{sh}$ [-]")
-            axs[2].set_title('Shear strain')
-            axs[2].legend()
-        plt.tight_layout()
-        plt.savefig(plots_folder/'Strains_before', bbox_inches='tight')
-        #plt.show()
+        for n in range(n_robots):
+            fig, axs = plt.subplots(3,1, figsize=(12,9))
+            for i in range(int(n_show/3/n_robots)):
+                axs[0].plot(timePCS, q_ts[:,n,3*i], label=f'segment {i+1}')
+                axs[0].grid(True)
+                axs[0].set_xlabel('t [s]')
+                axs[0].set_ylabel(r"$\kappa_\mathrm{be}$ [rad/m]")
+                axs[0].set_title('Bending strain')
+                axs[0].legend()
+                axs[1].plot(timePCS, q_ts[:,n,3*i+1], label=f'segment {i+1}')
+                axs[1].grid(True)
+                axs[1].set_xlabel('t [s]')
+                axs[1].set_ylabel(r"$\sigma_\mathrm{ax}$ [-]")
+                axs[1].set_title('Axial strain')
+                axs[1].legend()
+                axs[2].plot(timePCS, q_ts[:,n,3*i+2], label=f'segment {i+1}')
+                axs[2].grid(True)
+                axs[2].set_xlabel('t [s]')
+                axs[2].set_ylabel(r"$\sigma_\mathrm{sh}$ [-]")
+                axs[2].set_title('Shear strain')
+                axs[2].legend()
+            plt.tight_layout()
+            plt.savefig(plots_folder/f'Strains_before_robot_{n+1}', bbox_inches='tight')
+            #plt.show()
 
-        # Plot actuation power
-        fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(int(n_show/3)):
-            axs[0].plot(timePCS, qd_PCS[:,3*i] * u_pcs[:,3*i], label=f'segment {i+1}')
-            axs[0].grid(True)
-            axs[0].set_xlabel('t [s]')
-            axs[0].set_ylabel(r"$P_\mathrm{be}$ [W]")
-            axs[0].set_title('Bending actuation power')
-            axs[0].legend()
-            axs[1].plot(timePCS, qd_PCS[:,3*i+1] * u_pcs[:,3*i+1], label=f'segment {i+1}')
-            axs[1].grid(True)
-            axs[1].set_xlabel('t [s]')
-            axs[1].set_ylabel(r"$P_\mathrm{ax}$ [W]")
-            axs[1].set_title('Axial actuation power')
-            axs[1].legend()
-            axs[2].plot(timePCS, qd_PCS[:,3*i+2] * u_pcs[:,3*i+2], label=f'segment {i+1}')
-            axs[2].grid(True)
-            axs[2].set_xlabel('t [s]')
-            axs[2].set_ylabel(r"$P_\mathrm{sh}$ [W]")
-            axs[2].set_title('Shear actuation power')
-            axs[2].legend()
-        plt.tight_layout()
-        plt.savefig(plots_folder/'Power_before', bbox_inches='tight')
-        #plt.show()
+            # Plot actuation power
+            fig, axs = plt.subplots(3,1, figsize=(12,9))
+            for i in range(int(n_show/3/n_robots)):
+                axs[0].plot(timePCS, qd_ts[:,n,3*i] * tau_ts[:,n,3*i], label=f'segment {i+1}')
+                axs[0].grid(True)
+                axs[0].set_xlabel('t [s]')
+                axs[0].set_ylabel(r"$P_\mathrm{be}$ [W]")
+                axs[0].set_title('Bending actuation power')
+                axs[0].legend()
+                axs[1].plot(timePCS, qd_ts[:,n,3*i+1] * tau_ts[:,n,3*i+1], label=f'segment {i+1}')
+                axs[1].grid(True)
+                axs[1].set_xlabel('t [s]')
+                axs[1].set_ylabel(r"$P_\mathrm{ax}$ [W]")
+                axs[1].set_title('Axial actuation power')
+                axs[1].legend()
+                axs[2].plot(timePCS, qd_ts[:,n,3*i+2] * tau_ts[:,n,3*i+2], label=f'segment {i+1}')
+                axs[2].grid(True)
+                axs[2].set_xlabel('t [s]')
+                axs[2].set_ylabel(r"$P_\mathrm{sh}$ [W]")
+                axs[2].set_title('Shear actuation power')
+                axs[2].legend()
+            plt.tight_layout()
+            plt.savefig(plots_folder/f'Power_before_robot_{n+1}', bbox_inches='tight')
+            #plt.show()
 
         # Plot y(t) and y_hat(t)
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -925,8 +929,8 @@ if show_simulations:
             axs = axs.flatten()
 
         for i in range(n_show):
-            axs[i].plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y_{RON}(t)$')
-            axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}_{PCS}(t)$')
+            axs[i].plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y(t)$')
+            axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}(t)$')
             axs[i].grid(True)
             axs[i].set_xlabel('t [s]')
             axs[i].set_ylabel('y')
@@ -934,7 +938,7 @@ if show_simulations:
             axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
             axs[i].legend()
 
-        for i in range(3*n_pcs, len(axs)):
+        for i in range(3*n_pcs*n_robots, len(axs)):
             axs[i].set_visible(False)
 
         plt.tight_layout()
@@ -950,7 +954,7 @@ if show_simulations:
 
         for i in range(n_show):
             axs[i].plot(y_RONsaved[:, i], yd_RONsaved[:, i], 'b--', label=r'RON $(y, \, \dot{y})$')
-            axs[i].plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}_{PCS}, \, \hat{\dot{y}}_{PCS})$')
+            axs[i].plot(y_hat_pcs[:, i], yd_hat_pcs[:, i], 'b', label=r'$(\hat{y}, \, \hat{\dot{y}})$')
             axs[i].grid(True)
             axs[i].set_xlabel(r'$y$')
             axs[i].set_ylabel(r'$\dot{y}$')
@@ -959,7 +963,7 @@ if show_simulations:
             axs[i].set_ylim([onp.min(yd_RONsaved[:,i])-1, onp.max(yd_RONsaved[:,i])+1])
             axs[i].legend()
 
-        for i in range(3*n_pcs, len(axs)):
+        for i in range(3*n_pcs*n_robots, len(axs)):
             axs[i].set_visible(False)
 
         plt.tight_layout()
@@ -967,100 +971,107 @@ if show_simulations:
         #plt.show()
 
         # Plot total actuation
-        fig, axs = plt.subplots(3,1, figsize=(12,9))
-        for i in range(int(n_show/3)):
-            axs[0].plot(timePCS, u_pcs[:,3*i], label=f'segment {i+1}')
-            axs[0].grid(True)
-            axs[0].set_xlabel('t [s]')
-            axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
-            axs[0].set_title('Bending actuation')
-            axs[0].legend()
-            axs[1].plot(timePCS, u_pcs[:,3*i+1], label=f'segment {i+1}')
-            axs[1].grid(True)
-            axs[1].set_xlabel('t [s]')
-            axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
-            axs[1].set_title('Axial actuation')
-            axs[1].legend()
-            axs[2].plot(timePCS, u_pcs[:,3*i+2], label=f'segment {i+1}')
-            axs[2].grid(True)
-            axs[2].set_xlabel('t [s]')
-            axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
-            axs[2].set_title('Shear actuation')
-            axs[2].legend()
-        plt.tight_layout()
-        plt.savefig(plots_folder/'Actuation_before', bbox_inches='tight')
-        #plt.show()
+        for n in range(n_robots):
+            fig, axs = plt.subplots(3,1, figsize=(12,9))
+            for i in range(int(n_show/3/n_robots)):
+                axs[0].plot(timePCS, tau_ts[:,n,3*i], label=f'segment {i+1}')
+                axs[0].grid(True)
+                axs[0].set_xlabel('t [s]')
+                axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+                axs[0].set_title('Bending actuation')
+                axs[0].legend()
+                axs[1].plot(timePCS, tau_ts[:,n,3*i+1], label=f'segment {i+1}')
+                axs[1].grid(True)
+                axs[1].set_xlabel('t [s]')
+                axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+                axs[1].set_title('Axial actuation')
+                axs[1].legend()
+                axs[2].plot(timePCS, tau_ts[:,n,3*i+2], label=f'segment {i+1}')
+                axs[2].grid(True)
+                axs[2].set_xlabel('t [s]')
+                axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+                axs[2].set_title('Shear actuation')
+                axs[2].legend()
+            plt.tight_layout()
+            plt.savefig(plots_folder/f'Actuation_before_robot_{n+1}', bbox_inches='tight')
+            #plt.show()
 
+        # Plot feedforward and feedback terms (if not unique controller)
         if not train_unique_controller:
-            tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len,None])
+            Tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len,None]) # shape (n_steps, 3*n_pcs*n_robots)
+            tau_ff_component_ts = jax.vmap(robots_system.transform_Tau)(Tau_ff_component_ts) # shape (n_steps, n_robots, 3*n_pcs)
             if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
-                tau_fb_component_ts = fb_mlp_controller.forward_batch(q_PCS)
+                Tau_fb_component_ts = fb_mlp_controller.forward_batch(Q_ts) # shape (n_steps, 3*n_pcs*n_robots)
             else:
-                tau_fb_component_ts = fb_mlp_controller.forward_batch(sim_out_pcs.y)
+                Tau_fb_component_ts = fb_mlp_controller.forward_batch(Z_ts) # shape (n_steps, 3*n_pcs*n_robots)
+            tau_fb_component_ts = jax.vmap(robots_system.transform_Tau)(Tau_fb_component_ts) # shape (n_steps, n_robots, 3*n_pcs)
 
-            # Plot feedforward actuation
-            fig, axs = plt.subplots(3,1, figsize=(12,9))
-            for i in range(int(n_show/3)):
-                axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i], label=f'segment {i+1}')
-                axs[0].grid(True)
-                axs[0].set_xlabel('t [s]')
-                axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
-                axs[0].set_title('Bending ff actuation')
-                axs[0].legend()
-                axs[1].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i+1], label=f'segment {i+1}')
-                axs[1].grid(True)
-                axs[1].set_xlabel('t [s]')
-                axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
-                axs[1].set_title('Axial ff actuation')
-                axs[1].legend()
-                axs[2].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,3*i+2], label=f'segment {i+1}')
-                axs[2].grid(True)
-                axs[2].set_xlabel('t [s]')
-                axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
-                axs[2].set_title('Shear ff actuation')
-                axs[2].legend()
-            plt.tight_layout()
-            plt.savefig(plots_folder/'Actuation_ff_before', bbox_inches='tight')
-            #plt.show()
+            for n in range(n_robots):
+                # Plot feedforward actuation
+                fig, axs = plt.subplots(3,1, figsize=(12,9))
+                for i in range(int(n_show/3/n_robots)):
+                    axs[0].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,n,3*i], label=f'segment {i+1}')
+                    axs[0].grid(True)
+                    axs[0].set_xlabel('t [s]')
+                    axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+                    axs[0].set_title('Bending ff actuation')
+                    axs[0].legend()
+                    axs[1].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,n,3*i+1], label=f'segment {i+1}')
+                    axs[1].grid(True)
+                    axs[1].set_xlabel('t [s]')
+                    axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+                    axs[1].set_title('Axial ff actuation')
+                    axs[1].legend()
+                    axs[2].plot(time_RONsaved[:min_len], tau_ff_component_ts[:,n,3*i+2], label=f'segment {i+1}')
+                    axs[2].grid(True)
+                    axs[2].set_xlabel('t [s]')
+                    axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+                    axs[2].set_title('Shear ff actuation')
+                    axs[2].legend()
+                plt.tight_layout()
+                plt.savefig(plots_folder/f'Actuation_ff_before_robot_{n+1}', bbox_inches='tight')
+                #plt.show()
 
-            # Plot feedback actuation
-            fig, axs = plt.subplots(3,1, figsize=(12,9))
-            for i in range(int(n_show/3)):
-                axs[0].plot(timePCS, tau_fb_component_ts[:,3*i], label=f'segment {i+1}')
-                axs[0].grid(True)
-                axs[0].set_xlabel('t [s]')
-                axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
-                axs[0].set_title('Bending fb actuation')
-                axs[0].legend()
-                axs[1].plot(timePCS, tau_fb_component_ts[:,3*i+1], label=f'segment {i+1}')
-                axs[1].grid(True)
-                axs[1].set_xlabel('t [s]')
-                axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
-                axs[1].set_title('Axial fb actuation')
-                axs[1].legend()
-                axs[2].plot(timePCS, tau_fb_component_ts[:,3*i+2], label=f'segment {i+1}')
-                axs[2].grid(True)
-                axs[2].set_xlabel('t [s]')
-                axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
-                axs[2].set_title('Shear fb actuation')
-                axs[2].legend()
-            plt.tight_layout()
-            plt.savefig(plots_folder/'Actuation_fb_before', bbox_inches='tight')
-            #plt.show()
+                # Plot feedback actuation
+                fig, axs = plt.subplots(3,1, figsize=(12,9))
+                for i in range(int(n_show/3/n_robots)):
+                    axs[0].plot(timePCS, tau_fb_component_ts[:,n,3*i], label=f'segment {i+1}')
+                    axs[0].grid(True)
+                    axs[0].set_xlabel('t [s]')
+                    axs[0].set_ylabel(r"$\tau_{be}$ [$N\cdot m^2$]")
+                    axs[0].set_title('Bending fb actuation')
+                    axs[0].legend()
+                    axs[1].plot(timePCS, tau_fb_component_ts[:,n,3*i+1], label=f'segment {i+1}')
+                    axs[1].grid(True)
+                    axs[1].set_xlabel('t [s]')
+                    axs[1].set_ylabel(r"$\tau_{ax}$ [$N\cdot m$]")
+                    axs[1].set_title('Axial fb actuation')
+                    axs[1].legend()
+                    axs[2].plot(timePCS, tau_fb_component_ts[:,n,3*i+2], label=f'segment {i+1}')
+                    axs[2].grid(True)
+                    axs[2].set_xlabel('t [s]')
+                    axs[2].set_ylabel(r"$\tau_{sh}$ [$N\cdot m$]")
+                    axs[2].set_title('Shear fb actuation')
+                    axs[2].legend()
+                plt.tight_layout()
+                plt.savefig(plots_folder/f'Actuation_fb_before_robot_{n+1}', bbox_inches='tight')
+                #plt.show()
 
-        # Animate robot
-        animate_robot_matplotlib(
-            robot = robot,
-            t_list = saveat,
-            q_list = q_PCS,
-            interval = 1e-3, 
-            slider = False,
-            animation = True,
-            show = True,
-            duration = 10,
-            fps = 30,
-            save_path = plots_folder/'animation_before.gif',
-        )
+        # Animate robots
+        for n in range(n_robots):
+            flag = True if n == n_robots - 1 else False
+            animate_robot_matplotlib(
+                robot = robots_system.get_robot(n),
+                t_list = saveat,
+                q_list = q_ts[:,n],
+                interval = 1e-3, 
+                slider = False,
+                animation = True,
+                show = flag,
+                duration = 10,
+                fps = 30,
+                save_path = plots_folder/f'animation_before_robot_{n+1}.gif',
+            )
     else:
         print('[simulation skipped]')
 else:
