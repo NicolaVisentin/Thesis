@@ -211,7 +211,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'M10' # name of the experiment to perform/load
+experiment = 'M25' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 
@@ -225,16 +225,16 @@ ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of t
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
                                # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
-fb_controller_to_train = 'tanh_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
+fb_controller_to_train = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_to_train = 'tanh' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
 map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 2 # number of soft robots in the reservoir
-n_pcs = 2 # number of segments for the single PCS
+n_robots = 4 # number of soft robots in the reservoir
+n_pcs = 1 # number of segments for the single PCS
 train_robot = True # if False, does not optimize the soft robot
 
 
@@ -853,6 +853,7 @@ if show_simulations:
             plt.tight_layout()
             plt.savefig(plots_folder/f'Strains_before_robot_{n+1}', bbox_inches='tight')
             #plt.show()
+            plt.close()
 
             # Plot actuation power
             fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -878,6 +879,7 @@ if show_simulations:
             plt.tight_layout()
             plt.savefig(plots_folder/f'Power_before_robot_{n+1}', bbox_inches='tight')
             #plt.show()
+            plt.close()
 
         # Plot y(t) and y_hat(t)
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -902,6 +904,7 @@ if show_simulations:
         plt.tight_layout()
         plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
         #plt.show()
+        plt.close()
 
         # Plot phase planes
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -927,6 +930,7 @@ if show_simulations:
         plt.tight_layout()
         plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
         #plt.show()
+        plt.close()
 
         # Plot total actuation
         for n in range(n_robots):
@@ -953,6 +957,7 @@ if show_simulations:
             plt.tight_layout()
             plt.savefig(plots_folder/f'Actuation_before_robot_{n+1}', bbox_inches='tight')
             #plt.show()
+            plt.close()
 
         # Plot feedforward and feedback terms (if not unique controller)
         if not train_unique_controller:
@@ -989,6 +994,7 @@ if show_simulations:
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Actuation_ff_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
+                plt.close()
 
                 # Plot feedback actuation
                 fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1014,6 +1020,7 @@ if show_simulations:
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Actuation_fb_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
+                plt.close()
 
         # Animate robots
         for n in range(n_robots):
@@ -1433,6 +1440,7 @@ if show_simulations:
         plt.tight_layout()
         plt.savefig(plots_folder/f'Strains_after_robot_{n+1}', bbox_inches='tight')
         #plt.show()
+        plt.close()
 
         # Plot actuation power
         fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1458,6 +1466,7 @@ if show_simulations:
         plt.tight_layout()
         plt.savefig(plots_folder/f'Power_after_robot_{n+1}', bbox_inches='tight')
         #plt.show()
+        plt.close()
     
     # Plot y(t) and y_hat(t)
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -1482,6 +1491,7 @@ if show_simulations:
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
     #plt.show()
+    plt.close()
 
     # Plot phase planes
     fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -1507,6 +1517,7 @@ if show_simulations:
     plt.tight_layout()
     plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
     #plt.show()
+    plt.close()
 
     # Plot total actuation
     for n in range(n_robots):
@@ -1533,6 +1544,7 @@ if show_simulations:
         plt.tight_layout()
         plt.savefig(plots_folder/f'Actuation_after_robot_{n+1}', bbox_inches='tight')
         #plt.show()
+        plt.close()
 
     # Plot feedforward and feedback terms (if not unique controller)
     if not train_unique_controller:
@@ -1569,6 +1581,7 @@ if show_simulations:
             plt.tight_layout()
             plt.savefig(plots_folder/f'Actuation_ff_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
+            plt.close()
 
             # Plot feedback actuation
             fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1594,6 +1607,7 @@ if show_simulations:
             plt.tight_layout()
             plt.savefig(plots_folder/f'Actuation_fb_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
+            plt.close()
 
     # Animate robots
     for n in range(n_robots):
