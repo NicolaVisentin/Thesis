@@ -31,7 +31,7 @@ sys.path.append(str(curr_folder.parent)) # scripts folder
 from utilis import *
 
 # Jax settings
-jax.config.update("jax_enable_x64", True)  # double precision
+jax.config.update("jax_enable_x64", True) # double precision
 jnp.set_printoptions(
     threshold=jnp.inf,
     linewidth=jnp.inf,
