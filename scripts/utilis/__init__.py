@@ -4,3 +4,4 @@ from .mlp import *
 from .evaluation_metrics import *
 from .real_nvp import *
 from .generic import *
+from .robots_system import *
