@@ -211,7 +211,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'M25' # name of the experiment to perform/load
+experiment = 'M22' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 
@@ -1294,7 +1294,8 @@ if not load_experiment:
     plt.title(f'Loss curve (elapsed time: {elatime_optimiz:.2f} s)')
     plt.tight_layout()
     plt.savefig(plots_folder/'Loss', bbox_inches='tight')
-    plt.show()
+    #plt.show()
+    plt.close()
 
 
 # =====================================================
