@@ -211,7 +211,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'M22' # name of the experiment to perform/load
+experiment = 'M26' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 
@@ -225,11 +225,11 @@ ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of t
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
                                # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
-fb_controller_to_train = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_to_train = 'tanh' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
+fb_controller_to_train = 'tanh_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
-map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
@@ -1032,7 +1032,8 @@ if show_simulations:
                 interval = 1e-3, 
                 slider = False,
                 animation = True,
-                show = flag,
+                #show = flag,
+                show = False,
                 duration = 10,
                 fps = 30,
                 save_path = plots_folder/f'animation_before_robot_{n+1}.gif',
@@ -1620,7 +1621,8 @@ if show_simulations:
             interval = 1e-3, 
             slider = False,
             animation = True,
-            show = flag,
+            #show = flag,
+            show = False,
             duration = 10,
             fps = 30,
             save_path = plots_folder/f'animation_after_robot_{n+1}.gif',
