@@ -814,7 +814,7 @@ if show_simulations:
         Q_ts, Qd_ts = jnp.split(Z_ts, 2, axis=1) # shape (n_steps, 3*n_pcs*n_robots) each
         _, q_ts, qd_ts = jax.vmap(robots_system.transform_Z)(Z_ts) # shape (n_steps, n_robots, 3*n_pcs) each
         Tau_ts = sim_out_pcs.u # shape (n_steps, 3*n_pcs*n_robots)
-        tau_ts = jax.vmap(robots_system.transform_Tau)(Tau_ts) # shape (n_steps, n_robots, 3*n_pcs) each
+        tau_ts = jax.vmap(robots_system.transform_Tau)(Tau_ts) # shape (n_steps, n_robots, 3*n_pcs)
 
         # Convert output latent -> RON
         match map_to_train:
