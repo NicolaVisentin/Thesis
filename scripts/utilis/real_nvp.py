@@ -288,6 +288,17 @@ class RealNVP(eqx.Module):
         return x
     
     @eqx.filter_jit
+    def compute_jacobian_direct(self, x: Array) -> Array:
+        """Computes the Jacobian of the network wrt the input x at a given x."""
+        return jax.jacfwd(self.forward)(x) # shape (n_out, n_in)
+    
+    @eqx.filter_jit
+    def compute_jacobian_inverse(self, z: Array) -> Array:
+        """Computes the Jacobian of the inverse transformation wrt the input z at a given z."""
+        return jax.jacfwd(self.inverse)(z) # shape (n_in, n_out)
+    
+    
+    @eqx.filter_jit
     def forward_batch(self, x_batch: Array) -> Tuple[Array, Array]:
         """Batched version of `forward` method."""
         batched_forward = jax.vmap(self.forward)
