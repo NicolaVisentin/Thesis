@@ -1,0 +1,14 @@
+SETUP
+   Dataset:          MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15
+   RON case:         input
+   Latent dimension: 12
+   Number of robots: 4
+   PCS segments:     1
+   Mapping:          norm_flow
+   Controller:       linear_complete (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               10651.31773632951
+   Final test RMS error:                        0.5076755776801626
+   Final test RMS power:                        749662.8591527827 (fb: 744823.3638475913, ff: 6587.865438164474)
+   Final test RMSE reconstruction (y, yd, ydd): (3.200885090102276e-14, 9.173490410107247e-15, 5.071898953820083e-14)
