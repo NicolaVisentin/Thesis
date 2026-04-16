@@ -18,6 +18,7 @@ import copy
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.widgets import Slider
+import matplotlib.colors as mcolors
 
 from pathlib import Path
 from tqdm import tqdm
@@ -226,7 +227,7 @@ This script:
 """
 
 # General
-dt_u = 0.15 # time step for the input u. (in the RON paper dt = 0.17 s)
+dt_u = 0.05 # time step for the input u. (in the RON paper dt = 0.17 s)
 Nw = 200 # washout steps for the Mackey-Glass task
 Nl = 84 # prediction lag for the Mackey-Glass task
 
@@ -235,11 +236,12 @@ experiment_name = 'TEST' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
-load_model_path = saved_data_folder/'more_soft_robots_optimization'/'main'/'M2' # choose the reservoir to load (robots + map + controller)
+#load_model_path = saved_data_folder/'more_soft_robots_optimization'/'main'/'M2' # choose the reservoir to load (robots + map + controller)
+load_model_path = saved_data_folder/'equation-error_optimization'/'main_MG_RON'/'B27'
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
-controller_type = 'unique' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
-fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
+fb_controller_type = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_type = 'linear' # 'linear', 'tanh', 'mlp'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -281,7 +283,17 @@ r = jnp.array(data_robot_load['r'], dtype=jnp.float64)
 rho = jnp.array(data_robot_load['rho'], dtype=jnp.float64)
 E = jnp.array(data_robot_load['E'], dtype=jnp.float64)
 G = jnp.array(data_robot_load['G'], dtype=jnp.float64)
-n_robots, n_pcs = L.shape
+if len(L.shape) == 1:
+    n_robots = 1
+    n_pcs = L.shape[0]
+    L = jnp.expand_dims(L, axis=0)
+    D = jnp.expand_dims(D, axis=0)
+    r = jnp.expand_dims(r, axis=0)
+    rho = jnp.expand_dims(rho, axis=0)
+    E = jnp.expand_dims(E, axis=0)
+    G = jnp.expand_dims(G, axis=0)
+else:
+    n_robots, n_pcs = L.shape
 
 pcs_parameters = {
     "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
@@ -503,7 +515,7 @@ if train:
         _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
         _
     ) = reservoir(train_dataset, time_u_train, saveat_train, dt_sim)
-    exit()
+
     y_ts, _ = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
     activations = y_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
     activations.block_until_ready()
@@ -551,8 +563,8 @@ start = time.perf_counter()
 (
     time_ts,
     state_reservoir_ts, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
-    state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs)
-    actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs)
+    state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs*n_robots)
+    actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
     _
 ) = reservoir(test_dataset, time_u_test, saveat_test, dt_sim)
 
@@ -579,9 +591,19 @@ print(f'Test NRMSE: {test_nrmse}')
 
 # Prepare variables
 y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir states
-q_ts, qd_ts = jnp.split(state_pcs_ts, 2, axis=1) # robot states
+_, q_ts, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts) # shape (n_steps, n_robots, 3*n_pcs)
+Q_ts, _ = jnp.split(state_pcs_ts, 2, axis=1) # shape (n_steps, 3*n_pcs*n_robots)
 full_time = dt_u * onp.arange(0, N_test + Nl)
 full_sequence = onp.concatenate([onp.array(test_dataset), test_target[-Nl:]]) # full MG test sequence
+
+# Show max 15 DOFs in the plots
+if 3*n_pcs*n_robots > 15:
+    n_show = 15
+else:
+    n_show = 3*n_pcs*n_robots
+
+n_cols = min(2, n_show)
+n_rows = int(np.ceil(n_show / n_cols))
 
 # Show predicted sequence
 fig, ax = plt.subplots(1,1, figsize=(20,6))
@@ -599,28 +621,28 @@ plt.savefig(plots_folder/'Prediction', bbox_inches='tight')
 #plt.show()
 
 # Show reservoir/robot evolution
-fig, axs = plt.subplots(3,2, figsize=(12,9))
+fig, axs = plt.subplots(n_rows, n_cols, figsize=(12,9))
 for i, ax in enumerate(axs.flatten()):
-    ax.plot(time_ts, y_ts[:,i], 'b', label='reservoir')
-    ax.plot(time_ts, q_ts[:,i], 'r', label='soft robot')
+    ax.plot(time_ts, y_ts[:,i], 'b', label=r'reservoir')
+    ax.plot(time_ts, Q_ts[:,i], 'r', label=r'soft robots')
     ax.grid(True)
     ax.set_xlabel('t [s]')
-    ax.set_ylabel('y, q')
+    ax.set_ylabel('y, Q')
     ax.set_title(f'Component {i+1}')
     ax.legend()
 plt.tight_layout()
 plt.savefig(plots_folder/'Example_inference_evolution', bbox_inches='tight') 
 #plt.show()
 
-# Show actuation signal tau(t)
-fig, axs = plt.subplots(3,2, figsize=(16,13))
+# Show actuation signal Tau(t)
+fig, axs = plt.subplots(n_rows, n_cols, figsize=(16,13))
 for i, ax in enumerate(axs.flatten()):
     ax2 = ax.twinx()
     ax2.plot(time_ts, test_dataset, 'k', alpha=0.3, label=r'reservoir input $u(t)$')
     ax2.set_ylabel(r'$u$')
     ax2.set_ylim([-0.6, 0.4])
 
-    ax.plot(time_ts, actuation_ts[:,i], 'r', label=r'robot actuation $\tau(t)$')
+    ax.plot(time_ts, actuation_ts[:,i], 'r', label=r'robots actuation $\tau(t)$')
     ax.set_xlabel('t [s]')
     ax.set_ylabel(r'$\tau$')
 
@@ -631,21 +653,22 @@ for i, ax in enumerate(axs.flatten()):
 
 plt.tight_layout()
 plt.savefig(plots_folder/'Example_inference_actuation', bbox_inches='tight') 
-#plt.show()
+plt.show()
 
 # Show robot animation
-animate_robot_matplotlib(
-    robot = robot,
-    t_list = time_ts,
-    q_list = q_ts,
-    interval = 1e-3, 
-    slider = False,
-    animation = True,
-    show = False,
-    duration = 10,
-    fps = 30,
-    save_path = plots_folder/'Example_inference_animation.gif',
-)
+for n in range(n_robots):
+    animate_robot_matplotlib(
+        robot = robots_system.get_robot(n),
+        t_list = time_ts,
+        q_list = q_ts[:,n],
+        interval = 1e-3, 
+        slider = False,
+        animation = True,
+        show = False,
+        duration = 10,
+        fps = 30,
+        save_path = plots_folder/f'Example_inference_animation_robot_{n+1}.gif',
+    )
 
 
 # =========================================================
@@ -663,15 +686,17 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Train set size: {N_train}\n")
     file.write(f"   Test set size:  {N_test}\n\n")
     file.write(f"RESERVOIR PROPERTIES\n")
-    file.write(f"   Model path: {load_model_path}\n")
-    file.write(f"   Dimension:  {3*n_pcs}\n")
-    file.write(f"   Map:        {map_type}\n")
+    file.write(f"   Model path:  {load_model_path}\n")
+    file.write(f"   Dimension:   {3*n_pcs*n_robots}\n")
+    file.write(f"   n. robots:   {n_robots}\n")
+    file.write(f"   n. segments: {n_pcs}\n")
+    file.write(f"   Map:         {map_type}\n")
     if controller_type == 'unique':
-        file.write(f"   Controller: {fb_controller_type} (unique)\n\n")
+        file.write(f"   Controller:  {fb_controller_type} (unique)\n\n")
     elif controller_type == 'fb+ff':
-        file.write(f"   Controller: {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
+        file.write(f"   Controller:  {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
     else:
-        file.write(f"   Controller: no fb + random ff\n\n")
+        file.write(f"   Controller:  no fb + random ff\n\n")
     file.write(f"METRICS\n")
     file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
     file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
