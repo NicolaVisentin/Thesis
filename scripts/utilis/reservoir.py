@@ -69,7 +69,7 @@ class MultiPcsReservoir:
         saveat = saveat
         solver = Euler() #Tsit5()
         step_size = ConstantStepSize()
-        max_steps = int(1e6)
+        max_steps = int(1e8)
         
         # Controller definition
         u_interp = LinearInterpolation(
