@@ -210,16 +210,16 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'M36' # name of the experiment to perform/load
+experiment = 'S6' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
-# ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-# ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
+#ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+#ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
@@ -724,6 +724,8 @@ if show_simulations:
     y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
     yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
     u_RONsaved = jnp.array(RON_evolution_data['u'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
+    if len(u_RONsaved.shape) == 1: # !!! THIS IS HERE BECAUSE OF HOW DATA WERE SAVED: sMINST HAS (n_steps, 1) WHILE M-G HAS (n_steps,) !!!
+        u_RONsaved = u_RONsaved[:, None]
 
     # Define controller
     min_len = jnp.min(jnp.array([len(time_RONsaved), len(u_RONsaved)]))
@@ -735,7 +737,6 @@ if show_simulations:
     def tau_law(system_state: SystemState, controller: MLP | Tuple[MLP, MLP], u_interp_fn: AbstractTerm):
         """Implements user-defined control Tau(t) = Tau_fn(Q(t),Qd(t),u(t))."""
         u = u_interp_fn.evaluate(system_state.t)
-        u = jnp.array([u])
         Q, Qd = jnp.split(system_state.y, 2)
         Z = system_state.y
 
@@ -960,7 +961,7 @@ if show_simulations:
 
         # Plot feedforward and feedback terms (if not unique controller)
         if not train_unique_controller:
-            Tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len,None]) # shape (n_steps, 3*n_pcs*n_robots)
+            Tau_ff_component_ts = ff_mlp_controller.forward_batch(u_RONsaved[:min_len]) # shape (n_steps, 3*n_pcs*n_robots)
             tau_ff_component_ts = jax.vmap(robots_system.transform_Tau)(Tau_ff_component_ts) # shape (n_steps, n_robots, 3*n_pcs)
             if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
                 Tau_fb_component_ts = fb_mlp_controller.forward_batch(Q_ts) # shape (n_steps, 3*n_pcs*n_robots)
@@ -1549,7 +1550,7 @@ if show_simulations:
 
     # Plot feedforward and feedback terms (if not unique controller)
     if not train_unique_controller:
-        Tau_ff_component_ts = ff_mlp_controller_opt.forward_batch(u_RONsaved[:min_len,None]) # shape (n_steps, 3*n_pcs*n_robots)
+        Tau_ff_component_ts = ff_mlp_controller_opt.forward_batch(u_RONsaved[:min_len]) # shape (n_steps, 3*n_pcs*n_robots)
         tau_ff_component_ts = jax.vmap(robots_system_opt.transform_Tau)(Tau_ff_component_ts) # shape (n_steps, n_robots, 3*n_pcs)
         if fb_controller_to_train == 'linear_simple' or fb_controller_to_train == 'tanh_simple':
             Tau_fb_component_ts = fb_mlp_controller_opt.forward_batch(Q_ts) # shape (n_steps, 3*n_pcs*n_robots)
