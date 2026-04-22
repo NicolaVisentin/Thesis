@@ -237,11 +237,11 @@ train = True # if True, perform training (output layer). Otherwise, test saved '
 
 # Reservoir (robots + map + controller)
 #load_model_path = saved_data_folder/'more_soft_robots_optimization'/'main'/'M2' # choose the reservoir to load (robots + map + controller)
-load_model_path = saved_data_folder/'equation-error_optimization'/'main_MG_RON'/'B27'
-map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
+load_model_path = saved_data_folder/'equation-error_optimization'/'main_MG_RON'/'A16'
+map_type = 'encoder-decoder' # 'linear', 'encoder-decoder', 'bijective', 'none'
 controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
-fb_controller_type = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_type = 'linear' # 'linear', 'tanh', 'mlp'
+fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_type = 'tanh' # 'linear', 'tanh', 'mlp'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -262,9 +262,9 @@ plots_folder.mkdir(parents=True, exist_ok=True)
 ) = load_mackey_glass_data(csvfolder=dataset_folder/'MG', lag=Nl, washout=Nw, train_portion=0.2, val_portion=0.6)
 
 # Convert to jax
-train_dataset = jnp.array([train_dataset], dtype=jnp.float64).squeeze() # sequence from k=0 to k=N-Nl-1. Shape (N-Nl,)
-valid_dataset = jnp.array([valid_dataset], dtype=jnp.float64).squeeze() # sequence from k=0 to k=N-Nl-1. Shape (N-Nl,)
-test_dataset = jnp.array([test_dataset], dtype=jnp.float64).squeeze() # sequence from k=0 to k=N-Nl-1. Shape (N-Nl,)
+train_dataset = jnp.array([train_dataset], dtype=jnp.float64).T # sequence from k=0 to k=N-Nl-1. Shape (N-Nl, 1)
+valid_dataset = jnp.array([valid_dataset], dtype=jnp.float64).T # sequence from k=0 to k=N-Nl-1. Shape (N-Nl, 1)
+test_dataset = jnp.array([test_dataset], dtype=jnp.float64).T # sequence from k=0 to k=N-Nl-1. Shape (N-Nl, 1)
 
 N_train = len(train_dataset) # N for the train set sequence
 N_test = len(test_dataset) # N for the test set sequence
@@ -418,9 +418,9 @@ if controller_type == 'unique':
     def controller(z, u, mlp_controller):
         if n_input == 3*n_pcs*n_robots + 1:
             q, qd = jnp.split(z, 2)
-            input_controller = jnp.concatenate([q, jnp.array([u])])
+            input_controller = jnp.concatenate([q, u])
         else:
-            input_controller = jnp.concatenate([z, jnp.array([u])])
+            input_controller = jnp.concatenate([z, u])
         tau = mlp_controller(input_controller)
         return tau
     controller = jax.jit(partial(controller, mlp_controller=mlp_controller))
@@ -463,7 +463,7 @@ elif controller_type == 'fb+ff':
     
     # total controller
     def controller(z, u, mlp_fb_controller, mlp_ff_controller):
-        tau_ff = mlp_ff_controller(jnp.array([u]))
+        tau_ff = mlp_ff_controller(u)
         if n_input_fb == 3*n_pcs*n_robots:
             q, qd = jnp.split(z, 2)
             tau_fb = mlp_fb_controller(q)
@@ -480,7 +480,7 @@ else:
     V = scal_input[:,None] * jax.random.uniform(key_V, shape=(3*n_pcs*n_robots,1), minval=0.0, maxval=1.0) # random input-to-hidden weights
     d = scal_input * jax.random.uniform(key_d, shape=(3*n_pcs*n_robots,), minval=-1.0, maxval=1.0) # random input-to-hodden bias
     def controller(z, u, V, d):
-        tau_ff = jnp.tanh(V @ jnp.array([u]) + d)
+        tau_ff = jnp.tanh(V @ u + d)
         return tau_ff
     controller = jax.jit(partial(controller, V=V, d=d))
 
@@ -515,7 +515,7 @@ if train:
         _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
         _
     ) = reservoir(train_dataset, time_u_train, saveat_train, dt_sim)
-
+    
     y_ts, _ = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
     activations = y_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
     activations.block_until_ready()
@@ -594,7 +594,7 @@ y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir states
 _, q_ts, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts) # shape (n_steps, n_robots, 3*n_pcs)
 Q_ts, _ = jnp.split(state_pcs_ts, 2, axis=1) # shape (n_steps, 3*n_pcs*n_robots)
 full_time = dt_u * onp.arange(0, N_test + Nl)
-full_sequence = onp.concatenate([onp.array(test_dataset), test_target[-Nl:]]) # full MG test sequence
+full_sequence = onp.concatenate([onp.array(test_dataset).squeeze(), test_target[-Nl:]]) # full MG test sequence
 
 # Show max 15 DOFs in the plots
 if 3*n_pcs*n_robots > 15:
@@ -638,7 +638,7 @@ plt.savefig(plots_folder/'Example_inference_evolution', bbox_inches='tight')
 fig, axs = plt.subplots(n_rows, n_cols, figsize=(16,13))
 for i, ax in enumerate(axs.flatten()):
     ax2 = ax.twinx()
-    ax2.plot(time_ts, test_dataset, 'k', alpha=0.3, label=r'reservoir input $u(t)$')
+    ax2.plot(time_ts, test_dataset.squeeze(), 'k', alpha=0.3, label=r'reservoir input $u(t)$')
     ax2.set_ylabel(r'$u$')
     ax2.set_ylim([-0.6, 0.4])
 
@@ -653,7 +653,7 @@ for i, ax in enumerate(axs.flatten()):
 
 plt.tight_layout()
 plt.savefig(plots_folder/'Example_inference_actuation', bbox_inches='tight') 
-plt.show()
+#plt.show()
 
 # Show robot animation
 for n in range(n_robots):
