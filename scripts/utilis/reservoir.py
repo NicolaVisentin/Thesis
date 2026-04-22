@@ -41,7 +41,7 @@ class MultiPcsReservoir:
         Args
         ----
         u : Array
-            Reservoir's input time sequence. Shape (n_steps_input,)
+            Reservoir's input time sequence. Shape (n_steps_input, dim_input)
         time_u : Array
             Time vector associated with u. Shape (n_steps_input,)
         saveat : Array
