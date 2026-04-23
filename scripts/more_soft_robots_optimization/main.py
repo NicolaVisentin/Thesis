@@ -209,20 +209,21 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
-load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'S6' # name of the experiment to perform/load
+load_experiment = True # choose whether to load saved experiment or to perform training
+experiment = 'CHECK' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
+simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
-ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
-#ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
-#ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+#ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
+#ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
 
 # controller
-train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
+train_unique_controller = True # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
                                # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
 fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
@@ -232,8 +233,8 @@ map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 4 # number of soft robots in the reservoir
-n_pcs = 1 # number of segments for the single PCS
+n_robots = 1 # number of soft robots in the reservoir
+n_pcs = 4 # number of segments for the single PCS
 train_robot = True # if False, does not optimize the soft robot
 
 
@@ -494,7 +495,7 @@ dataset = onp.load(dataset_folder/'soft robot optimization'/f'{ron_dataset}.npz'
 y = dataset["y"] # position samples of the RON oscillators. Shape (m, n_ron)
 yd = dataset["yd"] # velocity samples of the RON oscillators. Shape (m, n_ron)
 ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
-u = dataset["u"] # sMNIST input. Shape (m, 1)
+u = dataset["u"] # input. Shape (m, 1)
 
 # Convert into jax
 y_dataset = jnp.array(y, dtype=jnp.float64)
@@ -714,13 +715,12 @@ else:
 params_optimiz = (p_robots, p_map, p_controller)
 
 # If required, simulate robot and compare its behaviour in time with the RON's one
-simulation_duration = 30 # how many seconds of simulation
 if show_simulations:
     # Load simulation results from RON
     RON_evolution_data = onp.load(dataset_folder/'soft robot optimization'/f'{ron_evolution_example}.npz')
     time_RONsaved = jnp.array(RON_evolution_data['time'], dtype=jnp.float64)
     idx_max_time = jnp.searchsorted(time_RONsaved, simulation_duration) - 1 # get index of element < 'simulation_duration' s
-    time_RONsaved = time_RONsaved[:idx_max_time] # only first ~100 s
+    time_RONsaved = time_RONsaved[:idx_max_time] # only first ~'simulation_duration' s
     y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
     yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
     u_RONsaved = jnp.array(RON_evolution_data['u'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
