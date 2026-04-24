@@ -209,8 +209,8 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
-load_experiment = True # choose whether to load saved experiment or to perform training
-experiment = 'CHECK' # name of the experiment to perform/load
+load_experiment = False # choose whether to load saved experiment or to perform training
+experiment = 'M12' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
@@ -233,8 +233,8 @@ map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 1 # number of soft robots in the reservoir
-n_pcs = 4 # number of segments for the single PCS
+n_robots = 4 # number of soft robots in the reservoir
+n_pcs = 1 # number of segments for the single PCS
 train_robot = True # if False, does not optimize the soft robot
 
 
