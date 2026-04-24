@@ -151,10 +151,13 @@ class MultiPcsSystem(DynamicalSystem):
             New updated instance of the class.
         """
         # Update all robots
-        new_robots = eqx.tree_at(
-            lambda m: [getattr(m, k) for k in new_params],
+        def update_single(robot, params_i):
+            return robot.update_params(params_i)
+        
+        # params_i è il dizionario con i valori per l'i-esimo robot
+        new_robots = jax.vmap(update_single)(
             self.robots,
-            [v for v in new_params.values()],
+            {k: v for k, v in new_params.items()}
         )
         updated_self = eqx.tree_at(lambda m: m.robots, self, new_robots)
         return updated_self
