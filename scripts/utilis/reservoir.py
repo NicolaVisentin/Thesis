@@ -63,7 +63,7 @@ class MultiPcsReservoir:
             Final reservoir's state: last element of y_ts. Shape (n_y,)
         """
         # Simulation parameters
-        t0 = 0
+        t0 = time_u[0]
         t1 = time_u[-1]
         dt = dt #1e-4
         saveat = saveat
