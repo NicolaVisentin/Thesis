@@ -502,6 +502,10 @@ saveat_test = time_u_test # for saving simulation results
 # =====================================================
 # Training
 # =====================================================
+print(f'--- Experiment ---\n'
+      f'name:  {experiment_name}\n'
+      f'model: {load_model_path}')
+print()
 
 if train:
     # Train the output layer (predictor) (1): pass the train input sequence to the model
@@ -707,4 +711,5 @@ with open(data_folder/'performances.txt', 'w') as file:
 # =========================================================
 # Show all plots
 # =========================================================
-plt.show()
+#plt.show()
+plt.close()
