@@ -1742,6 +1742,8 @@ with open(data_folder/f'metrics{suffix_log}.txt', 'w') as file:
     file.write(f"   Latent dimension: {n_ron}\n")
     file.write(f"   Number of robots: {n_robots}\n")
     file.write(f"   PCS segments:     {n_pcs}\n")
+    if not train_robot:
+        file.write(f"   ! Robots were not optimized !\n")
     file.write(f"   Mapping:          {map_to_train}")
     if map_to_train == 'reconstruction':
         file.write(f", (reconstruction loss up to {reconstruction_type})\n")
