@@ -725,7 +725,7 @@ if show_simulations:
     yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
     u_RONsaved = jnp.array(RON_evolution_data['u'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
     if len(u_RONsaved.shape) == 1: # !!! THIS IS HERE BECAUSE OF HOW DATA WERE SAVED: sMINST HAS (n_steps, 1) WHILE M-G HAS (n_steps,) !!!
-        u_RONsaved = u_RONsaved[:, None]
+        u_RONsaved = u_RONsaved[:, None] # ...and we want to work with (n_steps, n_u)
 
     # Define controller
     min_len = jnp.min(jnp.array([len(time_RONsaved), len(u_RONsaved)]))
