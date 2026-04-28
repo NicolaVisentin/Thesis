@@ -232,15 +232,16 @@ Nw = 200 # washout steps for the Mackey-Glass task
 Nl = 84 # prediction lag for the Mackey-Glass task
 
 # Output layer (scaler + predictor)
-experiment_name = 'TEST' # name of the experiment to save/load
+experiment_name = 'M3e' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
-load_model_path = saved_data_folder/'more_soft_robots_optimization'/'main'/'M1' # choose the reservoir to load (robots + map + controller)
-map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
-controller_type = 'unique' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
-fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
-ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+load_model_path = saved_data_folder/'more_soft_robots_optimization'/'main'/'M3' # choose the reservoir to load (robots + map + controller)
+map_type = 'none' # 'linear', 'encoder-decoder', 'bijective', 'none'
+controller_type = 'ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
+fb_controller_type = 'linear_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+ff_controller_type = 'linear' # 'linear', 'tanh', 'mlp'
+use_default_robots = True # if True, uses default robots instead of the ones in 'load_model_path'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -293,6 +294,14 @@ if len(L.shape) == 1:
     G = jnp.expand_dims(G, axis=0)
 else:
     n_robots, n_pcs = L.shape
+
+if use_default_robots:
+    L = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
+    D = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
+    r = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
+    rho = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
+    E = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
+    G = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
 
 pcs_parameters = {
     "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
@@ -693,6 +702,10 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Dimension:   {3*n_pcs*n_robots}\n")
     file.write(f"   n. robots:   {n_robots}\n")
     file.write(f"   n. segments: {n_pcs}\n")
+    if use_default_robots:
+        file.write(f"   Robots:      default robots were used\n")
+    else:
+        file.write(f"   Robots:      those in {load_model_path}\n")
     file.write(f"   Map:         {map_type}\n")
     if controller_type == 'unique':
         file.write(f"   Controller:  {fb_controller_type} (unique)\n\n")
