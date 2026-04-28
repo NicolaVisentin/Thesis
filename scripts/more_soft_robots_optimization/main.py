@@ -235,7 +235,7 @@ reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction 
 # Robots
 n_robots = 2 # number of soft robots in the reservoir
 n_pcs = 2 # number of segments for the single PCS
-train_robot = True # if False, does not optimize the soft robot
+train_robots = True # if False, does not optimize the soft robot
 
 
 # =====================================================
@@ -390,7 +390,10 @@ def Loss(
     # convert parameters and update instances
     # ...robot
     p_robots = convert2original(p_robots_raw)
-    robots_updated = robots.update_params(p_robots)
+    if train_robots:
+        robots_updated = robots.update_params(p_robots)
+    else:
+        robots_updated = robots
 
     # ...map
     match map_to_train:
@@ -1742,7 +1745,7 @@ with open(data_folder/f'metrics{suffix_log}.txt', 'w') as file:
     file.write(f"   Latent dimension: {n_ron}\n")
     file.write(f"   Number of robots: {n_robots}\n")
     file.write(f"   PCS segments:     {n_pcs}\n")
-    if not train_robot:
+    if not train_robots:
         file.write(f"   ! Robots were not optimized !\n")
     file.write(f"   Mapping:          {map_to_train}")
     if map_to_train == 'reconstruction':
