@@ -41,10 +41,10 @@ seed = 123
 key = jax.random.key(seed)
 
 # Folders
-main_folder = curr_folder.parent.parent                                            # main folder "codes"
-plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
-dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
+main_folder = curr_folder.parent.parent # main folder "codes"
+plots_folder = main_folder/'plots and videos'/curr_folder.stem # folder for plots and videos
+dataset_folder = main_folder/'datasets' # folder with the dataset
+data_folder = main_folder/'saved data'/curr_folder.stem # folder for saving data
 
 # Functions for plotting robot
 def draw_robot(
@@ -210,7 +210,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'TEST' # name of the experiment to perform/load
+experiment = 'MG/N12/TEST' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = False # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example

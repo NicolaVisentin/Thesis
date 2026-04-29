@@ -42,11 +42,11 @@ seed = 123
 key = jax.random.key(seed)
 
 # Folders
-main_folder = curr_folder.parent.parent                                            # main folder "codes"
-plots_folder = main_folder/'plots and videos'/curr_folder.stem/Path(__file__).stem # folder for plots and videos
-dataset_folder = main_folder/'datasets'                                            # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem/Path(__file__).stem        # folder for saving data
-saved_data_folder = main_folder/'saved data'                                       # folder with saved data (trained architectures)
+main_folder = curr_folder.parent.parent # main folder "codes"
+plots_folder = main_folder/'plots and videos'/curr_folder.stem # folder for plots and videos
+dataset_folder = main_folder/'datasets' # folder with the dataset
+data_folder = main_folder/'saved data'/curr_folder.stem # folder for saving data
+saved_data_folder = main_folder/'saved data' # folder with saved data (trained architectures)
 
 # Functions for plotting robot
 def draw_robot(
@@ -241,16 +241,16 @@ batch_size = 50 # batch size for training and testing. Should be as high as poss
 dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
 # Output layer (scaler + classifier)
-experiment_name = 'TEST' # name of the experiment to save/load
+experiment_name = 'sMNIST/N12/TEST' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
-load_model_path = saved_data_folder/'more_soft_robots_optimization'/'main'/'S1' # choose the reservoir to load (robots + map + controller)
+load_model_path = saved_data_folder/'more_soft_robots_optimization'/'sMNIST/N12/S1' # choose the reservoir to load (robots + map + controller)
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
 controller_type = 'unique' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
-use_default_robots = True # if True, uses default robots instead of the ones in 'load_model_path'
+use_default_robots = False # if True, uses default robots instead of the ones in 'load_model_path'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
