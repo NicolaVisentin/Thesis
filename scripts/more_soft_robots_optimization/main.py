@@ -210,17 +210,17 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'M46' # name of the experiment to perform/load
+experiment = 'TEST' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
-simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
+simulation_duration = jnp.inf # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
 # Reference RON reservoir
 ron_case = 'input' # 'simple' 'coupled' 'input'
-#ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-#ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
-ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
+#ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+#ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
