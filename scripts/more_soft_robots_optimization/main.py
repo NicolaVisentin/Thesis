@@ -209,14 +209,14 @@ def animate_robot_matplotlib(
 # =====================================================
 
 # General
-load_experiment = False # choose whether to load saved experiment or to perform training
+load_experiment = True # choose whether to load saved experiment or to perform training
 experiment = 'TEST' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
-show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
+show_simulations = False # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = jnp.inf # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
 # Reference RON reservoir
-ron_case = 'input' # 'simple' 'coupled' 'input'
+ron_case = 'input' # 'simple' 'coupled' 'input'()
 ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
 ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
 #ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
@@ -224,17 +224,17 @@ ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.00
 
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
-                               # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
-fb_controller_to_train = 'tanh_complete' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+                                # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
+fb_controller_to_train = 'none' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'none'
 ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
-map_to_train = 'norm_flow' # 'diag', 'svd', 'reconstruction', 'norm_flow'
+map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 2 # number of soft robots in the reservoir
-n_pcs = 2 # number of segments for the single PCS
+n_robots = 4 # number of soft robots in the reservoir
+n_pcs = 1 # number of segments for the single PCS
 train_robots = True # if False, does not optimize the soft robot
 
 
@@ -414,7 +414,10 @@ def Loss(
     else:
         fb_controller, ff_controller = controller
         p_fb_controller, p_ff_controller = p_controller
-        fb_controller_updated = fb_controller.update_params(p_fb_controller)
+        if fb_controller_to_train != 'none':
+            fb_controller_updated = fb_controller.update_params(p_fb_controller)
+        else:
+            fb_controller_updated = fb_controller
         ff_controller_updated = ff_controller.update_params(p_ff_controller)
 
     # compute Q and Qd -> direct map
@@ -683,6 +686,11 @@ else:
             fb_last_layer_activation = 'linear'
             fb_mlp_sizes = [2*3*n_pcs*n_robots, 64, 64, 3*n_pcs*n_robots]
 
+        case 'none':
+            fb_scale_init = 0.0
+            fb_last_layer_activation = 'linear'
+            fb_mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
+
         case _:
             raise ValueError('Unknown fb controller')
     
@@ -703,7 +711,7 @@ else:
             ff_mlp_sizes = [1, 3*n_pcs*n_robots]
 
         case _:
-            raise ValueError('Unknown fb controller')
+            raise ValueError('Unknown ff controller')
         
     key, key_fb, key_ff = jax.random.split(key, 3)
     fb_mlp_controller = MLP(key=key_fb, layer_sizes=fb_mlp_sizes, scale_init=fb_scale_init, last_layer=fb_last_layer_activation) # initialize MLP feedback control law
