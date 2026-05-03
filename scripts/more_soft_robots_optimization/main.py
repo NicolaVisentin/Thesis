@@ -212,7 +212,7 @@ def animate_robot_matplotlib(
 load_experiment = False # choose whether to load saved experiment or to perform training
 experiment = 'MG/N12/TEST' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
-show_simulations = False # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
+show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
 # Reference RON reservoir
