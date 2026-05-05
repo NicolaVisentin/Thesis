@@ -1,0 +1,19 @@
+SETUP
+   Train set size: 30000
+   Test set size:  5000
+
+RESERVOIR PROPERTIES
+   Model path:  /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/sMNIST/N12/S7
+   Dimension:   12
+   n. robots:   2
+   n. segments: 2
+   Robots:      default robots were used
+   Map:         none
+   Controller:  no fb + random ff
+
+METRICS
+   Elapsed time forward pass (train set): 12660.493527109036
+   Elapsed time training output layer:    1.6163146630860865
+   Elapsed time forward pass (test set):  1831.624021470081
+   Accuracy (train set): 0.47113333333333335
+   Accuracy (test set):  0.4706
