@@ -235,19 +235,19 @@ This script:
 
 # General
 example_idx = 0 # if it is an integer i, loads the i-th image from MNIST test set. Otherwise 'black' for black image
-train_set_portion = 200 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
-test_set_portion = 50 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
-batch_size = 50 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
+train_set_portion = 0.5 # fraction (or number of images) of the original train set (60 000 images) to use. If 1: full dataset
+test_set_portion = 0.5 # fraction (or number of images) of the original test set (10 000 images) to use. If 1: full dataset
+batch_size = 1000 # batch size for training and testing. Should be as high as possible, consistently with pc memory and datasets sizes
 dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
 # Output layer (scaler + classifier)
-experiment_name = 'sMNIST/N12/TEST' # name of the experiment to save/load
+experiment_name = 'sMNIST/N12/S5b' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
-load_model_path = saved_data_folder/'more_soft_robots_optimization'/'sMNIST/N12/S1' # choose the reservoir to load (robots + map + controller)
+load_model_path = saved_data_folder/'more_soft_robots_optimization'/'sMNIST/N12/S5b' # choose the reservoir to load (robots + map + controller)
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
-controller_type = 'unique' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
+controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
 use_default_robots = False # if True, uses default robots instead of the ones in 'load_model_path'
