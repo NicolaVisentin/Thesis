@@ -210,22 +210,21 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'MG/N12/TEST' # name of the experiment to perform/load
+experiment = 'MG/N12/no_robots' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
 # Reference RON reservoir
-ron_case = 'input' # 'simple' 'coupled' 'input'()
-#ron_dataset = 'sMNIST_RON_N12_DT0.006_RHO0.99/dataset_m1e5_N12_DT0.006_RHO0.99' # name of the case to load from 'soft robot optimization' folder
-#ron_evolution_example = 'sMNIST_RON_N12_DT0.006_RHO0.99/RON_evolution_N12_DT0.006_RHO0.99_long' # name of the case to load from 'soft robot optimization' folder
-ron_dataset = 'MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'MG_RON_N12_DT0.15/RON_evolution_N12_DT0.15' # name of the case to load from 'soft robot optimization' folder
+#ron_dataset = 'sMNIST_RON_N12/dataset_m1e5_N12' # name of the case to load from 'soft robot optimization' folder
+#ron_evolution_example = 'sMNIST_RON_N12/RON_evolution_N12' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'MG_RON_N12/dataset_m1e5_N12' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'MG_RON_N12/RON_evolution_N12' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
                                 # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
-fb_controller_to_train = 'none' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'none'
+fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'none'
 ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
 # Mapping
@@ -233,9 +232,9 @@ map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 4 # number of soft robots in the reservoir
-n_pcs = 1 # number of segments for the single PCS
-train_robots = True # if False, does not optimize the soft robot
+n_robots = 2 # number of soft robots in the reservoir
+n_pcs = 2 # number of segments for the single PCS
+train_robots = False # if False, does not optimize the soft robot
 
 
 # =====================================================
@@ -437,11 +436,7 @@ def Loss(
         fb_contr_inp = Q_batch # shape (batch_size, 3*n_pcs*n_robots)
     else:
         fb_contr_inp = Z_batch # shape (batch_size, 2*3*n_pcs*n_robots)
-
-    if ron_case == 'input':
-        contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs*n_robots+1) or (batch_size, 2*3*n_pcs*n_robots+1)
-    else:
-        contr_inp = fb_contr_inp # shape (batch_size, 3*n_pcs*n_robots) or (batch_size, 2*3*n_pcs*n_robots)
+    contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs*n_robots+1) or (batch_size, 2*3*n_pcs*n_robots+1)
 
     if train_unique_controller:
         Tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs*n_robots)
@@ -616,42 +611,27 @@ if train_unique_controller:
         case 'tanh_simple':
             scale_init = 0.00001
             last_layer_activation = 'tanh'
-            if ron_case == 'input':
-                mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
-            else:
-                mlp_sizes = [3*n_pcs*n_robots, 3*n_pcs*n_robots]
+            mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
 
         case 'linear_simple':
             scale_init = 0.00001
             last_layer_activation = 'linear'
-            if ron_case == 'input':
-                mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
-            else:
-                mlp_sizes = [3*n_pcs*n_robots, 3*n_pcs*n_robots]
+            mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
 
         case 'tanh_complete':
             scale_init = 0.00001
             last_layer_activation = 'tanh'
-            if ron_case == 'input':
-                mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
-            else:
-                mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
+            mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
 
         case 'linear_complete':
             scale_init = 0.00001
             last_layer_activation = 'linear'
-            if ron_case == 'input':
-                mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
-            else:
-                mlp_sizes = [2*3*n_pcs*n_robots, 3*n_pcs*n_robots]
+            mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
             
         case 'mlp':
             scale_init = 0.001
             last_layer_activation = 'linear'
-            if ron_case == 'input':
-                mlp_sizes = [2*3*n_pcs*n_robots + 1, 64, 64, 3*n_pcs*n_robots]
-            else:
-                mlp_sizes = [2*3*n_pcs*n_robots, 64, 64, 3*n_pcs*n_robots]
+            mlp_sizes = [2*3*n_pcs*n_robots + 1, 64, 64, 3*n_pcs*n_robots]
 
         case _:
             raise ValueError('Unknown controller')
@@ -758,11 +738,7 @@ if show_simulations:
             fb_contr_inp = Q
         else:
             fb_contr_inp = Z
-
-        if ron_case == 'input':
-            contr_inp = jnp.concatenate([fb_contr_inp, u])
-        else:
-            contr_inp = fb_contr_inp
+        contr_inp = jnp.concatenate([fb_contr_inp, u])
 
         if train_unique_controller:
             Tau = controller(contr_inp)
@@ -1696,11 +1672,7 @@ if fb_controller_to_train == 'tanh_simple' or fb_controller_to_train == 'linear_
     fb_contr_inp = Q_test_power # shape (testset_size, 3*n_pcs*n_robots)
 else:
     fb_contr_inp = Z_test_power # shape (testset_size, 2*3*n_pcs*n_robots)
-
-if ron_case == 'input':
-    contr_inp = jnp.concatenate([fb_contr_inp, test_set["u"]], axis=1) # shape (testset_size, 3*n_pcs*n_robots+1) or (testset_size, 2*3*n_pcs*n_robots+1)
-else:
-    contr_inp = fb_contr_inp # shape (testset_size, 3*n_pcs*n_robots) or (testset_size, 2*3*n_pcs*n_robots)
+contr_inp = jnp.concatenate([fb_contr_inp, test_set["u"]], axis=1) # shape (testset_size, 3*n_pcs*n_robots+1) or (testset_size, 2*3*n_pcs*n_robots+1)
 
 if train_unique_controller:
     Tau_test_power = mlp_controller_opt.forward_batch(contr_inp) # shape (testset_size, 3*n_pcs*n_robots)
@@ -1749,7 +1721,6 @@ if load_experiment:
 with open(data_folder/f'metrics{suffix_log}.txt', 'w') as file:
     file.write(f"SETUP\n")
     file.write(f"   Dataset:          {ron_dataset}\n")
-    file.write(f"   RON case:         {ron_case}\n")
     file.write(f"   Latent dimension: {n_ron}\n")
     file.write(f"   Number of robots: {n_robots}\n")
     file.write(f"   PCS segments:     {n_pcs}\n")
