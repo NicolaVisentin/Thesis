@@ -210,7 +210,7 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'MG/N12/no_robots' # name of the experiment to perform/load
+experiment = 'MG/N18/no_robots' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
@@ -218,8 +218,8 @@ simulation_duration = 100 # seconds of example simulation to perform. Choose sim
 # Reference RON reservoir
 #ron_dataset = 'sMNIST_RON_N12/dataset_m1e5_N12' # name of the case to load from 'soft robot optimization' folder
 #ron_evolution_example = 'sMNIST_RON_N12/RON_evolution_N12' # name of the case to load from 'soft robot optimization' folder
-ron_dataset = 'MG_RON_N12/dataset_m1e5_N12' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'MG_RON_N12/RON_evolution_N12' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'MG_RON_N18/dataset_m1e5_N18' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'MG_RON_N18/RON_evolution_N18' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
@@ -232,7 +232,7 @@ map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 2 # number of soft robots in the reservoir
+n_robots = 3 # number of soft robots in the reservoir
 n_pcs = 2 # number of segments for the single PCS
 train_robots = False # if False, does not optimize the soft robot
 
