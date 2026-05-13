@@ -241,11 +241,11 @@ batch_size = 1000 # batch size for training and testing. Should be as high as po
 dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
 # Output layer (scaler + classifier)
-experiment_name = 'sMNIST/N12/S5b' # name of the experiment to save/load
+experiment_name = 'sMNIST/N6/a' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
-load_model_path = saved_data_folder/'more_soft_robots_optimization'/'sMNIST/N12/S5b' # choose the reservoir to load (robots + map + controller)
+load_model_path = saved_data_folder/'more_soft_robots_optimization'/'sMNIST/N6/default' # choose the reservoir to load (robots + map + controller)
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
 controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
