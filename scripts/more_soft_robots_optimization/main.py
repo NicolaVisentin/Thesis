@@ -210,16 +210,16 @@ def animate_robot_matplotlib(
 
 # General
 load_experiment = False # choose whether to load saved experiment or to perform training
-experiment = 'MG/N18/no_robots' # name of the experiment to perform/load
+experiment = 'MG/N6/default' # name of the experiment to perform/load
 use_scan = False # choose whether to use normal for loop or lax.scan
 show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
 simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
 # Reference RON reservoir
-#ron_dataset = 'sMNIST_RON_N12/dataset_m1e5_N12' # name of the case to load from 'soft robot optimization' folder
-#ron_evolution_example = 'sMNIST_RON_N12/RON_evolution_N12' # name of the case to load from 'soft robot optimization' folder
-ron_dataset = 'MG_RON_N18/dataset_m1e5_N18' # name of the case to load from 'soft robot optimization' folder
-ron_evolution_example = 'MG_RON_N18/RON_evolution_N18' # name of the case to load from 'soft robot optimization' folder
+#ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+#ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
 
 # controller
 train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
@@ -232,9 +232,10 @@ map_to_train = 'svd' # 'diag', 'svd', 'reconstruction', 'norm_flow'
 reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
 # Robots
-n_robots = 3 # number of soft robots in the reservoir
+n_robots = 1 # number of soft robots in the reservoir
 n_pcs = 2 # number of segments for the single PCS
-train_robots = False # if False, does not optimize the soft robot
+initialize_random_robots = False # if True, robots' parameters are randomly initialized; if False, default robots are used
+train_robots = True # if False, does not optimize the soft robots
 
 
 # =====================================================
@@ -580,12 +581,32 @@ match map_to_train:
         p_map = tuple(map.params)
 
 # ...robots
-L0 = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
-D0 = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
-r0 = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
-rho0 = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
-E0 = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
-G0 = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
+if initialize_random_robots: # random robot parameters
+    key, *keys_robot = jax.random.split(key, 9)
+    L_init = jax.random.uniform(keys_robot[0], minval=1e-2, maxval=8e-1)
+    D_init_1 = jax.random.uniform(keys_robot[1], minval=5e-7, maxval=5e-5)
+    D_init_2 = jax.random.uniform(keys_robot[2], minval=5e-4, maxval=5e-2)
+    D_init_3 = jax.random.uniform(keys_robot[3], minval=5e-4, maxval=5e-2)
+    r_init = jax.random.uniform(keys_robot[4], minval=5e-3, maxval=7e-2)
+    rho_init = jax.random.uniform(keys_robot[5], minval=900, maxval=1200)
+    E_init = jax.random.uniform(keys_robot[6], minval=1500, maxval=2500)
+    G_init = jax.random.uniform(keys_robot[7], minval=700, maxval=1300)
+else: # 'default' robot parameters
+    L_init = 1e-1
+    D_init_1 = 5e-6
+    D_init_2 = 5e-3
+    D_init_3 = 5e-3
+    r_init = 2e-2
+    rho_init = 1070
+    E_init = 2e3
+    G_init = 1e3
+
+L0 = jnp.tile(L_init * jnp.ones(n_pcs), (n_robots,1))
+D0 = jnp.tile(jnp.diag(jnp.tile(jnp.array([D_init_1, D_init_2, D_init_3]), n_pcs)), (n_robots,1,1))
+r0 = jnp.tile(r_init * jnp.ones(n_pcs),(n_robots,1))
+rho0 = jnp.tile(rho_init * jnp.ones(n_pcs),(n_robots,1))
+E0 = jnp.tile(E_init * jnp.ones(n_pcs),(n_robots,1))
+G0 = jnp.tile(G_init * jnp.ones(n_pcs),(n_robots,1))
 
 p_robots_original = {
     "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
