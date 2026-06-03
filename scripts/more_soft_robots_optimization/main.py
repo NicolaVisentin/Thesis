@@ -215,14 +215,14 @@ for run, seed in enumerate(seeds):
 
     # General
     load_experiment = False # choose whether to load saved experiment or to perform training
-    experiment = f'sMNIST/N9/no_robots_run{n_run}' # name of the experiment to perform/load
+    experiment = f'sMNIST/N12/no_robots_run{n_run}' # name of the experiment to perform/load
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
     # Reference RON reservoir
-    ron_dataset = 'sMNIST_RON_N9/dataset_m1e5_N9' # name of the case to load from 'soft robot optimization' folder
-    ron_evolution_example = 'sMNIST_RON_N9/RON_evolution_N9' # name of the case to load from 'soft robot optimization' folder
+    ron_dataset = 'sMNIST_RON_N12/dataset_m1e5_N12' # name of the case to load from 'soft robot optimization' folder
+    ron_evolution_example = 'sMNIST_RON_N12/RON_evolution_N12' # name of the case to load from 'soft robot optimization' folder
     #ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
     #ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
 
@@ -237,8 +237,8 @@ for run, seed in enumerate(seeds):
     reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
     # Robots
-    n_robots = 3 # number of soft robots in the reservoir
-    n_pcs = 1 # number of segments for the single PCS
+    n_robots = 2 # number of soft robots in the reservoir
+    n_pcs = 2 # number of segments for the single PCS
     initialize_random_robots = True # if True, robots' parameters are randomly initialized; if False, default robots are used
     train_robots = False # if False, does not optimize the soft robots
 
