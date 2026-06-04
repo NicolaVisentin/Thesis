@@ -30,7 +30,7 @@ curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
 from utilis import *
 
-# Jax settings
+# JAX settings
 jax.config.update("jax_enable_x64", True) # double precision
 jnp.set_printoptions(
     threshold=jnp.inf,
@@ -38,191 +38,31 @@ jnp.set_printoptions(
     formatter={"float_kind": lambda x: "0" if x == 0 else f"{x:.2e}"},
 )
 
-# Folders
-main_folder = curr_folder.parent.parent # main folder "codes"
-plots_folder = main_folder/'plots and videos'/curr_folder.stem # folder for plots and videos
-dataset_folder = main_folder/'datasets' # folder with the dataset
-data_folder = main_folder/'saved data'/curr_folder.stem # folder for saving data
-
-# Functions for plotting robot
-def draw_robot(
-        robot: PlanarPCS_simple, 
-        q: Array, 
-        num_points: int = 50
-):
-    L_max = jnp.sum(robot.L)
-    s_ps = jnp.linspace(0, L_max, num_points)
-
-    chi_ps = robot.forward_kinematics_batched(q, s_ps)  # (N,3)
-    curve = jnp.array(chi_ps[:, 1:], dtype=jnp.float64) # (N,2)
-    pos_tip = curve[-1]                                 # [x_tip, y_tip]
-
-    return curve, pos_tip
-
-def animate_robot_matplotlib(
-    robot: PlanarPCS_simple,
-    t_list: Array,  # shape (T,)
-    q_list: Array,  # shape (T, DOF)
-    target: Array = None,
-    num_points: int = 50,
-    interval: int = 50,
-    slider: bool = None,
-    animation: bool = None,
-    show: bool = True,
-    fps: float = None,
-    duration: float = None,
-    save_path: Path = None,
-):
-    if slider is None and animation is None:
-        raise ValueError("Either 'slider' or 'animation' must be set to True.")
-    if animation and slider:
-        raise ValueError(
-            "Cannot use both animation and slider at the same time. Choose one."
-        )
-
-    _, pos_tip_list = jax.vmap(draw_robot, in_axes=(None,0,None))(robot, q_list, num_points)
-    width = onp.max(pos_tip_list)
-    height = width
-
-    if target is not None:
-        t_old = onp.linspace(0, 1, len(target))
-        t_new = onp.linspace(0, 1, len(q_list))
-        target = onp.interp(t_new, t_old, target)
-
-    def draw_base(ax, robot, L=robot.L[0] / 2):
-        angle1 = robot.th0 - jnp.pi / 2
-        angle2 = robot.th0 + jnp.pi / 2
-        x1, y1 = L * jnp.cos(angle1), L * jnp.sin(angle1)
-        x2, y2 = L * jnp.cos(angle2), L * jnp.sin(angle2)
-        ax.plot([x1, x2], [y1, y2], color="black", linestyle="-", linewidth=2)
-
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    draw_base(ax, robot, L=0.1)
-
-    if animation:
-        n_frames = len(q_list)
-        default_fps = 1000 / interval
-        default_duration = n_frames * (interval / 1000)
-        if fps is None and duration is None:
-            final_fps = default_fps
-            final_duration = default_duration
-            frame_skip = 1
-        elif fps is not None and duration is None:
-            final_fps = fps
-            final_duration = n_frames / save_fps
-            frame_skip = 1
-        elif fps is None and duration is not None:
-            final_duration = duration
-            final_fps = n_frames / duration
-            frame_skip = 1
-        else:
-            final_fps = fps
-            final_duration = duration
-            n_required_frames = int(final_duration * final_fps)
-            n_required_frames = max(1, n_required_frames)
-            frame_skip = max(1, n_frames // n_required_frames)
-
-        frame_indices = list(range(0, n_frames, frame_skip))
-
-        (line,) = ax.plot([], [], lw=4, color="blue")
-        (tip,) = ax.plot([], [], 'ro', markersize=5)
-        (targ,) = ax.plot([], [], color='r', alpha=0.5)
-        ax.set_xlim(-width / 2, width / 2)
-        ax.set_ylim(0, height)
-        ax.grid(True)
-        title_text = ax.set_title("t = 0.00 s")
-
-        def init():
-            line.set_data([], [])
-            tip.set_data([], [])
-            targ.set_data([], [])
-            title_text.set_text("t = 0.00 s")
-            return line, tip, targ, title_text
-
-        def update(frame_idx):
-            q = q_list[frame_idx]
-            t = t_list[frame_idx]
-            curve, tip_pos = draw_robot(robot, q, num_points)
-            line.set_data(curve[:, 0], curve[:, 1])
-            tip.set_data([tip_pos[0]], [tip_pos[1]])
-            if target is not None:
-                x_target = target[frame_idx]
-                targ.set_data([x_target,x_target], [0,height])
-            title_text.set_text(f"t = {t:.2f} s")
-            return (line, tip, title_text) + ((targ,) if target is not None else ())
-
-        ani = FuncAnimation(
-            fig,
-            update,
-            frames=frame_indices,
-            init_func=init,
-            blit=False,
-            interval=1000/final_fps,
-        )
-        if save_path is not None:
-            ani.save(save_path, writer=PillowWriter(fps=final_fps))
-
-    elif slider:
-
-        def update_plot(frame_idx):
-            ax.cla()  # Clear current axes
-            ax.set_xlim(-width / 2, width / 2)
-            ax.set_ylim(0, height)
-            ax.set_xlabel("X [m]")
-            ax.set_ylabel("Y [m]")
-            ax.set_title(f"t = {t_list[frame_idx]:.2f} s")
-            ax.grid(True)
-            q = q_list[frame_idx]
-            curve, tip_pos = draw_robot(robot, q, num_points)
-            ax.plot(curve[:, 0], curve[:, 1], lw=4, color="blue")
-            ax.plot([tip_pos[0]], [tip_pos[1]], 'ro', markersize=5)
-            if target is not None:
-                x_target = target[frame_idx]
-                ax.plot([x_target,x_target], [0,height], 'r', alpha=0.5)
-            fig.canvas.draw_idle()
-
-        # Create slider
-        ax_slider = fig.add_axes([0.2, 0.05, 0.6, 0.03])  # [left, bottom, width, height]
-        slider = Slider(
-            ax=ax_slider,
-            label="Frame",
-            valmin=0,
-            valmax=len(t_list) - 1,
-            valinit=0,
-            valstep=1,
-        )
-        slider.on_changed(update_plot)
-
-        update_plot(0)  # Initial plot
-
-    if show:
-        plt.show()
-
-    plt.close(fig)
-
 
 # =====================================================
-# Script settings
+# Run for different random seeds
 # =====================================================
 
-seeds = [10, 69, 104]
+seeds = [1234, 12345, 123456] # select random seed(s)
+
 for run, seed in enumerate(seeds):
-    n_run = run + 2
-
-    # Random seed and JAX initial key
+    n_run = '' if len(seeds)==1 else run + 1
     key = jax.random.key(seed)
+
+    # =====================================================
+    # Script settings
+    # =====================================================
 
     # General
     load_experiment = False # choose whether to load saved experiment or to perform training
-    experiment = f'sMNIST/N15/no_robots_run{n_run}' # name of the experiment to perform/load
+    experiment = f'sMNIST/N6/default_run{n_run}' # name of the experiment to perform/load
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
     # Reference RON reservoir
-    ron_dataset = 'sMNIST_RON_N15/dataset_m1e5_N15' # name of the case to load from 'soft robot optimization' folder
-    ron_evolution_example = 'sMNIST_RON_N15/RON_evolution_N15' # name of the case to load from 'soft robot optimization' folder
+    ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+    ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
     #ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
     #ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
 
@@ -237,21 +77,181 @@ for run, seed in enumerate(seeds):
     reconstruction_type = 'ydd' # (only applies to 'reconstruction') reconstruction loss on y and optionally on yd and ydd. Choose 'y', 'yd', or 'ydd'
 
     # Robots
-    n_robots = 5 # number of soft robots in the reservoir
-    n_pcs = 1 # number of segments for the single PCS
+    n_robots = 1 # number of soft robots in the reservoir
+    n_pcs = 2 # number of segments for the single PCS
     initialize_random_robots = True # if True, robots' parameters are randomly initialized; if False, default robots are used
-    train_robots = False # if False, does not optimize the soft robots
+    train_robots = True # if False, does not optimize the soft robots
 
 
     # =====================================================
     # Functions
     # =====================================================
 
-    # Rename folders for plots/data
-    plots_folder = plots_folder/experiment
-    data_folder = data_folder/experiment
+    # Folders
+    main_folder = curr_folder.parent.parent # main folder "codes"
+    plots_folder = main_folder/'plots and videos'/curr_folder.stem/experiment # folder for plots and videos
+    dataset_folder = main_folder/'datasets' # folder with the dataset
+    data_folder = main_folder/'saved data'/curr_folder.stem/experiment # folder for saving data
+
     data_folder.mkdir(parents=True, exist_ok=True)
     plots_folder.mkdir(parents=True, exist_ok=True)
+
+    # Functions for plotting robot
+    def draw_robot(
+            robot: PlanarPCS_simple, 
+            q: Array, 
+            num_points: int = 50
+    ):
+        L_max = jnp.sum(robot.L)
+        s_ps = jnp.linspace(0, L_max, num_points)
+
+        chi_ps = robot.forward_kinematics_batched(q, s_ps)  # (N,3)
+        curve = jnp.array(chi_ps[:, 1:], dtype=jnp.float64) # (N,2)
+        pos_tip = curve[-1]                                 # [x_tip, y_tip]
+
+        return curve, pos_tip
+
+    def animate_robot_matplotlib(
+        robot: PlanarPCS_simple,
+        t_list: Array,  # shape (T,)
+        q_list: Array,  # shape (T, DOF)
+        target: Array = None,
+        num_points: int = 50,
+        interval: int = 50,
+        slider: bool = None,
+        animation: bool = None,
+        show: bool = True,
+        fps: float = None,
+        duration: float = None,
+        save_path: Path = None,
+    ):
+        if slider is None and animation is None:
+            raise ValueError("Either 'slider' or 'animation' must be set to True.")
+        if animation and slider:
+            raise ValueError(
+                "Cannot use both animation and slider at the same time. Choose one."
+            )
+
+        _, pos_tip_list = jax.vmap(draw_robot, in_axes=(None,0,None))(robot, q_list, num_points)
+        width = onp.max(pos_tip_list)
+        height = width
+
+        if target is not None:
+            t_old = onp.linspace(0, 1, len(target))
+            t_new = onp.linspace(0, 1, len(q_list))
+            target = onp.interp(t_new, t_old, target)
+
+        def draw_base(ax, robot, L=robot.L[0] / 2):
+            angle1 = robot.th0 - jnp.pi / 2
+            angle2 = robot.th0 + jnp.pi / 2
+            x1, y1 = L * jnp.cos(angle1), L * jnp.sin(angle1)
+            x2, y2 = L * jnp.cos(angle2), L * jnp.sin(angle2)
+            ax.plot([x1, x2], [y1, y2], color="black", linestyle="-", linewidth=2)
+
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        draw_base(ax, robot, L=0.1)
+
+        if animation:
+            n_frames = len(q_list)
+            default_fps = 1000 / interval
+            default_duration = n_frames * (interval / 1000)
+            if fps is None and duration is None:
+                final_fps = default_fps
+                final_duration = default_duration
+                frame_skip = 1
+            elif fps is not None and duration is None:
+                final_fps = fps
+                final_duration = n_frames / save_fps
+                frame_skip = 1
+            elif fps is None and duration is not None:
+                final_duration = duration
+                final_fps = n_frames / duration
+                frame_skip = 1
+            else:
+                final_fps = fps
+                final_duration = duration
+                n_required_frames = int(final_duration * final_fps)
+                n_required_frames = max(1, n_required_frames)
+                frame_skip = max(1, n_frames // n_required_frames)
+
+            frame_indices = list(range(0, n_frames, frame_skip))
+
+            (line,) = ax.plot([], [], lw=4, color="blue")
+            (tip,) = ax.plot([], [], 'ro', markersize=5)
+            (targ,) = ax.plot([], [], color='r', alpha=0.5)
+            ax.set_xlim(-width / 2, width / 2)
+            ax.set_ylim(0, height)
+            ax.grid(True)
+            title_text = ax.set_title("t = 0.00 s")
+
+            def init():
+                line.set_data([], [])
+                tip.set_data([], [])
+                targ.set_data([], [])
+                title_text.set_text("t = 0.00 s")
+                return line, tip, targ, title_text
+
+            def update(frame_idx):
+                q = q_list[frame_idx]
+                t = t_list[frame_idx]
+                curve, tip_pos = draw_robot(robot, q, num_points)
+                line.set_data(curve[:, 0], curve[:, 1])
+                tip.set_data([tip_pos[0]], [tip_pos[1]])
+                if target is not None:
+                    x_target = target[frame_idx]
+                    targ.set_data([x_target,x_target], [0,height])
+                title_text.set_text(f"t = {t:.2f} s")
+                return (line, tip, title_text) + ((targ,) if target is not None else ())
+
+            ani = FuncAnimation(
+                fig,
+                update,
+                frames=frame_indices,
+                init_func=init,
+                blit=False,
+                interval=1000/final_fps,
+            )
+            if save_path is not None:
+                ani.save(save_path, writer=PillowWriter(fps=final_fps))
+
+        elif slider:
+
+            def update_plot(frame_idx):
+                ax.cla()  # Clear current axes
+                ax.set_xlim(-width / 2, width / 2)
+                ax.set_ylim(0, height)
+                ax.set_xlabel("X [m]")
+                ax.set_ylabel("Y [m]")
+                ax.set_title(f"t = {t_list[frame_idx]:.2f} s")
+                ax.grid(True)
+                q = q_list[frame_idx]
+                curve, tip_pos = draw_robot(robot, q, num_points)
+                ax.plot(curve[:, 0], curve[:, 1], lw=4, color="blue")
+                ax.plot([tip_pos[0]], [tip_pos[1]], 'ro', markersize=5)
+                if target is not None:
+                    x_target = target[frame_idx]
+                    ax.plot([x_target,x_target], [0,height], 'r', alpha=0.5)
+                fig.canvas.draw_idle()
+
+            # Create slider
+            ax_slider = fig.add_axes([0.2, 0.05, 0.6, 0.03])  # [left, bottom, width, height]
+            slider = Slider(
+                ax=ax_slider,
+                label="Frame",
+                valmin=0,
+                valmax=len(t_list) - 1,
+                valinit=0,
+                valstep=1,
+            )
+            slider.on_changed(update_plot)
+
+            update_plot(0)  # Initial plot
+
+        if show:
+            plt.show()
+
+        plt.close(fig)
 
     # Convert map parameters if necessary
     match map_to_train:
