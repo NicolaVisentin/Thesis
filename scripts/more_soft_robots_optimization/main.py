@@ -26,8 +26,11 @@ import sys
 from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
+# Folders
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
+main_folder = curr_folder.parent.parent # main folder "codes"
+dataset_folder = main_folder/'datasets' # folder with the dataset
 from utilis import *
 
 # JAX settings
@@ -88,9 +91,7 @@ for run, seed in enumerate(seeds):
     # =====================================================
 
     # Folders
-    main_folder = curr_folder.parent.parent # main folder "codes"
     plots_folder = main_folder/'plots and videos'/curr_folder.stem/experiment # folder for plots and videos
-    dataset_folder = main_folder/'datasets' # folder with the dataset
     data_folder = main_folder/'saved data'/curr_folder.stem/experiment # folder for saving data
 
     data_folder.mkdir(parents=True, exist_ok=True)
