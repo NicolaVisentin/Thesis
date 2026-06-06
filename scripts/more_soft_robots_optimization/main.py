@@ -805,7 +805,7 @@ for run, seed in enumerate(seeds):
         n_cols = min(3, n_show)
         n_rows = int(np.ceil(n_show / n_cols))
 
-        if True:
+        if False:
             # Simulate robot
             print('Simulating robot...')
             start = time.perf_counter()
