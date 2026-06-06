@@ -43,7 +43,7 @@ jnp.set_printoptions(
 # Run for different random seeds
 # =====================================================
 
-seeds = [1234, 12345, 123456] # select random seed(s)
+seeds = [123, 1234, 12345, 123456] # select random seed(s)
 
 for run, seed in enumerate(seeds):
     n_run = '' if len(seeds)==1 else run + 1
@@ -55,16 +55,16 @@ for run, seed in enumerate(seeds):
 
     # General
     load_experiment = False # choose whether to load saved experiment or to perform training
-    experiment = f'sMNIST/N6/default_run{n_run}' # name of the experiment to perform/load
+    experiment = f'MG/N6/default_run{n_run}' # name of the experiment to perform/load
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
     # Reference RON reservoir
-    ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-    ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
-    #ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-    #ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+    #ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+    #ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+    ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+    ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
 
     # controller
     train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
