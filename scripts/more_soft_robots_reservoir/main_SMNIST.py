@@ -229,10 +229,10 @@ This script:
 # Run for different random seeds
 # =====================================================
 
-seeds = [123, 1234, 12345]
+seeds = [123, 123]
 
 for run, seed in enumerate(seeds):
-    n_run = '' if len(seeds)==1 else run + 2
+    n_run = '' if len(seeds)==1 else run + 3
     key = jax.random.key(seed)
 
     # =====================================================
