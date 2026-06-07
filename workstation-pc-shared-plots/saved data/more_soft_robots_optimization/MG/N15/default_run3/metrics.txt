@@ -1,0 +1,13 @@
+SETUP
+   Dataset:          MG_RON_N15/dataset_m1e5_N15
+   Latent dimension: 15
+   Number of robots: 5
+   PCS segments:     1
+   Mapping:          svd
+   Controller:       mlp (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               7555.241584909003
+   Final test RMS error:                        0.694772931272008
+   Final test RMS power:                        0.28909759565771154 (fb: 0.08140541983346009, ff: 0.221036100896747)
+   Final test RMSE reconstruction (y, yd, ydd): (1.9498752250104976e-14, 2.114680646403566e-15, 7.722916442942728e-15)

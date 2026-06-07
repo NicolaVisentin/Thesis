@@ -1,0 +1,14 @@
+SETUP
+   Dataset:          MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15
+   RON case:         input
+   Latent dimension: 12
+   Number of robots: 4
+   PCS segments:     1
+   Mapping:          svd
+   Controller:       tanh_complete (fb) + linear (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               6399.8478740110295
+   Final test RMS error:                        0.447534381267437
+   Final test RMS power:                        0.021776715570784345 (fb: 0.011736629395791407, ff: 0.03288305765850519)
+   Final test RMSE reconstruction (y, yd, ydd): (1.1858999648837165e-14, 1.470554806900113e-15, 4.954290219447134e-15)

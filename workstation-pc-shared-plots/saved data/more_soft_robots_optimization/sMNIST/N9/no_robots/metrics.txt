@@ -1,0 +1,14 @@
+SETUP
+   Dataset:          sMNIST_RON_N9/dataset_m1e5_N9
+   Latent dimension: 9
+   Number of robots: 3
+   PCS segments:     1
+   ! Robots were not optimized !
+   Mapping:          svd
+   Controller:       mlp (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               4407.967400202062
+   Final test RMS error:                        1.7475158295307431
+   Final test RMS power:                        0.13810179781865461 (fb: 0.06857877194797905, ff: 0.06966573218103089)
+   Final test RMSE reconstruction (y, yd, ydd): (3.987915761142524e-15, 5.072162021335902e-16, 2.113479796929757e-15)

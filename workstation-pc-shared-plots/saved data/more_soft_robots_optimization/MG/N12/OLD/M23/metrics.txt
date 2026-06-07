@@ -1,0 +1,14 @@
+SETUP
+   Dataset:          MG_RON_N12_DT0.15/dataset_m1e5_N12_DT0.15
+   RON case:         input
+   Latent dimension: 12
+   Number of robots: 4
+   PCS segments:     1
+   Mapping:          reconstruction, (reconstruction loss up to ydd)
+   Controller:       tanh_complete (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               8691.066090355976
+   Final test RMS error:                        0.243227150228123
+   Final test RMS power:                        0.03229427082473659 (fb: 0.03126545747859859, ff: 0.06323274258962429)
+   Final test RMSE reconstruction (y, yd, ydd): (0.0011264869363656112, 0.002455138493412292, 0.00954354104462238)
