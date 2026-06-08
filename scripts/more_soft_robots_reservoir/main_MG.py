@@ -38,8 +38,6 @@ jnp.set_printoptions(
     linewidth=jnp.inf,
     formatter={"float_kind": lambda x: "0" if x == 0 else f"{x:.2e}"},
 )
-seed = 123
-key = jax.random.key(seed)
 
 # Folders
 main_folder = curr_folder.parent.parent # main folder "codes"
@@ -225,6 +223,9 @@ This script:
     5.  Saves plots and metrics on the test sequence (and train sequence if training was performed) in `experiment_name` data and plots 
         folders. Also saves the dynamics of the reservoir during inference.
 """
+# Random seed
+seed = 123
+key = jax.random.key(seed)
 
 # General
 dt_u = 0.05 # time step for the input u. (in the RON paper dt = 0.17 s)
@@ -232,7 +233,7 @@ Nw = 200 # washout steps for the Mackey-Glass task
 Nl = 84 # prediction lag for the Mackey-Glass task
 
 # Output layer (scaler + predictor)
-experiment_name = 'MG/N6/a' # name of the experiment to save/load
+experiment_name = 'MG/N6/TEST' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
@@ -241,7 +242,7 @@ map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
 controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
-use_default_robots = False # if True, uses default robots instead of those in 'load_model_path'
+robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -295,13 +296,32 @@ if len(L.shape) == 1:
 else:
     n_robots, n_pcs = L.shape
 
-if use_default_robots:
+if robots_type == 'default':
     L = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
     D = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
     r = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
     rho = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
     E = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
     G = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
+elif robots_type == 'random':
+    key, *keys_robot = jax.random.split(key, 9)
+    L_init = jax.random.uniform(keys_robot[0], minval=7e-2, maxval=3e-1)
+    D_init_1 = jax.random.uniform(keys_robot[1], minval=5e-7, maxval=5e-5)
+    D_init_2 = jax.random.uniform(keys_robot[2], minval=5e-4, maxval=5e-2)
+    D_init_3 = jax.random.uniform(keys_robot[3], minval=5e-4, maxval=5e-2)
+    r_init = jax.random.uniform(keys_robot[4], minval=7e-3, maxval=5e-2)
+    rho_init = jax.random.uniform(keys_robot[5], minval=900, maxval=1200)
+    E_init = jax.random.uniform(keys_robot[6], minval=1800, maxval=2200)
+    G_init = jax.random.uniform(keys_robot[7], minval=800, maxval=1200)
+
+    L = jnp.tile(L_init * jnp.ones(n_pcs), (n_robots,1))
+    D = jnp.tile(jnp.diag(jnp.tile(jnp.array([D_init_1, D_init_2, D_init_3]), n_pcs)), (n_robots,1,1))
+    r = jnp.tile(r_init * jnp.ones(n_pcs),(n_robots,1))
+    rho = jnp.tile(rho_init * jnp.ones(n_pcs),(n_robots,1))
+    E = jnp.tile(E_init * jnp.ones(n_pcs),(n_robots,1))
+    G = jnp.tile(G_init * jnp.ones(n_pcs),(n_robots,1))
+else:
+    pass
 
 pcs_parameters = {
     "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
@@ -702,8 +722,10 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Dimension:   {3*n_pcs*n_robots}\n")
     file.write(f"   n. robots:   {n_robots}\n")
     file.write(f"   n. segments: {n_pcs}\n")
-    if use_default_robots:
+    if robots_type == 'default':
         file.write(f"   Robots:      default robots were used\n")
+    elif robots_type == 'random':
+        file.write(f"   Robots:      randomly generated robots were used\n")
     else:
         file.write(f"   Robots:      those in {load_model_path}\n")
     file.write(f"   Map:         {map_type}\n")
