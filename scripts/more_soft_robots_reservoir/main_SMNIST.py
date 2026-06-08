@@ -229,10 +229,10 @@ This script:
 # Run for different random seeds
 # =====================================================
 
-seeds = [12345, 123456]
+seeds = [1234, 12345, 123456]
 
 for run, seed in enumerate(seeds):
-    n_run = '' if len(seeds)==1 else run + 3
+    n_run = '' if len(seeds)==1 else run + 2
     key = jax.random.key(seed)
 
     # =====================================================
@@ -247,16 +247,16 @@ for run, seed in enumerate(seeds):
     dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
     # Output layer (scaler + classifier)
-    experiment_name = f'sMNIST/N9/a_run{n_run}' # name of the experiment to save/load
+    experiment_name = f'sMNIST/N12/e_run{n_run}' # name of the experiment to save/load
     train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
     # Reservoir (robots + map + controller)
-    load_model_path = saved_data_folder/'more_soft_robots_optimization'/f'sMNIST/N9/default_run{n_run}' # choose the reservoir to load (robots + map + controller)
-    map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
-    controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
+    load_model_path = saved_data_folder/'more_soft_robots_optimization'/f'sMNIST/N12/default_run{n_run}' # choose the reservoir to load (robots + map + controller)
+    map_type = 'none' # 'linear', 'encoder-decoder', 'bijective', 'none'
+    controller_type = 'ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
     fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
     ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
-    use_default_robots = False # if True, uses default robots instead of the ones in 'load_model_path'
+    robots_type = 'random' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
 
 
     # =====================================================
@@ -325,13 +325,32 @@ for run, seed in enumerate(seeds):
     else:
         n_robots, n_pcs = L.shape
 
-    if use_default_robots:
+    if robots_type == 'default':
         L = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
         D = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
         r = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
         rho = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
         E = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
         G = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
+    elif robots_type == 'random':
+        key, *keys_robot = jax.random.split(key, 9)
+        L_init = jax.random.uniform(keys_robot[0], minval=7e-2, maxval=3e-1)
+        D_init_1 = jax.random.uniform(keys_robot[1], minval=5e-7, maxval=5e-5)
+        D_init_2 = jax.random.uniform(keys_robot[2], minval=5e-4, maxval=5e-2)
+        D_init_3 = jax.random.uniform(keys_robot[3], minval=5e-4, maxval=5e-2)
+        r_init = jax.random.uniform(keys_robot[4], minval=7e-3, maxval=5e-2)
+        rho_init = jax.random.uniform(keys_robot[5], minval=900, maxval=1200)
+        E_init = jax.random.uniform(keys_robot[6], minval=1800, maxval=2200)
+        G_init = jax.random.uniform(keys_robot[7], minval=800, maxval=1200)
+
+        L = jnp.tile(L_init * jnp.ones(n_pcs), (n_robots,1))
+        D = jnp.tile(jnp.diag(jnp.tile(jnp.array([D_init_1, D_init_2, D_init_3]), n_pcs)), (n_robots,1,1))
+        r = jnp.tile(r_init * jnp.ones(n_pcs),(n_robots,1))
+        rho = jnp.tile(rho_init * jnp.ones(n_pcs),(n_robots,1))
+        E = jnp.tile(E_init * jnp.ones(n_pcs),(n_robots,1))
+        G = jnp.tile(G_init * jnp.ones(n_pcs),(n_robots,1))
+    else:
+        pass
 
     pcs_parameters = {
         "th0": jnp.tile(jnp.array(jnp.pi/2), n_robots),
@@ -841,8 +860,10 @@ for run, seed in enumerate(seeds):
         file.write(f"   Dimension:   {3*n_pcs*n_robots}\n")
         file.write(f"   n. robots:   {n_robots}\n")
         file.write(f"   n. segments: {n_pcs}\n")
-        if use_default_robots:
+        if robots_type == 'default':
             file.write(f"   Robots:      default robots were used\n")
+        elif robots_type == 'random':
+            file.write(f"   Robots:      randomly generated robots were used\n")
         else:
             file.write(f"   Robots:      those in {load_model_path}\n")
         file.write(f"   Map:         {map_type}\n")
