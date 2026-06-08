@@ -229,7 +229,7 @@ This script:
 # Run for different random seeds
 # =====================================================
 
-seeds = [123, 123]
+seeds = [12345, 123456]
 
 for run, seed in enumerate(seeds):
     n_run = '' if len(seeds)==1 else run + 3
@@ -247,11 +247,11 @@ for run, seed in enumerate(seeds):
     dt_u = 0.006 # time step for the input u. (in the RON paper dt = 0.042 s)
 
     # Output layer (scaler + classifier)
-    experiment_name = f'sMNIST/N6/a_run{n_run}' # name of the experiment to save/load
+    experiment_name = f'sMNIST/N9/a_run{n_run}' # name of the experiment to save/load
     train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
     # Reservoir (robots + map + controller)
-    load_model_path = saved_data_folder/'more_soft_robots_optimization'/f'sMNIST/N6/default_run{n_run}' # choose the reservoir to load (robots + map + controller)
+    load_model_path = saved_data_folder/'more_soft_robots_optimization'/f'sMNIST/N9/default_run{n_run}' # choose the reservoir to load (robots + map + controller)
     map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
     controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
     fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
