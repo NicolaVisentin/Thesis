@@ -233,7 +233,7 @@ Nw = 200 # washout steps for the Mackey-Glass task
 Nl = 84 # prediction lag for the Mackey-Glass task
 
 # Output layer (scaler + predictor)
-experiment_name = 'MG/N6/TEST' # name of the experiment to save/load
+experiment_name = 'MG/N6/a' # name of the experiment to save/load
 train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
 # Reservoir (robots + map + controller)
