@@ -640,7 +640,7 @@ n_rows = int(np.ceil(n_show / n_cols))
 # Show predicted sequence
 fig, ax = plt.subplots(1,1, figsize=(20,6))
 ax.plot(full_time, full_sequence, 'k--', label='full sequence')
-ax.plot(full_time[Nw:N_test-Nl], full_sequence[Nw:N_test-Nl], 'k', label='test sequence')
+ax.plot(full_time[Nw:-Nl], full_sequence[Nw:-Nl], 'k', label='test sequence')
 ax.plot(full_time[Nw+Nl:], pred, 'r', label='predicted sequence')
 ax.grid(True)
 ax.set_xlabel('t [s]')
