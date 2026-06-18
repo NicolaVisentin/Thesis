@@ -38,6 +38,27 @@ jnp.set_printoptions(
     formatter={"float_kind": lambda x: "0" if x == 0 else f"{x:.2e}"},
 )
 
+# Plots settings
+plt.rcParams.update({
+    'font.family':        'serif',
+    'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+    'mathtext.fontset':   'cm',
+    'axes.linewidth':     0.8,
+    'xtick.major.width':  0.8,
+    'ytick.major.width':  0.8,
+    'xtick.direction':    'out',
+    'ytick.direction':    'out',
+    'xtick.labelsize':    11,
+    'ytick.labelsize':    11,
+    'axes.labelsize':     13,
+    'axes.titlesize':     14,
+    'legend.fontsize':    12,
+    'legend.framealpha':  0.9,
+    'legend.edgecolor':   '#cccccc',
+    'legend.handlelength': 2.2,
+    'figure.dpi':         130,
+})
+
 
 # =====================================================
 # Run for different random seeds
@@ -56,7 +77,6 @@ for run, seed in enumerate(seeds):
     # General
     load_experiment = True # choose whether to load saved experiment or to perform training
     experiment_load = f'MG/N6/default' # name of the experiment to perform/load
-    experiment_save = f'MG/N6/PLOT{n_run}'
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 20 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
@@ -90,9 +110,9 @@ for run, seed in enumerate(seeds):
 
     # Folders
     main_folder = curr_folder.parent.parent # main folder "codes"
-    plots_folder = main_folder/'plots and videos'/curr_folder.stem/experiment_save # folder for plots and videos
+    plots_folder = main_folder/'plots and videos' # folder for plots and videos
     dataset_folder = main_folder/'datasets' # folder with the dataset
-    data_folder_load = main_folder/'saved data'/curr_folder.stem/experiment_load # folder for saving data
+    data_folder_load = main_folder/'saved data'/curr_folder.stem/experiment_load # folder for saved data
 
     plots_folder.mkdir(parents=True, exist_ok=True)
 
@@ -1495,8 +1515,8 @@ for run, seed in enumerate(seeds):
             axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}(t)$')
             axs[i].grid(True)
             axs[i].set_xlabel('t [s]')
-            axs[i].set_ylabel(f'$y_{{{i+1}}}$')
-            axs[i].set_title(f'Component {i+1}')
+            axs[i].set_ylabel(rf'$y_{{{i+1}}}$')
+            axs[i].set_title(rf'Component {i+1}')
             #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         for i in range(n_show, len(axs)):
             axs[i].set_visible(False)
