@@ -267,8 +267,8 @@ train_dataset = jnp.array([train_dataset], dtype=jnp.float64).T # sequence from 
 valid_dataset = jnp.array([valid_dataset], dtype=jnp.float64).T # sequence from k=0 to k=N-Nl-1. Shape (N-Nl, 1)
 test_dataset = jnp.array([test_dataset], dtype=jnp.float64).T # sequence from k=0 to k=N-Nl-1. Shape (N-Nl, 1)
 
-N_train = len(train_dataset) # N for the train set sequence
-N_test = len(test_dataset) # N for the test set sequence
+Np_train = len(train_dataset) # number of datapoints Np=N-Nl for the train set sequence
+Np_test = len(test_dataset) # number of datapoints Np=N-Nl for the test set sequence
 
 
 # =====================================================
@@ -522,8 +522,8 @@ reservoir = MultiPcsReservoir(
 
 # Other stuff
 dt_sim = 1e-4 # time step for the simulation
-time_u_train = dt_u * jnp.arange(0, N_train) # define time vector for the train input sequence
-time_u_test = dt_u * jnp.arange(0, N_test) # define time vector for the test input sequence
+time_u_train = dt_u * jnp.arange(0, Np_train) # define time vector for the train input sequence
+time_u_test = dt_u * jnp.arange(0, Np_test) # define time vector for the test input sequence
 saveat_train = time_u_train # for saving simulation results
 saveat_test = time_u_test # for saving simulation results
 
@@ -625,7 +625,7 @@ print(f'Test NRMSE: {test_nrmse}')
 y_ts, yd_ts = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir states
 _, q_ts, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts) # shape (n_steps, n_robots, 3*n_pcs)
 Q_ts, _ = jnp.split(state_pcs_ts, 2, axis=1) # shape (n_steps, 3*n_pcs*n_robots)
-full_time = dt_u * onp.arange(0, N_test + Nl)
+full_time = dt_u * onp.arange(0, Np_test + Nl)
 full_sequence = onp.concatenate([onp.array(test_dataset).squeeze(), test_target[-Nl:]]) # full MG test sequence
 
 # Show max 15 DOFs in the plots
@@ -708,15 +708,17 @@ for n in range(n_robots):
 # =========================================================
 
 if not train:
-    N_train = '(training was not performed)'
+    Np_train = '(training was not performed)'
     train_nrmse = '(training was not performed)'
     elatime_forward_pass_training = '(training was not performed)'
     elatime_train_output_layer = '(training was not performed)'
 
 with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"SETUP\n")
-    file.write(f"   Train set size: {N_train}\n")
-    file.write(f"   Test set size:  {N_test}\n\n")
+    file.write(f"   Train set size (n. of datapoints/labels): {Np_train}\n")
+    file.write(f"   Test set size (n. of datapoints/labels):  {Np_test}\n")
+    file.write(f"   Prediction lag:                           {Nl}\n")
+    file.write(f"   Washout steps:                            {Nw}\n\n")
     file.write(f"RESERVOIR PROPERTIES\n")
     file.write(f"   Model path:  {load_model_path}\n")
     file.write(f"   Dimension:   {3*n_pcs*n_robots}\n")
