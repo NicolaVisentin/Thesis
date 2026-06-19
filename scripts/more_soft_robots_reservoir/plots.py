@@ -37,7 +37,14 @@ key = jax.random.key(seed)
 
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
-if False:
+if True:
+    # Plots settings
+    plt.rcParams.update({
+        'font.family':        'serif',
+        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+        'mathtext.fontset':   'cm',
+    })
+
     # Data
     ny = np.arange(6, 16, 3)
 
@@ -51,7 +58,7 @@ if False:
     stddev_trained = np.array([1.32, 1.82, 2.41, 0.63])
 
     # Plot
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5,4))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -70,7 +77,9 @@ if False:
     plt.title(r'sMNIST ($\uparrow$)', fontsize=12)
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
-    plt.legend(fontsize=10)
+    #plt.yticks(np.arange(30, 81, 10))
+    #plt.ylim(29, 85)
+    plt.legend(ncol=2, fontsize=9, loc='upper left')
 
     fig.tight_layout()
     #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
@@ -78,21 +87,28 @@ if False:
 
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if False:
+if True:
+    # Plots settings
+    plt.rcParams.update({
+        'font.family':        'serif',
+        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+        'mathtext.fontset':   'cm',
+    })
+
     # Data
     ny = np.arange(6, 16, 3)
 
     acc_ron = np.array([0.513, 0.432, 0.358, 0.309])
     acc_untrained = np.array([0.717, 0.744, 0.697, 0.730])
-    acc_part_trained = np.array([0.638, 0.582, 0.621, 0.485])
+    acc_part_trained = np.array([0.597, 0.582, 0.621, 0.485])
     acc_trained = np.array([0.525, 0.505, 0.435, 0.424])
         
     stddev_untrained = np.array([0.137, 0.065, 0.139, 0.058])
-    stddev_part_trained = np.array([0.107, 0.028, 0.020, 0.011])
+    stddev_part_trained = np.array([0.132, 0.028, 0.020, 0.011])
     stddev_trained = np.array([0.003, 0.016, 0.014, 0.006])
 
     # Plot
-    fig = plt.figure()
+    fig = plt.figure(figsize=(5,4))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -111,14 +127,16 @@ if False:
     plt.title('Mackey-Glass ($\downarrow$)', fontsize=12)
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
-    plt.legend(fontsize=10)
+    #plt.yticks(np.arange(0.2, 0.9, 0.1))
+    plt.legend(fontsize=9)
 
     fig.tight_layout()
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
-    #plt.show()
+    plt.show()
 
 
-if True:
+### Inference animations (Mackey-Glass)
+if False:
     # =====================================================
     # Script settings
     # =====================================================
