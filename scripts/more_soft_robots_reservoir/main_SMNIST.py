@@ -232,7 +232,7 @@ This script:
 seeds = [123, 1234, 12345, 123456]
 
 for run, seed in enumerate(seeds):
-    n_run = '' if len(seeds)==1 else run + 1
+    n_run = run + 1
     key = jax.random.key(seed)
 
     # =====================================================
