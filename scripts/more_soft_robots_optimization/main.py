@@ -58,16 +58,21 @@ for run, seed in enumerate(seeds):
 
     # General
     load_experiment = False # choose whether to load saved experiment or to perform training
-    experiment = f'MG/N6/default_run{n_run}' # name of the experiment to perform/load
+    experiment = f'lorenz/N6/default_run{n_run}' # name of the experiment to perform/load
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
     # Reference RON reservoir
-    #ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-    #ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
-    ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-    ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+    if False:
+        ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+        ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+    elif False:
+        ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+        ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+    else:
+        ron_dataset = 'lorenz_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
+        ron_evolution_example = 'lorenz_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
 
     # controller
     train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
@@ -385,10 +390,10 @@ for run, seed in enumerate(seeds):
             Dictionary of useful metrics.
         """
         # extract dataset
-        y_batch = data_batch["y"]
-        yd_batch = data_batch["yd"]
-        ydd_batch = data_batch["ydd"]
-        u_batch = data_batch["u"]
+        y_batch = data_batch["y"] # shape (batch_size, n_ron)
+        yd_batch = data_batch["yd"] # shape (batch_size, n_ron)
+        ydd_batch = data_batch["ydd"] # shape (batch_size, n_ron)
+        u_batch = data_batch["u"] # shape (batch_size, n_input)
 
         # extract parameters
         p_robots_raw, p_map, p_controller = params_optimiz
@@ -443,7 +448,7 @@ for run, seed in enumerate(seeds):
             fb_contr_inp = Q_batch # shape (batch_size, 3*n_pcs*n_robots)
         else:
             fb_contr_inp = Z_batch # shape (batch_size, 2*3*n_pcs*n_robots)
-        contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs*n_robots+1) or (batch_size, 2*3*n_pcs*n_robots+1)
+        contr_inp = jnp.concatenate([fb_contr_inp, u_batch], axis=1) # shape (batch_size, 3*n_pcs*n_robots+n_input) or (batch_size, 2*3*n_pcs*n_robots+n_input)
 
         if train_unique_controller:
             Tau_batch = controller_updated.forward_batch(contr_inp) # shape (batch_size, 3*n_pcs*n_robots)
@@ -503,7 +508,7 @@ for run, seed in enumerate(seeds):
     y = dataset["y"] # position samples of the RON oscillators. Shape (m, n_ron)
     yd = dataset["yd"] # velocity samples of the RON oscillators. Shape (m, n_ron)
     ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, n_ron)
-    u = dataset["u"] # input. Shape (m, 1)
+    u = dataset["u"] # input. Shape (m, n_input)
 
     # Convert into jax
     y_dataset = jnp.array(y, dtype=jnp.float64)
@@ -527,6 +532,7 @@ for run, seed in enumerate(seeds):
         test_ratio=0.2,
     )
     train_size, n_ron = train_set["y"].shape
+    n_input = train_set["u"].shape[1]
 
 
     # =====================================================
@@ -638,27 +644,27 @@ for run, seed in enumerate(seeds):
             case 'tanh_simple':
                 scale_init = 0.00001
                 last_layer_activation = 'tanh'
-                mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
+                mlp_sizes = [3*n_pcs*n_robots + n_input, 3*n_pcs*n_robots]
 
             case 'linear_simple':
                 scale_init = 0.00001
                 last_layer_activation = 'linear'
-                mlp_sizes = [3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
+                mlp_sizes = [3*n_pcs*n_robots + n_input, 3*n_pcs*n_robots]
 
             case 'tanh_complete':
                 scale_init = 0.00001
                 last_layer_activation = 'tanh'
-                mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
+                mlp_sizes = [2*3*n_pcs*n_robots + n_input, 3*n_pcs*n_robots]
 
             case 'linear_complete':
                 scale_init = 0.00001
                 last_layer_activation = 'linear'
-                mlp_sizes = [2*3*n_pcs*n_robots + 1, 3*n_pcs*n_robots]
+                mlp_sizes = [2*3*n_pcs*n_robots + n_input, 3*n_pcs*n_robots]
                 
             case 'mlp':
                 scale_init = 0.001
                 last_layer_activation = 'linear'
-                mlp_sizes = [2*3*n_pcs*n_robots + 1, 64, 64, 3*n_pcs*n_robots]
+                mlp_sizes = [2*3*n_pcs*n_robots + n_input, 64, 64, 3*n_pcs*n_robots]
 
             case _:
                 raise ValueError('Unknown controller')
@@ -705,17 +711,17 @@ for run, seed in enumerate(seeds):
             case 'tanh':
                 ff_scale_init = 0.00001
                 ff_last_layer_activation = 'tanh'
-                ff_mlp_sizes = [1, 3*n_pcs*n_robots]
+                ff_mlp_sizes = [n_input, 3*n_pcs*n_robots]
 
             case 'mlp':
                 ff_scale_init = 0.001
                 ff_last_layer_activation = 'linear'
-                ff_mlp_sizes = [1, 64, 64, 3*n_pcs*n_robots]
+                ff_mlp_sizes = [n_input, 64, 64, 3*n_pcs*n_robots]
 
             case 'linear':
                 ff_scale_init = 0.00001
                 ff_last_layer_activation = 'linear'
-                ff_mlp_sizes = [1, 3*n_pcs*n_robots]
+                ff_mlp_sizes = [n_input, 3*n_pcs*n_robots]
 
             case _:
                 raise ValueError('Unknown ff controller')
@@ -743,7 +749,7 @@ for run, seed in enumerate(seeds):
         yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
         u_RONsaved = jnp.array(RON_evolution_data['u'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
         if len(u_RONsaved.shape) == 1: # !!! THIS IS HERE BECAUSE OF HOW DATA WERE SAVED: sMINST HAS (n_steps, 1) WHILE M-G HAS (n_steps,) !!!
-            u_RONsaved = u_RONsaved[:, None] # ...and we want to work with (n_steps, n_u)
+            u_RONsaved = u_RONsaved[:, None] # ...and we want to work with (n_steps, n_input)
 
         # Define controller
         min_len = jnp.min(jnp.array([len(time_RONsaved), len(u_RONsaved)]))
