@@ -8,6 +8,7 @@ import struct
 import jax
 from jax import numpy as jnp
 from jax import Array
+from scipy.integrate import odeint
 
 
 # =====================================================
@@ -221,6 +222,124 @@ def load_mackey_glass_data(csvfolder: Path, lag=84, washout=200, train_portion=0
         (val_dataset, val_target),
         (test_dataset, test_target),
     )
+
+
+# Build Lorenz96 dataset
+def get_lorenz(
+        dim : int,
+        F : float,
+        num_batch : int = 128,
+        lag : int = 25,
+        washout : int = 200,
+        window_size : int = 0,
+        dt : float = 0.01,
+        duration : float = 20,
+        seed = 0,
+):
+    """
+    Builds a batch of temporal sequences from the Lorenz96 equations.
+ 
+    Each trajectory is obtained by integrating the Lorenz96 ODE from a random
+    initial condition drawn uniformly in [F-0.5, F+0.5]^dim. The time axis
+    runs with time step dt from t=0 to t=duration [s], extended by ``lag`` and 
+    ``washout`` extra steps.
+ 
+    Args
+    ----
+    dim : int
+        Dimension of the Lorenz96 system (number of coupled variables).
+    F : float
+        Constant external forcing applied to every variable.
+    num_batch : int, optional
+        Number of independent trajectories to simulate (default: 128).
+    lag : int, optional
+        Number of prediction lag steps for the Lorenz96 task (default: 25).
+    washout : int, optional
+        Number of washout steps for the Lorenz96 task (default: 200).
+    window_size : int, optional
+        Length (in time steps) of each sliding input window. When > 0 the
+        function extracts all non-overlapping windows and returns
+        ``(windows, targets)``; when 0 the raw trajectory array is returned
+        instead (default: 0).
+    dt : float, optional
+        Integration step for building the sequences (default: 0.01 s).
+    duration : float, optional
+        Duration of the time sequence (without lag and washout) in seconds (default: 20 s).
+    seed : int, optional
+        Seed for sampling initial conditions (default: 0).
+ 
+    Returns
+    -------
+    dataset : jnp.ndarray
+        Returned when ``window_size == 0``. Batch of temporal sequences from 
+        t = 0 to t = duration + lag*dt + washout*dt. Shape (num_batch, num_timesteps, dim)
+    windows : jnp.ndarray
+        Returned when ``window_size > 0``. Sliding input windows concatenated across all
+        trajectories. Shape (B_total, window_size, dim)
+    targets : jnp.ndarray
+        Returned when ``window_size > 0``. Target state for each window (i.e. the state
+        ``lag`` steps after the last element of the window). Shape (B_total, dim)
+    """
+    # https://en.wikipedia.org/wiki/Lorenz_96_model
+    def L96(x, t):
+        """Lorenz96 model with constant forcing"""
+        d = np.zeros(dim)
+        for i in range(dim):
+            d[i] = (x[(i + 1) % dim] - x[i - 2]) * x[i - 1] - x[i] + F
+        return d
+
+    t = np.arange(0.0, duration + (lag * dt) + (washout * dt), dt)
+
+    rng = np.random.default_rng(seed)
+    dataset = []
+    for i in range(num_batch):
+        x0 = rng.random(dim) + F - 0.5  # [F-0.5, F+0.5]
+        x = odeint(L96, x0, t)
+        dataset.append(x)
+
+    # (num_batch, num_timesteps, dim) — kept as JAX array
+    dataset = jnp.array(np.stack(dataset, axis=0), dtype=jnp.float32)
+
+    if window_size > 0:
+        all_windows, all_targets = [], []
+        for i in range(dataset.shape[0]):
+            w, trg = get_fixed_length_windows(dataset[i], window_size, prediction_lag=lag)
+            all_windows.append(w)
+            all_targets.append(trg)
+
+        windows = jnp.concatenate(all_windows, axis=0) # (B_total, window_size, dim)
+        targets = jnp.concatenate(all_targets, axis=0) # (B_total, dim)
+        return windows, targets
+    else:
+        return dataset
+
+
+def get_fixed_length_windows(tensor, length, prediction_lag=1):
+    """
+    tensor : (T,) or (T, I)
+    returns: windows (B, L, I), targets (B, I)
+    """
+    assert tensor.ndim <= 2
+    if tensor.ndim == 1:
+        tensor = tensor[:, None]   # (T, 1)  — JAX equivalent of unsqueeze(-1)
+
+    T, I = tensor.shape
+
+    # Build sliding windows via jax.lax.dynamic_slice or plain slicing.
+    # Number of windows = T - prediction_lag - length + 1
+    num_windows = T - prediction_lag - length + 1
+
+    # Stack windows: shape (B, L, I)
+    windows = jnp.stack(
+        [tensor[i : i + length] for i in range(num_windows)],
+        axis=0,
+    )  # (B, L, I) — already in the right order (no permute needed)
+
+    # Targets: one step per window, offset by prediction_lag
+    targets = tensor[length + prediction_lag - 1 : length + prediction_lag - 1 + num_windows]
+    # shape: (B, I)
+
+    return windows, targets  # (B, L, I), (B, I)
 
 
 # =====================================================
