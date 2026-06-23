@@ -223,8 +223,6 @@ This script:
     7.  Saves plots and metrics on the test set (and train set if training was performed) in `experiment_name` data and plots 
         folders. Also saves the dynamics of the reservoir for the given example.
 """
-
-
 # =====================================================
 # Run for different random seeds
 # =====================================================
