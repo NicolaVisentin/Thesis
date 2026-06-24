@@ -1,0 +1,21 @@
+SETUP
+   Train set size (n. of datapoints/labels): 2200
+   Test set size (n. of datapoints/labels):  2200
+   Prediction lag:                           25
+   Washout steps:                            200
+
+RESERVOIR PROPERTIES
+   Model path:  /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/lorenz/N6/no_robots_run3
+   Dimension:   6
+   n. robots:   1
+   n. segments: 2
+   Robots:      those in /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/lorenz/N6/no_robots_run3
+   Map:         linear
+   Controller:  mlp (fb) + mlp (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 1312.6163476519287
+   Elapsed time training output layer:    0.06266902410425246
+   Elapsed time forward pass (test set):  1302.2306924408767
+   NRMSE (train set): 0.5581135896004579
+   NRMSE (test set):  0.5601507102597648
