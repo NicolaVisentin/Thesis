@@ -37,7 +37,7 @@ key = jax.random.key(seed)
 
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -87,7 +87,7 @@ if True:
 
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -129,6 +129,55 @@ if True:
     plt.yticks(fontsize=12)
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
     plt.legend(fontsize=9)
+
+    fig.tight_layout()
+    #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
+    plt.show()
+
+
+### PRC accuracy vs reservoir dimension (Lorenz96)
+if True:
+    # Plots settings
+    plt.rcParams.update({
+        'font.family':        'serif',
+        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+        'mathtext.fontset':   'cm',
+    })
+
+    # Data
+    ny = np.arange(6, 16, 3)
+
+    acc_ron = np.array([0.564, 0.515, 0.417, 0.385])
+    acc_untrained = np.array([0.700, 0.685, 0.519, 0.680])
+    acc_part_trained = np.array([0.662, 0.630, 0.506, 0.575])
+    acc_trained = np.array([0.567, 0.522, 0.463, 0.455])
+        
+    stddev_untrained = np.array([0.104, 0.181, 0.042, 0.211])
+    stddev_part_trained = np.array([0.106, 0.118, 0.021, 0.181])
+    stddev_trained = np.array([0.002, 0.001, 0.011, 0.013])
+
+    # Plot
+    fig = plt.figure(figsize=(5,4))
+
+    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
+
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='6') # unoptimized
+    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.3)
+
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='6') # partially trained
+    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.3)
+
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='6') # partially trained
+    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.3)
+
+    plt.grid(True, alpha=0.6)
+    plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
+    plt.ylabel('accuracy (NRMSE)', fontsize=12)
+    plt.title('Lorenz96 ($\downarrow$)', fontsize=12)
+    plt.xticks(np.arange(5, 17), fontsize=12)
+    plt.yticks(fontsize=12)
+    #plt.yticks(np.arange(0.2, 0.9, 0.1))
+    plt.legend(fontsize=9, loc='upper center', bbox_to_anchor=(0.62, 1))
 
     fig.tight_layout()
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
