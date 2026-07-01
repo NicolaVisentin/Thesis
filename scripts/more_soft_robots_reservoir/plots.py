@@ -87,7 +87,7 @@ if False:
 
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if False:
+if True:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -123,11 +123,11 @@ if False:
 
     plt.grid(True, alpha=0.6)
     plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
-    plt.ylabel('accuracy (NRMSE)', fontsize=12)
+    plt.ylabel('prediction error (NRMSE)', fontsize=12)
     plt.title('Mackey-Glass ($\downarrow$)', fontsize=12)
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
-    #plt.yticks(np.arange(0.2, 0.9, 0.1))
+    plt.yticks(np.arange(0.2, 0.9, 0.1))
     plt.legend(fontsize=9)
 
     fig.tight_layout()
@@ -172,7 +172,7 @@ if True:
 
     plt.grid(True, alpha=0.6)
     plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
-    plt.ylabel('accuracy (NRMSE)', fontsize=12)
+    plt.ylabel('prediction error (NRMSE)', fontsize=12)
     plt.title('Lorenz96 ($\downarrow$)', fontsize=12)
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
