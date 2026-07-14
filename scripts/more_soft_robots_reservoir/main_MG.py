@@ -13,7 +13,6 @@ import jax.numpy as jnp
 from sklearn import preprocessing
 from sklearn.linear_model import Ridge
 import joblib
-import copy
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation
@@ -26,6 +25,7 @@ import sys
 import time
 
 from soromox.systems.my_systems import PlanarPCS_simple
+from soromox.systems.pcs import PlanarPCS
 
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -48,7 +48,7 @@ saved_data_folder = main_folder/'saved data' # folder with saved data (trained a
 
 # Functions for plotting robot
 def draw_robot(
-        robot: PlanarPCS_simple, 
+        robot: PlanarPCS_simple | PlanarPCS, 
         q: Array, 
         num_points: int = 50
 ):
@@ -62,7 +62,7 @@ def draw_robot(
     return curve, pos_tip
 
 def animate_robot_matplotlib(
-    robot: PlanarPCS_simple,
+    robot: PlanarPCS_simple | PlanarPCS,
     t_list: Array,  # shape (T,)
     q_list: Array,  # shape (T, DOF)
     target: Array = None,
@@ -238,11 +238,15 @@ train = True # if True, perform training (output layer). Otherwise, test saved '
 
 # Reservoir (robots + map + controller)
 load_model_path = saved_data_folder/'more_soft_robots_optimization'/'MG/N6/default_run1' # choose the reservoir to load (robots + map + controller)
+
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
+
 controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+
 robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
+coriolis = False # whether to include or not Coriolis and centrifugal forces in the PCS model
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -336,7 +340,8 @@ pcs_parameters = {
 robots_system = MultiPcsSystem(
     n_robots = n_robots,
     n_pcs = n_pcs,
-    params_robots = pcs_parameters
+    params_robots = pcs_parameters,
+    coriolis = coriolis
 )
 
 # Define mapping

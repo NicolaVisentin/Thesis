@@ -2,6 +2,7 @@ import jax
 from jax import numpy as jnp, Array
 import equinox as eqx
 from soromox.systems.my_systems import PlanarPCS_simple
+from soromox.systems.pcs import PlanarPCS
 from soromox.systems.dynamical_system import DynamicalSystem
 
 
@@ -13,7 +14,7 @@ ParamsRobots = dict[str,Array] # (batched) parameters of all robots: {"L":L, "D"
 class MultiPcsSystem(DynamicalSystem):
     """
     Class for system of multiple soft robots. Basically is a batched PyTree representation of multiple
-    `PlanarPCS_simple` robots, where each leaf contains data for all robots stacked along the first dimension.
+    `PlanarPCS` robots, where each leaf contains data for all robots stacked along the first dimension.
 
     Attributes
     ----------
@@ -23,15 +24,15 @@ class MultiPcsSystem(DynamicalSystem):
         Number of segments for the single robot.
     dim : int
         Dimension of the system.
-    robots : PlanarPCS_simple
-        Batched representation of multiple `PlanarPCS_simple` robots as a PyTree.
+    robots : PlanarPCS_simple | PlanarPCS
+        Batched representation of multiple `PlanarPCS_simple` or `PlanarPCS` robots as a PyTree.
     """
-    robots: PlanarPCS_simple
+    robots: PlanarPCS_simple | PlanarPCS
     n_robots: int = eqx.field(static=True)
     n_pcs: int = eqx.field(static=True)
     dim: int = eqx.field(static=True)
 
-    def __init__(self, n_robots: int, n_pcs: int, params_robots: ParamsRobots):
+    def __init__(self, n_robots: int, n_pcs: int, params_robots: ParamsRobots, coriolis: bool=False):
         """
         Initialize the system.
         
@@ -41,9 +42,12 @@ class MultiPcsSystem(DynamicalSystem):
             Number of soft robots in the reservoir.
         n_pcs : int
             Number of segments for each PCS soft robot.
-        params_robots: ParamsRobots
+        params_robots : ParamsRobots
             Robots parameters, as a dictionary with batched values: {"L":L, "D":D, ...}, with 
             shape of L (n_robots, n_pcs), shape of D (n_robots, 3*n_pcs, 3*n_pcs), etc.
+        coriolis : bool
+            Whether to include or not Coriolis and centrifugal effects in the soft robot model
+            (default: False).
         """
         num_dofs = 3 * n_pcs * n_robots
         super().__init__(num_dofs=num_dofs, num_actuators=num_dofs)
@@ -53,21 +57,30 @@ class MultiPcsSystem(DynamicalSystem):
         self.dim = num_dofs
         
         # Create list of robots
-        robot_list = [
-            PlanarPCS_simple(
-                num_segments=n_pcs,
-                params={k: v[i] for k, v in params_robots.items()},
-            )
-            for i in range(n_robots)
-        ]
-        # Convert list of robots into `PlanarPCS_simple` object with batched leaves.
+        if not coriolis:
+            robot_list = [
+                PlanarPCS_simple(
+                    num_segments=n_pcs,
+                    params={k: v[i] for k, v in params_robots.items()},
+                )
+                for i in range(n_robots)
+            ]
+        else:
+            robot_list = [
+                PlanarPCS(
+                    num_segments=n_pcs,
+                    params={k: v[i] for k, v in params_robots.items()},
+                )
+                for i in range(n_robots)
+            ]
+        # Convert list of robots into `PlanarPCS_simple` (or `PlanarPCS`) object with batched leaves.
         self.robots = jax.tree_util.tree_map(
             lambda *arrays: jnp.stack(arrays, axis=0),
             *robot_list,
         )
 
-    def get_robot(self, i: int) -> PlanarPCS_simple:
-        """Extracts i-th robot from pytree. Returns the corresponding `PlanarPCS_simple` instance."""
+    def get_robot(self, i: int) -> PlanarPCS_simple | PlanarPCS:
+        """Extracts i-th robot from pytree. Returns the corresponding `PlanarPCS_simple` (or `PlanarPCS`) instance."""
         return jax.tree_util.tree_map(lambda x: x[i], self.robots)
     
     def transform_Z(self, Z: Array) -> Array:
@@ -154,7 +167,7 @@ class MultiPcsSystem(DynamicalSystem):
         def update_single(robot, params_i):
             return robot.update_params(params_i)
         
-        # params_i è il dizionario con i valori per l'i-esimo robot
+        # params_i is the dictionary with the values for the i-th robot
         new_robots = jax.vmap(update_single)(
             self.robots,
             {k: v for k, v in new_params.items()}
@@ -200,7 +213,7 @@ class MultiPcsSystem(DynamicalSystem):
         tau_robots = self.transform_Tau(Tau)  # (3*n_pcs*n_robots) -> (n_robots, 3*n_pcs)
 
         # Apply forward dynamics to all robots with vmap
-        def forward_single(robot: PlanarPCS_simple, z: Array, tau: Array) -> Array:
+        def forward_single(robot: PlanarPCS_simple | PlanarPCS_simple, z: Array, tau: Array) -> Array:
             """Forward dynamics for the single robot."""
             return robot.forward_dynamics(t, z, (tau,))
         zd_robots = jax.vmap(forward_single)(self.robots, z_robots, tau_robots) # zd_robots = [z1, ]. Shape (n_robots, 2*3*n_pcs)
