@@ -247,12 +247,15 @@ ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
 
 robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
 coriolis = False # whether to include or not Coriolis and centrifugal forces in the PCS model
+compare = False # if True, enables the comparison with the system without Coriolis/centrifugal forces (! requires coriolis=True)
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
 data_folder = data_folder/experiment_name
 data_folder.mkdir(parents=True, exist_ok=True)
 plots_folder.mkdir(parents=True, exist_ok=True)
+
+assert (not compare) or coriolis # compare=True requires coriolis=True as well
 
 
 # =====================================================
@@ -343,6 +346,14 @@ robots_system = MultiPcsSystem(
     params_robots = pcs_parameters,
     coriolis = coriolis
 )
+
+if compare:
+    robots_system_NoCoriolis = MultiPcsSystem(
+        n_robots = n_robots,
+        n_pcs = n_pcs,
+        params_robots = pcs_parameters,
+        coriolis = False
+    )
 
 # Define mapping
 match map_type:
@@ -525,6 +536,14 @@ reservoir = MultiPcsReservoir(
     controller=controller
 )
 
+if compare:
+    reservoir_NoCoriolis = MultiPcsReservoir(
+        robots_system=robots_system_NoCoriolis,
+        map_direct=map_direct,
+        map_inverse=map_inverse,
+        controller=controller
+    )
+
 # Other stuff
 dt_sim = 1e-4 # time step for the simulation
 time_u_train = dt_u * jnp.arange(0, Np_train) # define time vector for the train input sequence
@@ -621,6 +640,25 @@ rms_target = jnp.sqrt(jnp.mean(test_target ** 2))
 test_nrmse = (rmse / rms_target)
 print(f'Test NRMSE: {test_nrmse}')
 
+# If required, simulate without Coriolis/centrifugal for comparison
+if compare:
+    start = time.perf_counter()
+    (
+        time_ts,
+        _, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
+        state_pcs_ts_NC, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs*n_robots)
+        _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
+        _
+    ) = reservoir_NoCoriolis(test_dataset, time_u_test, saveat_test, dt_sim)
+    state_pcs_ts_NC.block_until_ready()
+    stop = time.perf_counter() 
+    elatime_forward_pass_testing_NC = stop - start
+
+    # Compute rollout NRMSE (compare Coriolis and noCoriolis)
+    _, q_ts, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts) # shape (n_steps, n_robots, 3*n_pcs)
+    _, q_ts_NC, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts_NC) # shape (n_steps, n_robots, 3*n_pcs)
+    sim_NRMSE = jnp.sqrt(jnp.mean((q_ts - q_ts_NC)**2)) / jnp.sqrt(jnp.mean(q_ts_NC**2))
+
 
 # =====================================================
 # Show results of the test
@@ -707,6 +745,33 @@ for n in range(n_robots):
         save_path = plots_folder/f'Example_inference_animation_robot_{n+1}.gif',
     )
 
+# Show comparison Coriolis / no Coriolis (hard coded for the specific case n_y=6)
+if True and compare and n_robots==1 and n_pcs==2:
+    plt.rcParams.update({
+        "font.family": "serif",
+        "mathtext.fontset": "cm",
+        "font.serif": ["cmr10", "DejaVu Serif"],
+        "axes.formatter.use_mathtext": True,
+    })
+    fig, axs = plt.subplots(3, 2, figsize=(15,9))
+    for i, ax in enumerate(axs.flatten()):
+        ax.plot(time_ts, q_ts_NC[:,0,i], 'b', label=r'No Coriolis and centrifugal')
+        ax.plot(time_ts, q_ts[:,0,i], 'b--', label=r'With Coriolis and centrifugal')
+        ax.grid(True)
+        ax.set_xlabel(r't [s]', fontsize=16)
+        ax.set_title(rf'Component {i+1}', fontsize=18)
+        ax.tick_params(labelsize=14)
+    axs[0,0].set_ylabel(r'$\mathcal{K}^{(1)}$', fontsize=16)
+    axs[0,1].set_ylabel(r'$\sigma_\mathrm{ax}^{(1)}$', fontsize=16)
+    axs[1,0].set_ylabel(r'$\sigma_\mathrm{sh}^{(1)}$', fontsize=16)
+    axs[1,1].set_ylabel(r'$\mathcal{K}^{(2)}$', fontsize=16)
+    axs[2,0].set_ylabel(r'$\sigma_\mathrm{ax}^{(2)}$', fontsize=16)
+    axs[2,1].set_ylabel(r'$\sigma_\mathrm{sh}^{(2)}$', fontsize=16)
+    handles, labels = axs[0, 0].get_legend_handles_labels()
+    fig.legend(handles, labels, loc='lower center', ncol=1, fontsize=16)
+    plt.tight_layout(rect=[0, 0.08, 1, 1])
+    plt.show()
+
 
 # =========================================================
 # Save text file with performances and data
@@ -748,6 +813,13 @@ with open(data_folder/'performances.txt', 'w') as file:
     file.write(f"   Elapsed time forward pass (test set):  {elatime_forward_pass_testing}\n")
     file.write(f"   NRMSE (train set): {train_nrmse}\n")
     file.write(f"   NRMSE (test set):  {test_nrmse}\n")
+    if compare:
+        file.write(f"   \n")
+        file.write(f"COMPARISON WITH AND WITHOUT CORIOLIS AND CENTRIFUGAL FORCES\n")
+        file.write(f"   Elapsed time forward pass NO Coriolis/centrifugal (test set):   {elatime_forward_pass_testing_NC}\n")
+        file.write(f"   Elapsed time forward pass WITH Coriolis/centrifugal (test set): {elatime_forward_pass_testing}\n")
+        file.write(f"   Simulation NRMSE (between Cor/centr. and no Cor/centr):         {sim_NRMSE}\n")
+
 
 
 # =========================================================
