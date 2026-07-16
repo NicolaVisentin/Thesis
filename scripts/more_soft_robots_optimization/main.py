@@ -1437,6 +1437,9 @@ for run, seed in enumerate(seeds):
             case 'norm_flow':
                 y_hat_pcs, yd_hat_pcs = map_opt.inverse_with_derivatives_batch(Q_ts, Qd_ts) # shape (n_steps, n_ron)
 
+        # Compute NRMSE between y(t) and y_hat(t) (to check how close the rolled out behaviour is)
+        rollout_nrmse = jnp.sqrt(jnp.mean((y_RONsaved - y_hat_pcs)**2)) / jnp.sqrt(jnp.mean(y_RONsaved**2))
+
         # Plot PCS strains
         for n in range(n_robots):
             fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1776,3 +1779,5 @@ for run, seed in enumerate(seeds):
         else:
             file.write(f"   Final test RMS power:                        {onp.sqrt(power_msv_after)} (fb: {onp.sqrt(power_msv_after_fb)}, ff: {onp.sqrt(power_msv_after_ff)})\n")
         file.write(f"   Final test RMSE reconstruction (y, yd, ydd): ({reconstruction_rmse_y}, {reconstruction_rmse_yd}, {reconstruction_rmse_ydd})\n")
+        if show_simulations:
+            file.write(f"   Rollout NRMSE (between y(t) and y_hat(t)):   {rollout_nrmse}\n")
