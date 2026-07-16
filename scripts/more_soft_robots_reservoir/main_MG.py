@@ -601,6 +601,24 @@ if train:
     train_nrmse = (rmse / rms_target)
     print(f'Train NRMSE: {train_nrmse}')
 
+    # If comparison is needed, train also with Coriolis and centrifugal forces
+    if compare:
+        (
+            _,
+            state_reservoir_ts_NC, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
+            _, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_robots*3*n_pcs)
+            _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
+            _
+        ) = reservoir_NoCoriolis(train_dataset, time_u_train, saveat_train, dt_sim)
+        
+        y_ts_NC, _ = jnp.split(state_reservoir_ts_NC, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
+        activations_NC = y_ts_NC[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
+        activations_NC = onp.array(activations_NC)
+
+        scaler_NC = preprocessing.StandardScaler().fit(activations_NC)
+        activations_NC = scaler_NC.transform(activations_NC)
+        predictor_NC = Ridge(max_iter=1000).fit(activations_NC, train_target)
+
 
 # =====================================================
 # Testing on the test set
@@ -645,18 +663,27 @@ if compare:
     start = time.perf_counter()
     (
         time_ts,
-        _, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
+        state_reservoir_ts_NC, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_hid)
         state_pcs_ts_NC, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs*n_robots)
         _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
         _
     ) = reservoir_NoCoriolis(test_dataset, time_u_test, saveat_test, dt_sim)
-    state_pcs_ts_NC.block_until_ready()
+    y_ts_NC, _ = jnp.split(state_reservoir_ts_NC, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
+    activations_NC = y_ts_NC[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
+    activations_NC.block_until_ready()
     stop = time.perf_counter() 
     elatime_forward_pass_testing_NC = stop - start
 
+    activations_NC = onp.array(activations_NC)
+    activations_NC = scaler_NC.transform(activations_NC)
+    pred_NC = predictor_NC.predict(activations_NC)
+    rmse_NC = jnp.sqrt(jnp.mean((pred_NC - test_target) ** 2))
+    rms_target = jnp.sqrt(jnp.mean(test_target ** 2))
+    test_nrmse_NC = (rmse_NC / rms_target)
+
     # Compute rollout NRMSE (compare Coriolis and noCoriolis)
     _, q_ts, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts) # shape (n_steps, n_robots, 3*n_pcs)
-    _, q_ts_NC, _ = jax.vmap(robots_system.transform_Z)(state_pcs_ts_NC) # shape (n_steps, n_robots, 3*n_pcs)
+    _, q_ts_NC, _ = jax.vmap(robots_system_NoCoriolis.transform_Z)(state_pcs_ts_NC) # shape (n_steps, n_robots, 3*n_pcs)
     sim_NRMSE = jnp.sqrt(jnp.mean((q_ts - q_ts_NC)**2)) / jnp.sqrt(jnp.mean(q_ts_NC**2))
 
 
@@ -818,7 +845,9 @@ with open(data_folder/'performances.txt', 'w') as file:
         file.write(f"COMPARISON WITH AND WITHOUT CORIOLIS AND CENTRIFUGAL FORCES\n")
         file.write(f"   Elapsed time forward pass NO Coriolis/centrifugal (test set):   {elatime_forward_pass_testing_NC}\n")
         file.write(f"   Elapsed time forward pass WITH Coriolis/centrifugal (test set): {elatime_forward_pass_testing}\n")
-        file.write(f"   Simulation NRMSE (between Cor/centr. and no Cor/centr):         {sim_NRMSE}\n")
+        file.write(f"   Simulation NRMSE (between Cor/centr. and no Cor/centr): {sim_NRMSE}\n")
+        file.write(f"   NRMSE NO Coriolis/centrifugal (test set):   {test_nrmse_NC}\n")
+        file.write(f"   NRMSE WITH Coriolis/centrifugal (test set): {test_nrmse}\n")
 
 
 
