@@ -1438,7 +1438,9 @@ for run, seed in enumerate(seeds):
                 y_hat_pcs, yd_hat_pcs = map_opt.inverse_with_derivatives_batch(Q_ts, Qd_ts) # shape (n_steps, n_ron)
 
         # Compute NRMSE between y(t) and y_hat(t) (to check how close the rolled out behaviour is)
-        rollout_nrmse = jnp.sqrt(jnp.mean((y_RONsaved - y_hat_pcs)**2)) / jnp.sqrt(jnp.mean(y_RONsaved**2))
+        vmapped_interpolator = jax.vmap(lambda x: jnp.interp(timePCS, time_RONsaved, x), in_axes=1, out_axes=1)
+        y_RONsaved_remapped = vmapped_interpolator(y_RONsaved)
+        rollout_nrmse = jnp.sqrt(jnp.mean((y_RONsaved_remapped - y_hat_pcs)**2)) / jnp.sqrt(jnp.mean(y_RONsaved_remapped**2))
 
         # Plot PCS strains
         for n in range(n_robots):
