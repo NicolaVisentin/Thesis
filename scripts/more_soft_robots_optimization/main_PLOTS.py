@@ -885,7 +885,7 @@ for run, seed in enumerate(seeds):
                     axs[2].set_title('Shear strain')
                     axs[2].legend()
                 plt.tight_layout()
-                plt.savefig(plots_folder/f'Strains_before_robot_{n+1}', bbox_inches='tight')
+                #plt.savefig(plots_folder/f'Strains_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
                 plt.close()
 
@@ -911,7 +911,7 @@ for run, seed in enumerate(seeds):
                     axs[2].set_title('Shear actuation power')
                     axs[2].legend()
                 plt.tight_layout()
-                plt.savefig(plots_folder/f'Power_before_robot_{n+1}', bbox_inches='tight')
+                #plt.savefig(plots_folder/f'Power_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
                 plt.close()
 
@@ -936,7 +936,7 @@ for run, seed in enumerate(seeds):
                 axs[i].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
+            #plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
             #plt.show()
             plt.close()
 
@@ -962,7 +962,7 @@ for run, seed in enumerate(seeds):
                 axs[i].set_visible(False)
 
             plt.tight_layout()
-            plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
+            #plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
             #plt.show()
             plt.close()
 
@@ -989,7 +989,7 @@ for run, seed in enumerate(seeds):
                     axs[2].set_title('Shear actuation')
                     axs[2].legend()
                 plt.tight_layout()
-                plt.savefig(plots_folder/f'Actuation_before_robot_{n+1}', bbox_inches='tight')
+                #plt.savefig(plots_folder/f'Actuation_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
                 plt.close()
 
@@ -1026,7 +1026,7 @@ for run, seed in enumerate(seeds):
                         axs[2].set_title('Shear ff actuation')
                         axs[2].legend()
                     plt.tight_layout()
-                    plt.savefig(plots_folder/f'Actuation_ff_before_robot_{n+1}', bbox_inches='tight')
+                    #plt.savefig(plots_folder/f'Actuation_ff_before_robot_{n+1}', bbox_inches='tight')
                     #plt.show()
                     plt.close()
 
@@ -1052,7 +1052,7 @@ for run, seed in enumerate(seeds):
                         axs[2].set_title('Shear fb actuation')
                         axs[2].legend()
                     plt.tight_layout()
-                    plt.savefig(plots_folder/f'Actuation_fb_before_robot_{n+1}', bbox_inches='tight')
+                    #plt.savefig(plots_folder/f'Actuation_fb_before_robot_{n+1}', bbox_inches='tight')
                     #plt.show()
                     plt.close()
 
@@ -1328,7 +1328,7 @@ for run, seed in enumerate(seeds):
         plt.gca().xaxis.set_major_locator(MaxNLocator(integer=True))
         plt.title(f'Loss curve (elapsed time: {elatime_optimiz:.2f} s)')
         plt.tight_layout()
-        plt.savefig(plots_folder/'Loss', bbox_inches='tight')
+        #plt.savefig(plots_folder/'Loss', bbox_inches='tight')
         #plt.show()
         plt.close()
 
@@ -1474,7 +1474,7 @@ for run, seed in enumerate(seeds):
                 axs[2].set_title('Shear strain')
                 axs[2].legend()
             plt.tight_layout()
-            plt.savefig(plots_folder/f'Strains_after_robot_{n+1}', bbox_inches='tight')
+            #plt.savefig(plots_folder/f'Strains_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
             plt.close()
 
@@ -1500,12 +1500,12 @@ for run, seed in enumerate(seeds):
                 axs[2].set_title('Shear actuation power')
                 axs[2].legend()
             plt.tight_layout()
-            plt.savefig(plots_folder/f'Power_after_robot_{n+1}', bbox_inches='tight')
+            #plt.savefig(plots_folder/f'Power_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
             plt.close()
         
         # Plot y(t) and y_hat(t)
-        fig, axs = plt.subplots(2, 2, figsize=(8, 5))
+        fig, axs = plt.subplots(2, 2, figsize=(8, 3.5))
         if n_show == 1:
             axs = np.array([axs])
         else:
@@ -1520,14 +1520,12 @@ for run, seed in enumerate(seeds):
             #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         for i in range(n_show, len(axs)):
             axs[i].set_visible(False)
-
-        # Unica legenda centrata sopra i plot
+        # Unic legend
         handles, labels = axs[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc='center', bbox_to_anchor=(0.55, 0.52),
-                ncol=1, frameon=True)
+        fig.legend(handles, labels, loc='lower left', ncol=1, frameon=True)
 
         plt.tight_layout()
-        plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
+        #plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
         plt.show()
         plt.close()
 
@@ -1553,7 +1551,7 @@ for run, seed in enumerate(seeds):
             axs[i].set_visible(False)
 
         plt.tight_layout()
-        plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
+        #plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
         #plt.show()
         plt.close()
 
@@ -1580,7 +1578,7 @@ for run, seed in enumerate(seeds):
                 axs[2].set_title('Shear actuation')
                 axs[2].legend()
             plt.tight_layout()
-            plt.savefig(plots_folder/f'Actuation_after_robot_{n+1}', bbox_inches='tight')
+            #plt.savefig(plots_folder/f'Actuation_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
             plt.close()
 
@@ -1617,7 +1615,7 @@ for run, seed in enumerate(seeds):
                     axs[2].set_title('Shear ff actuation')
                     axs[2].legend()
                 plt.tight_layout()
-                plt.savefig(plots_folder/f'Actuation_ff_after_robot_{n+1}', bbox_inches='tight')
+                #plt.savefig(plots_folder/f'Actuation_ff_after_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
                 plt.close()
 
@@ -1643,7 +1641,7 @@ for run, seed in enumerate(seeds):
                     axs[2].set_title('Shear fb actuation')
                     axs[2].legend()
                 plt.tight_layout()
-                plt.savefig(plots_folder/f'Actuation_fb_after_robot_{n+1}', bbox_inches='tight')
+                #plt.savefig(plots_folder/f'Actuation_fb_after_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
                 plt.close()
 
