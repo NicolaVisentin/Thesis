@@ -37,7 +37,7 @@ key = jax.random.key(seed)
 
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
-if False:
+if True:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -58,7 +58,7 @@ if False:
     stddev_trained = np.array([1.32, 1.82, 2.41, 0.63])
 
     # Plot
-    fig = plt.figure(figsize=(5,4))
+    fig = plt.figure(figsize=(5,3))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -78,7 +78,7 @@ if False:
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
     #plt.yticks(np.arange(30, 81, 10))
-    #plt.ylim(29, 85)
+    plt.ylim(30, 90)
     plt.legend(ncol=2, fontsize=9, loc='upper left')
 
     fig.tight_layout()
@@ -108,7 +108,7 @@ if True:
     stddev_trained = np.array([0.003, 0.016, 0.014, 0.006])
 
     # Plot
-    fig = plt.figure(figsize=(5,4))
+    fig = plt.figure(figsize=(5,3))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -128,11 +128,12 @@ if True:
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
     plt.yticks(np.arange(0.2, 0.9, 0.1))
-    plt.legend(fontsize=9)
+    plt.ylim(0.1, 0.88)
+    plt.legend(ncol=2, fontsize=9)
 
     fig.tight_layout()
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
-    plt.show()
+    #plt.show()
 
 
 ### PRC accuracy vs reservoir dimension (Lorenz96)
@@ -157,7 +158,7 @@ if True:
     stddev_trained = np.array([0.002, 0.001, 0.011, 0.013])
 
     # Plot
-    fig = plt.figure(figsize=(5,4))
+    fig = plt.figure(figsize=(5,3))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -177,7 +178,8 @@ if True:
     plt.xticks(np.arange(5, 17), fontsize=12)
     plt.yticks(fontsize=12)
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
-    plt.legend(fontsize=9, loc='upper center', bbox_to_anchor=(0.62, 1))
+    plt.ylim(0.2, 0.9)
+    plt.legend(ncol=2, fontsize=9, loc='lower left')
 
     fig.tight_layout()
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
