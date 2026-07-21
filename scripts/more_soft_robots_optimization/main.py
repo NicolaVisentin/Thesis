@@ -46,7 +46,7 @@ jnp.set_printoptions(
 # Run for different random seeds
 # =====================================================
 
-seeds = [123, 1234, 12345, 123456] # select random seed(s)
+seeds = [123, 1234, 12345, 123456, 132, 1243, 12354, 123465, 321, 4321, 54321] # select random seed(s)
 
 for run, seed in enumerate(seeds):
     n_run = run + 1
@@ -58,21 +58,14 @@ for run, seed in enumerate(seeds):
 
     # General
     load_experiment = False # choose whether to load saved experiment or to perform training
-    experiment = f'lorenz/N6/default_run{n_run}' # name of the experiment to perform/load
+    experiment = f'Adiac/N6/default_run{n_run}' # name of the experiment to perform/load
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
     # Reference RON reservoir
-    if False:
-        ron_dataset = 'sMNIST_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-        ron_evolution_example = 'sMNIST_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
-    elif False:
-        ron_dataset = 'MG_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-        ron_evolution_example = 'MG_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
-    else:
-        ron_dataset = 'lorenz_RON_N6/dataset_m1e5_N6' # name of the case to load from 'soft robot optimization' folder
-        ron_evolution_example = 'lorenz_RON_N6/RON_evolution_N6' # name of the case to load from 'soft robot optimization' folder
+    task = 'Adiac' # 'sMNIST', 'MG', 'lorenz', 'Adiac'
+    reservoir_dim = 6
 
     # controller
     train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
@@ -92,7 +85,7 @@ for run, seed in enumerate(seeds):
 
 
     # =====================================================
-    # Functions
+    # Functions and setup
     # =====================================================
 
     # Folders
@@ -503,6 +496,10 @@ for run, seed in enumerate(seeds):
     # Prepare datasets
     # =====================================================
 
+    # File paths
+    ron_dataset = f'{task}_RON_N{reservoir_dim}/dataset_m1e5_N{reservoir_dim}' # name of the case to load from 'soft robot optimization' folder
+    ron_evolution_example = f'{task}_RON_N{reservoir_dim}/RON_evolution_N{reservoir_dim}' # name of the case to load from 'soft robot optimization' folder
+
     # Load dataset: m data from a RON with n_ron oscillators
     dataset = onp.load(dataset_folder/'soft robot optimization'/f'{ron_dataset}.npz')
     y = dataset["y"] # position samples of the RON oscillators. Shape (m, n_ron)
@@ -748,7 +745,7 @@ for run, seed in enumerate(seeds):
         y_RONsaved = jnp.array(RON_evolution_data['y'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
         yd_RONsaved = jnp.array(RON_evolution_data['yd'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
         u_RONsaved = jnp.array(RON_evolution_data['u'], dtype=jnp.float64)[:idx_max_time] # only first ~'simulation_duration' s
-        if len(u_RONsaved.shape) == 1: # !!! THIS IS HERE BECAUSE OF HOW DATA WERE SAVED: sMINST HAS (n_steps, 1) WHILE M-G HAS (n_steps,) !!!
+        if len(u_RONsaved.shape) == 1: # !!! THIS IS HERE BECAUSE OF HOW DATA WERE SAVED: sMINST, Lorenz96 AND ADIAC HAVE (n_steps, 1) WHILE M-G HAS (n_steps,) !!!
             u_RONsaved = u_RONsaved[:, None] # ...and we want to work with (n_steps, n_input)
 
         # Define controller
