@@ -37,7 +37,7 @@ key = jax.random.key(seed)
 
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -87,7 +87,7 @@ if True:
 
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -137,7 +137,7 @@ if True:
 
 
 ### PRC accuracy vs reservoir dimension (Lorenz96)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -856,3 +856,34 @@ if False:
     # =========================================================
     plt.show()
     #plt.close()
+
+
+### FLOPs count
+if True:
+    # Prepare data
+    n_y = np.arange(6, 13000)
+    
+    def flops_ron(n_y, n_u):
+        return 2 * n_y**2 + 9 * n_y + 2 * n_y * n_u
+    
+    def flops_physical(n_y, n_u):
+        return 2 * n_y**2 + 383 * n_y + 128 * n_u + 16768
+
+    # Plot stuff
+    plt.rcParams.update({
+        'font.family':        'serif',
+        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+        'mathtext.fontset':   'cm',
+    })
+
+    plt.figure()
+    plt.plot(n_y, flops_ron(n_y, 1), 'b', label=r'RON ($n_u=1$)')
+    plt.plot(n_y, flops_physical(n_y, 1), 'r', label=r'phys. res. ($n_u=1$)')
+    plt.plot(n_y, flops_ron(n_y, 5), 'b--', label=r'RON ($n_u=5$)')
+    plt.plot(n_y, flops_physical(n_y, 5), 'r--', label=r'phys. res. ($n_u=5$)')
+    plt.xlabel(r'$n_y$')
+    plt.ylabel(r'FLOPs')
+    plt.title(r'FLOPs count')
+    plt.grid(True)
+    plt.legend(ncol=2)
+    plt.show()
