@@ -342,6 +342,40 @@ def get_fixed_length_windows(tensor, length, prediction_lag=1):
     return windows, targets  # (B, L, I), (B, I)
 
 
+def load_adiac_data(folder: Path) -> Tuple[dict, dict]:
+    """
+    Loads the ADIAC dataset as numpy arrays.
+ 
+    Args
+    ----
+    folder : Path
+        Path with the dataset raw files (train.txt, test.txt).
+ 
+    Returns
+    -------
+    adiac_train_set : dict
+        Dictionary with keys:
+        - **"series"**: train time series as numpy array of shape (n_train, seq_len, 1).
+        - **"labels"**: train labels as numpy array of shape (n_train,), 0-indexed.
+    adiac_test_set : dict
+        Dictionary with keys:
+        - **"series"**: test time series as numpy array of shape (n_test, seq_len, 1).
+        - **"labels"**: test labels as numpy array of shape (n_test,), 0-indexed.
+    """
+    train_arr = np.genfromtxt(folder / "train.txt", dtype="float32")
+    test_arr = np.genfromtxt(folder / "test.txt", dtype="float32")
+ 
+    train_labels = (train_arr[:, 0] - 1).astype(np.int64)
+    train_series = train_arr[:, 1:].reshape(train_arr.shape[0], -1, 1)
+ 
+    test_labels = (test_arr[:, 0] - 1).astype(np.int64)
+    test_series = test_arr[:, 1:].reshape(test_arr.shape[0], -1, 1)
+ 
+    adiac_train_set = {"series": train_series, "labels": train_labels}
+    adiac_test_set = {"series": test_series, "labels": test_labels}
+    return adiac_train_set, adiac_test_set
+
+
 # =====================================================
 # Other
 # =====================================================
