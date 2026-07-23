@@ -1,0 +1,19 @@
+SETUP
+   Train set size: 390
+   Test set size:  391
+
+RESERVOIR PROPERTIES
+   Model path:  /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/Adiac/N6/default_run7
+   Dimension:   6
+   n. robots:   1
+   n. segments: 2
+   Robots:      those in /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/Adiac/N6/default_run7
+   Map:         linear
+   Controller:  mlp (fb) + mlp (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 75.70824783993885
+   Elapsed time training output layer:    0.014339509885758162
+   Elapsed time forward pass (test set):  80.02578340587206
+   Accuracy (train set): 0.5487179487179488
+   Accuracy (test set):  0.46190476190476193

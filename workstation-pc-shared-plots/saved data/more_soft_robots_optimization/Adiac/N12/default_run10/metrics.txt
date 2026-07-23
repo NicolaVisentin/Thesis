@@ -1,0 +1,14 @@
+SETUP
+   Dataset:          Adiac_RON_N12/dataset_m1e5_N12
+   Latent dimension: 12
+   Number of robots: 2
+   PCS segments:     2
+   Mapping:          svd
+   Controller:       mlp (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               7797.106830589008
+   Final test RMS error:                        0.7682715654733414
+   Final test RMS power:                        1.7695162068473986 (fb: 0.9978012781559554, ff: 1.3927331189337524)
+   Final test RMSE reconstruction (y, yd, ydd): (5.528862830610985e-15, 1.3013825727486105e-15, 1.0475259228395553e-14)
+   Rollout NRMSE (between y(t) and y_hat(t)):   0.05565515047330782
