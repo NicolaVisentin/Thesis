@@ -58,7 +58,7 @@ if False:
     stddev_trained = np.array([1.32, 1.82, 2.41, 0.63])
 
     # Plot
-    fig = plt.figure(figsize=(5,3))
+    fig = plt.figure(figsize=(4.1, 3))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -75,10 +75,62 @@ if False:
     plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
     plt.ylabel('classification accuracy (%)', fontsize=12)
     plt.title(r'sMNIST ($\uparrow$)', fontsize=12)
-    plt.xticks(np.arange(5, 17), fontsize=12)
+    plt.xticks(np.arange(6, 16), fontsize=12)
     plt.yticks(fontsize=12)
     #plt.yticks(np.arange(30, 81, 10))
-    plt.ylim(30, 90)
+    plt.xlim(5.5, 15.5)
+    plt.ylim(30, 98)
+    plt.legend(ncol=2, fontsize=9, loc='upper left')
+
+    fig.tight_layout()
+    #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
+    #plt.show()
+
+
+### PRC accuracy vs reservoir dimension (ADIAC)
+if False:
+    # Plots settings
+    plt.rcParams.update({
+        'font.family':        'serif',
+        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+        'mathtext.fontset':   'cm',
+    })
+
+    # Data
+    ny = np.arange(6, 16, 3)
+
+    acc_ron = np.array([46.80, 53.20, 57.03, 62.15])
+    acc_untrained = np.array([30.54, 38.57, 40.30, 45.42])
+    acc_part_trained = np.array([39.35, 37.08, 32.92, 32.26])
+    acc_trained = np.array([44.58, 51.01, 50.18, 53.10])
+        
+    stddev_untrained = np.array([3.22, 3.20, 7.30, 16.85])
+    stddev_part_trained = np.array([6.41, 16.21, 11.68, 11.18])
+    stddev_trained = np.array([1.03, 3.75, 0.68, 2.45])
+
+    # Plot
+    fig = plt.figure(figsize=(4.1, 3))
+
+    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
+
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='6') # unoptimized
+    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.3)
+
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='6') # partially trained
+    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.3)
+
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='6') # partially trained
+    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.3)
+
+    plt.grid(True, alpha=0.6)
+    plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
+    plt.ylabel('classification accuracy (%)', fontsize=12)
+    plt.title(r'ADIAC ($\uparrow$)', fontsize=12)
+    plt.xticks(np.arange(6, 16), fontsize=12)
+    plt.yticks(fontsize=12)
+    #plt.yticks(np.arange(30, 81, 10))
+    plt.xlim(5.5, 15.5)
+    plt.ylim(18, 80)
     plt.legend(ncol=2, fontsize=9, loc='upper left')
 
     fig.tight_layout()
@@ -108,7 +160,7 @@ if False:
     stddev_trained = np.array([0.003, 0.016, 0.014, 0.006])
 
     # Plot
-    fig = plt.figure(figsize=(5,3))
+    fig = plt.figure(figsize=(4.1, 3))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -125,10 +177,11 @@ if False:
     plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
     plt.ylabel('prediction error (NRMSE)', fontsize=12)
     plt.title('Mackey-Glass ($\downarrow$)', fontsize=12)
-    plt.xticks(np.arange(5, 17), fontsize=12)
+    plt.xticks(np.arange(6, 16), fontsize=12)
     plt.yticks(fontsize=12)
-    plt.yticks(np.arange(0.2, 0.9, 0.1))
-    plt.ylim(0.1, 0.88)
+    #plt.yticks(np.arange(0.2, 0.9, 0.1))
+    plt.xlim(5.5, 15.5)
+    plt.ylim(0.08, 0.88)
     plt.legend(ncol=2, fontsize=9)
 
     fig.tight_layout()
@@ -158,7 +211,7 @@ if False:
     stddev_trained = np.array([0.002, 0.001, 0.011, 0.013])
 
     # Plot
-    fig = plt.figure(figsize=(5,3))
+    fig = plt.figure(figsize=(4.1, 3))
 
     plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
 
@@ -175,10 +228,11 @@ if False:
     plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
     plt.ylabel('prediction error (NRMSE)', fontsize=12)
     plt.title('Lorenz96 ($\downarrow$)', fontsize=12)
-    plt.xticks(np.arange(5, 17), fontsize=12)
+    plt.xticks(np.arange(6, 16), fontsize=12)
     plt.yticks(fontsize=12)
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
-    plt.ylim(0.2, 0.9)
+    plt.xlim(5.5, 15.5)
+    plt.ylim(0.18, 0.9)
     plt.legend(ncol=2, fontsize=9, loc='lower left')
 
     fig.tight_layout()
@@ -859,7 +913,7 @@ if False:
 
 
 ### FLOPs count
-if True:
+if False:
     # Prepare data
     n_y = np.arange(6, 13000)
     
