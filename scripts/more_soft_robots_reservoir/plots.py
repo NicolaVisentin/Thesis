@@ -3,6 +3,7 @@ os.environ["JAX_PLATFORM_NAME"] = "cpu"
 import numpy as np
 from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
+from matplotlib.ticker import ScalarFormatter
 import matplotlib.ticker as ticker
 from sklearn import preprocessing
 from sklearn.linear_model import Ridge
@@ -915,13 +916,13 @@ if False:
 ### FLOPs count
 if False:
     # Prepare data
-    n_y = np.arange(6, 13000)
+    n_y = np.arange(6, 500)
     
-    def flops_ron(n_y, n_u):
-        return 2 * n_y**2 + 9 * n_y + 2 * n_y * n_u
+    def flops_ron(n_y, n_u, K):
+        return K * (2 * n_y**2 + 9 * n_y + 2 * n_y * n_u)
     
-    def flops_physical(n_y, n_u):
-        return 2 * n_y**2 + 383 * n_y + 128 * n_u + 16768
+    def flops_physical(n_y, n_u, K):
+        return K * (383 * n_y + 128 * n_u + 16768)
 
     # Plot stuff
     plt.rcParams.update({
@@ -931,13 +932,19 @@ if False:
     })
 
     plt.figure()
-    plt.plot(n_y, flops_ron(n_y, 1), 'b', label=r'RON ($n_u=1$)')
-    plt.plot(n_y, flops_physical(n_y, 1), 'r', label=r'phys. res. ($n_u=1$)')
-    plt.plot(n_y, flops_ron(n_y, 5), 'b--', label=r'RON ($n_u=5$)')
-    plt.plot(n_y, flops_physical(n_y, 5), 'r--', label=r'phys. res. ($n_u=5$)')
-    plt.xlabel(r'$n_y$')
-    plt.ylabel(r'FLOPs')
-    plt.title(r'FLOPs count')
+    plt.plot(n_y, flops_ron(n_y, 1, 1), 'b', label=r'RON ($n_u=1$)')
+    plt.plot(n_y, flops_physical(n_y, 1, 1), 'r', label=r'phys. res. ($n_u=1$)')
+    plt.plot(n_y, flops_ron(n_y, 5, 1), 'b--', label=r'RON ($n_u=5$)')
+    plt.plot(n_y, flops_physical(n_y, 5, 1), 'r--', label=r'phys. res. ($n_u=5$)')
+    ax = plt.gca()
+    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.xlabel(r'$n_y$', fontsize=16)
+    plt.ylabel(r'FLOPs', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.title(r'FLOPs count', fontsize=18)
     plt.grid(True)
-    plt.legend(ncol=2)
+    plt.legend(ncol=1, fontsize=16)
+    plt.tight_layout()
     plt.show()
