@@ -35,6 +35,21 @@ data = {
             "unoptimized": [0.3714, 0.6318, 0.3660, 0.3940],
             "partially": [0.7284, 0.5410, 0.4690, 0.6860]},
     },
+    "ADIAC": {
+            "lower_is_better": False, # classification accuracy: higher is better
+            6:  {"ours": [0.4595, 0.4357, 0.4405, 0.4476],
+                "unoptimized": [0.3476, 0.2714, 0.3095, 0.2929],
+                "partially": [0.3048, 0.4381, 0.3881, 0.4429]},
+            9:  {"ours": [0.4548, 0.5357, 0.5190, 0.5310],
+                "unoptimized": [0.4238, 0.3976, 0.3714, 0.3500],
+                "partially": [0.1643, 0.4929, 0.3190, 0.5071]},
+            12: {"ours": [0.5024, 0.5024, 0.5095, 0.4929],
+                "unoptimized": [0.4905, 0.3381, 0.4357, 0.3476],
+                "partially": [0.2381, 0.2190, 0.4429, 0.4167]},
+            15: {"ours": [0.5024, 0.5619, 0.5333, 0.5262],
+                "unoptimized": [0.4857, 0.2119, 0.6000, 0.5190],
+                "partially": [0.4167, 0.2381, 0.2143, 0.4214]},
+        },
     "Mackey-Glass": {
         "lower_is_better": True, # NRMSE: lower is better
         6:  {"ours": [0.529971, 0.523017, 0.523637, 0.524097],
@@ -67,7 +82,7 @@ data = {
     },
 }
 
-TASKS = ["sMNIST", "Mackey-Glass", "Lorenz96"]
+TASKS = ["sMNIST", "ADIAC", "Mackey-Glass", "Lorenz96"]
 NYS = [6, 9, 12, 15]
 BASELINES = ["unoptimized", "partially"]
 
