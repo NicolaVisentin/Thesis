@@ -914,15 +914,106 @@ if False:
 
 
 ### FLOPs count
-if False:
-    # Prepare data
+if True:
+    # Prepare data and functions
     n_y = np.arange(6, 500)
     
-    def flops_ron(n_y, n_u, K):
-        return K * (2 * n_y**2 + 9 * n_y + 2 * n_y * n_u)
+    def flops_ron(n_y, n_u, K, n_c=None, N_lag=None):
+        """
+        Args
+        ----
+        n_y : reservoir hidden dimension
+        n_u : input dimension
+        K : total timesteps
+        n_c : number of classes (only for classification tasks, otherwise None)
+        N_lag : prediction lag (only for forecasting, otherwise None)
+
+        Return
+        ------
+        FLOPs : tuple (flops_reservoir, flops_readout, flops_total)
+        """
+        assert n_c is not None or N_lag is not None
+        flops_reservoir = K * (2 * n_y**2 + 9 * n_y + 2 * n_y * n_u)
+        flops_readout = 2 * n_y * n_u * (K - N_lag) if n_c is None else 2 * n_y * n_c + 3 * n_c
+        flops_total = flops_reservoir + flops_readout
+        return (flops_reservoir, flops_readout, flops_total)
     
-    def flops_physical(n_y, n_u, K):
-        return K * (383 * n_y + 128 * n_u + 16768)
+    def flops_physical(n_y, n_u, K, n_c=None, N_lag=None):
+        """
+        Args
+        ----
+        n_y : reservoir hidden dimension
+        n_u : input dimension
+        K : total timesteps
+        n_c : number of classes (only for classification tasks, otherwise None)
+        N_lag : prediction lag (only for forecasting, otherwise None)
+
+        Return
+        ------
+        FLOPs : tuple (flops_reservoir, flops_readout, flops_total)
+        """
+        assert n_c is not None or N_lag is not None
+        flops_reservoir = K * (383 * n_y + 128 * n_u + 16768)
+        flops_readout = (4 * n_y**2 + 2 * n_u * n_y) * (K - N_lag) if n_c is None else 4 * n_y**2 + 2 * n_c * n_y + 3 * n_c
+        flops_total = flops_reservoir + flops_readout
+        return (flops_reservoir, flops_readout, flops_total)
+    
+    # Compute FLOPs
+    flops_res_ron_smnist, flops_read_ron_smnist, flops_tot_ron_smnist = flops_ron(
+        n_y,
+        n_u = 1,
+        K = 784,
+        n_c = 10
+    )
+
+    flops_res_ron_adiac, flops_read_ron_adiac, flops_tot_ron_adiac = flops_ron(
+        n_y,
+        n_u = 1,
+        K = 176,
+        n_c = 37
+    )
+
+    flops_res_ron_mg, flops_read_ron_mg, flops_tot_ron_mg = flops_ron(
+        n_y,
+        n_u = 1,
+        K = 2000,
+        N_lag = 84
+    )
+
+    flops_res_ron_lorenz, flops_read_ron_lorenz, flops_tot_ron_lorenz = flops_ron(
+        n_y,
+        n_u = 5,
+        K = 2000,
+        N_lag = 25
+    )
+
+    flops_res_phy_smnist, flops_read_phy_smnist, flops_tot_phy_smnist = flops_physical(
+        n_y,
+        n_u = 1,
+        K = 784,
+        n_c = 10
+    )
+
+    flops_res_phy_adiac, flops_read_phy_adiac, flops_tot_phy_adiac = flops_physical(
+        n_y,
+        n_u = 1,
+        K = 176,
+        n_c = 37
+    )
+
+    flops_res_phy_mg, flops_read_phy_mg, flops_tot_phy_mg = flops_physical(
+        n_y,
+        n_u = 1,
+        K = 2000,
+        N_lag = 84
+    )
+
+    flops_res_phy_lorenz, flops_read_phy_lorenz, flops_tot_phy_lorenz = flops_physical(
+        n_y,
+        n_u = 5,
+        K = 2000,
+        N_lag = 25
+    )
 
     # Plot stuff
     plt.rcParams.update({
@@ -932,19 +1023,71 @@ if False:
     })
 
     plt.figure()
-    plt.plot(n_y, flops_ron(n_y, 1, 1), 'b', label=r'RON ($n_u=1$)')
-    plt.plot(n_y, flops_physical(n_y, 1, 1), 'r', label=r'phys. res. ($n_u=1$)')
-    plt.plot(n_y, flops_ron(n_y, 5, 1), 'b--', label=r'RON ($n_u=5$)')
-    plt.plot(n_y, flops_physical(n_y, 5, 1), 'r--', label=r'phys. res. ($n_u=5$)')
-    ax = plt.gca()
-    ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
-    ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.plot(n_y, flops_res_phy_smnist, 'b', label=r'phy. res. (sMNIST)')
+    plt.plot(n_y, flops_res_phy_adiac, 'r', label=r'phy. res. (ADIAC)')
+    plt.plot(n_y, flops_res_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)')
+    plt.plot(n_y, flops_res_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)')
+    plt.plot(n_y, flops_res_ron_smnist, 'b--', label=r'RON (sMNIST)')
+    plt.plot(n_y, flops_res_ron_adiac, 'r--', label=r'RON (ADIAC)')
+    plt.plot(n_y, flops_res_ron_mg, 'm--', label=r'RON (Mackey-Glass)')
+    plt.plot(n_y, flops_res_ron_lorenz, 'g--', label=r'RON (Lorenz96)')
+    # ax = plt.gca()
+    # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.yscale('log')
     plt.xlabel(r'$n_y$', fontsize=16)
     plt.ylabel(r'FLOPs', fontsize=16)
     plt.xticks(fontsize=14)
     plt.yticks(fontsize=14)
-    plt.title(r'FLOPs count', fontsize=18)
+    plt.title(r'FLOPs count (reservoir)', fontsize=18)
     plt.grid(True)
-    plt.legend(ncol=1, fontsize=16)
+    plt.legend(ncol=1, fontsize=12)
+    plt.tight_layout()
+    #plt.show()
+
+    plt.figure()
+    plt.plot(n_y, flops_read_phy_smnist, 'b', label=r'phy. res. (sMNIST)')
+    plt.plot(n_y, flops_read_phy_adiac, 'r', label=r'phy. res. (ADIAC)')
+    plt.plot(n_y, flops_read_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)')
+    plt.plot(n_y, flops_read_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)')
+    plt.plot(n_y, flops_read_ron_smnist, 'b--', label=r'RON (sMNIST)')
+    plt.plot(n_y, flops_read_ron_adiac, 'r--', label=r'RON (ADIAC)')
+    plt.plot(n_y, flops_read_ron_mg, 'm--', label=r'RON (Mackey-Glass)')
+    plt.plot(n_y, flops_read_ron_lorenz, 'g--', label=r'RON (Lorenz96)')
+    # ax = plt.gca()
+    # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.yscale('log')
+    plt.xlabel(r'$n_y$', fontsize=16)
+    plt.ylabel(r'FLOPs', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.ylim(10e-3, 10e9)
+    plt.title(r'FLOPs count (readout layer)', fontsize=18)
+    plt.grid(True)
+    plt.legend(ncol=2, fontsize=12, loc='lower right')
+    plt.tight_layout()
+    #plt.show()
+
+    plt.figure()
+    plt.plot(n_y, flops_tot_phy_smnist, 'b', label=r'phy. res. (sMNIST)')
+    plt.plot(n_y, flops_tot_phy_adiac, 'r', label=r'phy. res. (ADIAC)')
+    plt.plot(n_y, flops_tot_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)')
+    plt.plot(n_y, flops_tot_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)')
+    plt.plot(n_y, flops_tot_ron_smnist, 'b--', label=r'RON (sMNIST)')
+    plt.plot(n_y, flops_tot_ron_adiac, 'r--', label=r'RON (ADIAC)')
+    plt.plot(n_y, flops_tot_ron_mg, 'm--', label=r'RON (Mackey-Glass)')
+    plt.plot(n_y, flops_tot_ron_lorenz, 'g--', label=r'RON (Lorenz96)')
+    # ax = plt.gca()
+    # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.yscale('log')
+    plt.xlabel(r'$n_y$', fontsize=16)
+    plt.ylabel(r'FLOPs', fontsize=16)
+    plt.xticks(fontsize=14)
+    plt.yticks(fontsize=14)
+    plt.title(r'FLOPs count (total)', fontsize=18)
+    plt.grid(True)
+    plt.legend(ncol=1, fontsize=12)
     plt.tight_layout()
     plt.show()
