@@ -76,7 +76,7 @@ for run, seed in enumerate(seeds):
 
     # General
     load_experiment = True # choose whether to load saved experiment or to perform training
-    experiment_load = f'MG/N6/default' # name of the experiment to perform/load
+    experiment_load = f'MG/N6/default_run1' # name of the experiment to perform/load
     use_scan = False # choose whether to use normal for loop or lax.scan
     show_simulations = True # choose whether to perform time simulations of the physical reservoir (and comparison with RON)
     simulation_duration = 20 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
