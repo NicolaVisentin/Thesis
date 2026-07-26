@@ -914,7 +914,7 @@ if False:
 
 
 ### FLOPs count
-if True:
+if False:
     # Prepare data and functions
     n_y = np.arange(6, 500)
     
@@ -1047,10 +1047,10 @@ if True:
     #plt.show()
 
     plt.figure()
-    plt.plot(n_y, flops_read_phy_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=2.5)
-    plt.plot(n_y, flops_read_phy_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=2.5)
-    plt.plot(n_y, flops_read_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=2.5)
-    plt.plot(n_y, flops_read_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=2.5)
+    plt.plot(n_y, flops_read_phy_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=1.5)
+    plt.plot(n_y, flops_read_phy_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=1.5)
+    plt.plot(n_y, flops_read_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=1.5)
+    plt.plot(n_y, flops_read_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.5)
     plt.plot(n_y, flops_read_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
     plt.plot(n_y, flops_read_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_read_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
