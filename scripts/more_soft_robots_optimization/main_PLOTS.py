@@ -1503,6 +1503,12 @@ for run, seed in enumerate(seeds):
             #plt.savefig(plots_folder/f'Power_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
             plt.close()
+
+        # RMSE y(t), y_hat(t) for components 1 and 3
+        vmapped_interpolator = jax.vmap(lambda x: jnp.interp(timePCS, time_RONsaved, x), in_axes=1, out_axes=1)
+        y_RONsaved_remapped = vmapped_interpolator(y_RONsaved)
+        rollout_nrmse_1 = jnp.sqrt(jnp.mean((y_RONsaved_remapped[:,0] - y_hat_pcs[:,0])**2)) / jnp.sqrt(jnp.mean(y_RONsaved_remapped[:,0]**2))
+        rollout_nrmse_3 = jnp.sqrt(jnp.mean((y_RONsaved_remapped[:,2] - y_hat_pcs[:,2])**2)) / jnp.sqrt(jnp.mean(y_RONsaved_remapped[:,2]**2))
         
         # Plot y(t) and y_hat(t)
         fig, axs = plt.subplots(2, 2, figsize=(8, 3.5))
@@ -1511,23 +1517,37 @@ for run, seed in enumerate(seeds):
         else:
             axs = axs.flatten()
         for i in range(n_show):
-            axs[i].plot(time_RONsaved, y_RONsaved[:,i], 'b--', label=r'$y(t)$')
-            axs[i].plot(timePCS, y_hat_pcs[:,i], 'b', label=r'$\hat{y}(t)$')
+            axs[i].plot(time_RONsaved, y_RONsaved[:,i], 'k--', label=r'$y(t)$', linewidth=1.6)
+            axs[i].plot(timePCS, y_hat_pcs[:,i], 'k', label=r'$\hat{y}(t)$', linewidth=1)
             axs[i].grid(True)
             axs[i].set_xlabel('t [s]')
             axs[i].set_ylabel(rf'$y_{{{i+1}}}$')
-            axs[i].set_title(rf'Component {i+1}')
+            if i==0:
+                axs[i].set_title(rf'Component {i+1} (NRMSE={rollout_nrmse_1:.3f})', fontsize=13)
+            elif i==2:
+                axs[i].set_title(rf'Component {i+1} (NRMSE={rollout_nrmse_3:.3f})', fontsize=13)
+            else:
+                axs[i].set_title(rf'Component {i+1}', fontsize=13)
             #axs[i].set_ylim([onp.min(y_RONsaved[:,i])-1, onp.max(y_RONsaved[:,i])+1])
         for i in range(n_show, len(axs)):
             axs[i].set_visible(False)
+        axs[0].set_ylim([-0.2, 0.15])
+        axs[2].set_ylim([-0.28, 0.08])
         # Unic legend
         handles, labels = axs[0].get_legend_handles_labels()
-        fig.legend(handles, labels, loc='lower left', ncol=1, frameon=True)
+        fig.legend(handles, labels, loc='center left', ncol=2, frameon=True, bbox_to_anchor=(0.0, 0.53))
 
         plt.tight_layout()
         #plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
         plt.show()
         plt.close()
+
+        # minimal figure for just the legend
+        fig_leg = plt.figure(figsize=(4, 0.6))
+        fig_leg.legend(handles, labels, loc='center', ncol=2, frameon=True, fontsize=13)
+        plt.show()
+        plt.close(fig_leg)
+        exit()
 
         # Plot phase planes
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
