@@ -38,7 +38,7 @@ key = jax.random.key(seed)
 
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
-if False:
+if True:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -61,27 +61,27 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
+    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='6') # unoptimized
-    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.3)
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='6') # partially trained
-    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.3)
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='6') # partially trained
-    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.3)
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
-    plt.ylabel('classification accuracy (%)', fontsize=12)
-    plt.title(r'sMNIST ($\uparrow$)', fontsize=12)
-    plt.xticks(np.arange(6, 16), fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'accuracy [%]', fontsize=13)
+    plt.title(r'sMNIST ($\uparrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
     #plt.yticks(np.arange(30, 81, 10))
     plt.xlim(5.5, 15.5)
-    plt.ylim(30, 98)
-    plt.legend(ncol=2, fontsize=9, loc='upper left')
+    #plt.ylim(30, 98)
+    #plt.legend(ncol=2, fontsize=9, loc='upper left')
 
     fig.tight_layout()
     #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
@@ -89,7 +89,7 @@ if False:
 
 
 ### PRC accuracy vs reservoir dimension (ADIAC)
-if False:
+if True:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -112,27 +112,27 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
+    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='6') # unoptimized
-    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.3)
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='6') # partially trained
-    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.3)
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='6') # partially trained
-    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.3)
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
-    plt.ylabel('classification accuracy (%)', fontsize=12)
-    plt.title(r'ADIAC ($\uparrow$)', fontsize=12)
-    plt.xticks(np.arange(6, 16), fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'accuracy [%]', fontsize=13)
+    plt.title(r'ADIAC ($\uparrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
     #plt.yticks(np.arange(30, 81, 10))
     plt.xlim(5.5, 15.5)
-    plt.ylim(18, 80)
-    plt.legend(ncol=2, fontsize=9, loc='upper left')
+    #plt.ylim(18, 80)
+    #plt.legend(ncol=2, fontsize=9, loc='upper left')
 
     fig.tight_layout()
     #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
@@ -140,7 +140,7 @@ if False:
 
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if False:
+if True:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -163,27 +163,27 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
+    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='6') # unoptimized
-    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.3)
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='6') # partially trained
-    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.3)
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='6') # partially trained
-    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.3)
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
-    plt.ylabel('prediction error (NRMSE)', fontsize=12)
-    plt.title('Mackey-Glass ($\downarrow$)', fontsize=12)
-    plt.xticks(np.arange(6, 16), fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'NRMSE [–]', fontsize=13)
+    plt.title(r'Mackey-Glass ($\downarrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
     plt.xlim(5.5, 15.5)
-    plt.ylim(0.08, 0.88)
-    plt.legend(ncol=2, fontsize=9)
+    #plt.ylim(0.08, 0.88)
+    #plt.legend(ncol=2, fontsize=9)
 
     fig.tight_layout()
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
@@ -191,7 +191,7 @@ if False:
 
 
 ### PRC accuracy vs reservoir dimension (Lorenz96)
-if False:
+if True:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -214,30 +214,38 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='6') # RON
+    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='6') # unoptimized
-    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.3)
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='6') # partially trained
-    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.3)
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='6') # partially trained
-    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.3)
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'reservoir dimension ($n_y$)', fontsize=12)
-    plt.ylabel('prediction error (NRMSE)', fontsize=12)
-    plt.title('Lorenz96 ($\downarrow$)', fontsize=12)
-    plt.xticks(np.arange(6, 16), fontsize=12)
-    plt.yticks(fontsize=12)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'NRMSE [–]', fontsize=13)
+    plt.title(r'Lorenz96 ($\downarrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
     plt.xlim(5.5, 15.5)
-    plt.ylim(0.18, 0.9)
-    plt.legend(ncol=2, fontsize=9, loc='lower left')
+    #plt.ylim(0.18, 0.9)
+    #plt.legend(ncol=2, fontsize=9, loc='lower left')
 
     fig.tight_layout()
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
+    #plt.show()
+
+    # Legend in a separate figure
+    ax = plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+
+    fig_leg = plt.figure(figsize=(9, 0.5))
+    fig_leg.legend(handles, labels, loc='center', ncol=4, frameon=True, fontsize=9)
     plt.show()
 
 
