@@ -1,0 +1,21 @@
+SETUP
+   Train set size (n. of datapoints/labels): 1916
+   Test set size (n. of datapoints/labels):  1916
+   Prediction lag:                           84
+   Washout steps:                            200
+
+RESERVOIR PROPERTIES
+   Model path:  /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/Adiac/N6/default_run2
+   Dimension:   6
+   n. robots:   1
+   n. segments: 2
+   Robots:      those in /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/Adiac/N6/default_run2
+   Map:         linear
+   Controller:  mlp (fb) + mlp (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 17.839055500924587
+   Elapsed time training output layer:    0.002122072968631983
+   Elapsed time forward pass (test set):  14.189602408092469
+   NRMSE (train set): 0.5458547673457835
+   NRMSE (test set):  0.5498530190844639
