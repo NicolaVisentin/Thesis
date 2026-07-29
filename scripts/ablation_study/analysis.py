@@ -786,7 +786,7 @@ if do_ref_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 1.1 No PCS
 # =====================================================
@@ -1291,7 +1291,7 @@ if do_nopcs_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 2.1 No mapping (identity) case
 # =====================================================
@@ -1795,7 +1795,7 @@ if do_nomap_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 2.2 Diagonal mapping case
 # =====================================================
@@ -2299,7 +2299,7 @@ if do_diagmap_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 3.1 No MLP case
 # =====================================================
@@ -2803,7 +2803,7 @@ if do_nomlp_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 3.2 Regularization MLP case
 # =====================================================
@@ -3312,7 +3312,7 @@ if do_regulmlp_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 3.3 Regularization map case
 # =====================================================
@@ -3821,7 +3821,7 @@ if do_regulmap_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 3.4 Regularization map + MLP case
 # =====================================================
@@ -4330,7 +4330,7 @@ if do_regulall_case or do_overall:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # Tanh(W*q+b), SVD case
 # =====================================================
@@ -4809,7 +4809,7 @@ if do_tanhQ_svd_case:
 
 
 #plt.show()
-plt.close() # close figures to free memory
+plt.close('all') # close figures to free memory
 # =====================================================
 # 4.1 Coupled case
 # =====================================================
@@ -5480,4 +5480,4 @@ if do_overall:
             file.write(f'   regul map = {BEST_REGULMAP_simulationMapeffort}\n')
             file.write(f'   regul all = {BEST_REGULALL_simulationMapeffort}\n')
     
-plt.close()
+plt.close('all')

@@ -870,7 +870,7 @@ for run, seed in enumerate(seeds):
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Strains_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
-                plt.close()
+                plt.close('all')
 
                 # Plot actuation power
                 fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -896,7 +896,7 @@ for run, seed in enumerate(seeds):
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Power_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
-                plt.close()
+                plt.close('all')
 
             # Plot y(t) and y_hat(t)
             fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -921,7 +921,7 @@ for run, seed in enumerate(seeds):
             plt.tight_layout()
             plt.savefig(plots_folder/'RONvsPCS_time_before', bbox_inches='tight')
             #plt.show()
-            plt.close()
+            plt.close('all')
 
             # Plot phase planes
             fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -947,7 +947,7 @@ for run, seed in enumerate(seeds):
             plt.tight_layout()
             plt.savefig(plots_folder/'RONvsPCS_phaseplane_before', bbox_inches='tight')
             #plt.show()
-            plt.close()
+            plt.close('all')
 
             # Plot total actuation
             for n in range(n_robots):
@@ -974,7 +974,7 @@ for run, seed in enumerate(seeds):
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Actuation_before_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
-                plt.close()
+                plt.close('all')
 
             # Plot feedforward and feedback terms (if not unique controller)
             if not train_unique_controller:
@@ -1011,7 +1011,7 @@ for run, seed in enumerate(seeds):
                     plt.tight_layout()
                     plt.savefig(plots_folder/f'Actuation_ff_before_robot_{n+1}', bbox_inches='tight')
                     #plt.show()
-                    plt.close()
+                    plt.close('all')
 
                     # Plot feedback actuation
                     fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1037,7 +1037,7 @@ for run, seed in enumerate(seeds):
                     plt.tight_layout()
                     plt.savefig(plots_folder/f'Actuation_fb_before_robot_{n+1}', bbox_inches='tight')
                     #plt.show()
-                    plt.close()
+                    plt.close('all')
 
             # Animate robots
             for n in range(n_robots):
@@ -1313,7 +1313,7 @@ for run, seed in enumerate(seeds):
         plt.tight_layout()
         plt.savefig(plots_folder/'Loss', bbox_inches='tight')
         #plt.show()
-        plt.close()
+        plt.close('all')
 
 
     # =====================================================
@@ -1464,7 +1464,7 @@ for run, seed in enumerate(seeds):
             plt.tight_layout()
             plt.savefig(plots_folder/f'Strains_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
-            plt.close()
+            plt.close('all')
 
             # Plot actuation power
             fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1490,7 +1490,7 @@ for run, seed in enumerate(seeds):
             plt.tight_layout()
             plt.savefig(plots_folder/f'Power_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
-            plt.close()
+            plt.close('all')
         
         # Plot y(t) and y_hat(t)
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -1515,7 +1515,7 @@ for run, seed in enumerate(seeds):
         plt.tight_layout()
         plt.savefig(plots_folder/'RONvsPCS_time_after', bbox_inches='tight')
         #plt.show()
-        plt.close()
+        plt.close('all')
 
         # Plot phase planes
         fig, axs = plt.subplots(n_rows, n_cols, figsize=(12, 9))
@@ -1541,7 +1541,7 @@ for run, seed in enumerate(seeds):
         plt.tight_layout()
         plt.savefig(plots_folder/'RONvsPCS_phaseplane_after', bbox_inches='tight')
         #plt.show()
-        plt.close()
+        plt.close('all')
 
         # Plot total actuation
         for n in range(n_robots):
@@ -1568,7 +1568,7 @@ for run, seed in enumerate(seeds):
             plt.tight_layout()
             plt.savefig(plots_folder/f'Actuation_after_robot_{n+1}', bbox_inches='tight')
             #plt.show()
-            plt.close()
+            plt.close('all')
 
         # Plot feedforward and feedback terms (if not unique controller)
         if not train_unique_controller:
@@ -1605,7 +1605,7 @@ for run, seed in enumerate(seeds):
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Actuation_ff_after_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
-                plt.close()
+                plt.close('all')
 
                 # Plot feedback actuation
                 fig, axs = plt.subplots(3,1, figsize=(12,9))
@@ -1631,7 +1631,7 @@ for run, seed in enumerate(seeds):
                 plt.tight_layout()
                 plt.savefig(plots_folder/f'Actuation_fb_after_robot_{n+1}', bbox_inches='tight')
                 #plt.show()
-                plt.close()
+                plt.close('all')
 
         # Animate robots
         for n in range(n_robots):

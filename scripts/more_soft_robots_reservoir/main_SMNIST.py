@@ -883,4 +883,4 @@ for run, seed in enumerate(seeds):
     # Show all plots
     # =========================================================
     #plt.show()
-    plt.close()
+    plt.close('all')

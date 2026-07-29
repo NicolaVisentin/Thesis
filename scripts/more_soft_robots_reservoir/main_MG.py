@@ -855,4 +855,4 @@ with open(data_folder/'performances.txt', 'w') as file:
 # Show all plots
 # =========================================================
 #plt.show()
-plt.close()
+plt.close('all')

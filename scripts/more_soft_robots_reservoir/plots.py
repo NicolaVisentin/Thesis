@@ -708,7 +708,7 @@ if False:
     plt.tight_layout()
     #plt.savefig(plots_folder/'Example_inference_actuation', bbox_inches='tight') 
     #plt.show()
-    plt.close()
+    plt.close('all')
 
 
     # =========================================================
@@ -918,7 +918,7 @@ if False:
     # Show all plots
     # =========================================================
     plt.show()
-    #plt.close()
+    #plt.close('all')
 
 
 ### FLOPs count
