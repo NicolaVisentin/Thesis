@@ -38,7 +38,7 @@ key = jax.random.key(seed)
 
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -89,7 +89,7 @@ if True:
 
 
 ### PRC accuracy vs reservoir dimension (ADIAC)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -140,7 +140,7 @@ if True:
 
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -191,7 +191,7 @@ if True:
 
 
 ### PRC accuracy vs reservoir dimension (Lorenz96)
-if True:
+if False:
     # Plots settings
     plt.rcParams.update({
         'font.family':        'serif',
@@ -922,7 +922,7 @@ if False:
 
 
 ### FLOPs count
-if False:
+if True:
     # Prepare data and functions
     n_y = np.arange(6, 500)
     
@@ -1034,7 +1034,7 @@ if False:
     plt.plot(n_y, flops_res_phy_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=2.5)
     plt.plot(n_y, flops_res_phy_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_res_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=2.5)
-    plt.plot(n_y, flops_res_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=2.5)
+    plt.plot(n_y, flops_res_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.2)
     plt.plot(n_y, flops_res_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
     plt.plot(n_y, flops_res_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_res_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
@@ -1043,11 +1043,11 @@ if False:
     # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
     # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
     plt.yscale('log')
-    plt.xlabel(r'$n_y$', fontsize=20)
+    plt.xlabel(r'$n_y$', fontsize=24)
     plt.ylabel(r'FLOPs', fontsize=20)
     plt.xticks(fontsize=18)
     plt.yticks(fontsize=18)
-    plt.ylim(1e2, 1e10)
+    #plt.ylim(1e2, 1e10)
     plt.title(r'FLOPs count (reservoir)', fontsize=22)
     plt.grid(True)
     #plt.legend(ncol=1, fontsize=14)
@@ -1067,11 +1067,11 @@ if False:
     # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
     # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
     plt.yscale('log')
-    plt.xlabel(r'$n_y$', fontsize=20)
+    plt.xlabel(r'$n_y$', fontsize=24)
     plt.ylabel(r'FLOPs', fontsize=20)
     plt.xticks(fontsize=18)
     plt.yticks(fontsize=18)
-    plt.ylim(1e2, 10e9)
+    #plt.ylim(1e2, 10e9)
     plt.title(r'FLOPs count (readout layer)', fontsize=22)
     plt.grid(True)
     #plt.legend(ncol=2, fontsize=14, loc='lower right')
@@ -1082,7 +1082,7 @@ if False:
     plt.plot(n_y, flops_tot_phy_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=2.5)
     plt.plot(n_y, flops_tot_phy_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_tot_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=2.5)
-    plt.plot(n_y, flops_tot_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.2)
     plt.plot(n_y, flops_tot_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
     plt.plot(n_y, flops_tot_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_tot_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
@@ -1091,11 +1091,11 @@ if False:
     # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
     # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
     plt.yscale('log')
-    plt.xlabel(r'$n_y$', fontsize=20)
+    plt.xlabel(r'$n_y$', fontsize=24)
     plt.ylabel(r'FLOPs', fontsize=20)
     plt.xticks(fontsize=18)
     plt.yticks(fontsize=18)
-    plt.ylim(1e2, 1e10)
+    #plt.ylim(1e2, 1e10)
     plt.title(r'FLOPs count (total)', fontsize=22)
     plt.grid(True)
     #plt.legend(ncol=1, fontsize=16)
