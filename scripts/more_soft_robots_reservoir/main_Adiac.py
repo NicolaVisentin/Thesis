@@ -223,7 +223,7 @@ This script:
 # Run for different random seeds
 # =====================================================
 
-seeds = [123, 1234, 12345, 123456, 132, 1243, 12354, 123465, 321, 4321, 54321]
+seeds = [123, 1234, 12345, 123456]
 
 for run, seed in enumerate(seeds):
     n_run = run + 1
