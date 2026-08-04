@@ -25,7 +25,7 @@ from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 # Folders
-curr_folder = Path(__file__).parent      # current folder
+curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
 main_folder = curr_folder.parent.parent # main folder "codes"
 dataset_folder = main_folder/'datasets' # folder with the dataset
@@ -44,7 +44,7 @@ jnp.set_printoptions(
 # Run for different random seeds
 # =====================================================
 
-seeds = [123, 1234, 12345, 123456, 132, 1243, 12354, 123465, 321, 4321, 54321] # select random seed(s)
+seeds = [123, 1234, 12345, 123456] # select random seed(s)
 
 for run, seed in enumerate(seeds):
     n_run = run + 1
