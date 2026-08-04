@@ -1023,7 +1023,7 @@ for run, seed in enumerate(seeds):
             #plt.show()
             plt.close('all')
 
-        # Plot feedforward and feedback terms (if not unique controller)
+        # Plot feedforward and feedback terms
         Tau_ff_component_ts = ff_mlp_controller_opt.forward_batch(u_RONsaved[:min_len]) # shape (n_steps, 3*n_pcs*n_robots)
         tau_ff_component_ts = jax.vmap(robots_system_opt.transform_Tau)(Tau_ff_component_ts) # shape (n_steps, n_robots, 3*n_pcs)
         Tau_fb_component_ts = fb_mlp_controller_opt.forward_batch(Z_ts) # shape (n_steps, 3*n_pcs*n_robots)
