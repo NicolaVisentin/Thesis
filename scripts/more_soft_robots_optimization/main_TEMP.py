@@ -44,7 +44,7 @@ jnp.set_printoptions(
 # Run for different random seeds
 # =====================================================
 
-seeds = [123] # select random seed(s)
+seeds = [123, 1234, 12345, 123456] # select random seed(s)
 
 for run, seed in enumerate(seeds):
     n_run = run + 1
