@@ -961,7 +961,7 @@ if True:
         FLOPs : tuple (flops_reservoir, flops_readout, flops_total)
         """
         assert n_c is not None or N_lag is not None
-        flops_reservoir = K * (382 * n_y + 128 * n_u + 16768)
+        flops_reservoir = K * (385 * n_y + 128 * n_u + 16640)
         flops_readout = (2 * n_u * n_y) * (K - N_lag) if n_c is None else 2 * n_c * n_y + 3 * n_c
         flops_total = flops_reservoir + flops_readout
         return (flops_reservoir, flops_readout, flops_total)
