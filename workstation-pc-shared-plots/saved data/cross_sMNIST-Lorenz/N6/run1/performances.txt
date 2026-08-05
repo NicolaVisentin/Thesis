@@ -1,0 +1,19 @@
+SETUP
+   Train set size: 30000
+   Test set size:  2500
+
+RESERVOIR PROPERTIES
+   Model path:  /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/cross_sMNIST-Lorenz/N6/run1
+   Dimension:   6
+   n. robots:   1
+   n. segments: 2
+   Robots:      those in /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/cross_sMNIST-Lorenz/N6/run1
+   Map:         linear
+   Controller:  mlp (fb) + mlp (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 6289.156138676219
+   Elapsed time training output layer:    0.613474294077605
+   Elapsed time forward pass (test set):  629.7259962647222
+   Accuracy (train set): 0.6677
+   Accuracy (test set):  0.6713333333333333
