@@ -1,0 +1,16 @@
+SETUP
+   Dataset:          sMNIST_RON_N6/dataset_m1e5_N6
+   Source reservoir: /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/lorenz/N6/default_run3
+   Latent dimension: 6
+   Number of robots: 1
+   PCS segments:     2
+   ! Robots were not optimized !
+   Mapping:          svd
+   Controller:       mlp (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               6578.828747045249
+   Final test RMS error:                        0.08571305102189193
+   Final test RMS power:                        0.2049545009549863 (fb: 0.19332806043777448, ff: 0.03264824655599383)
+   Final test RMSE reconstruction (y, yd, ydd): (1.9649608513346404e-15, 7.085135460300604e-16, 2.193251185964868e-15)
+   Rollout NRMSE (between y(t) and y_hat(t)):   0.01748557414312726

@@ -1,0 +1,15 @@
+SETUP
+   Dataset:          MG_RON_N6/dataset_m1e5_N6
+   Latent dimension: 6
+   Number of robots: 1
+   PCS segments:     2
+   ! Robots were not optimized !
+   ! Map was not optimized !
+   ! Fb controller was not optimized !
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               1939.5500012817793
+   Final test RMS error:                        0.6792228410183442
+   Final test RMS power:                        0.14423283327324377 (fb: 0.14546103853325051, ff: 0.02686287271978795)
+   Final test RMSE reconstruction (y, yd, ydd): (1.6313905102863971e-15, 1.236235714284182e-16, 6.958040479624071e-16)
+   Rollout NRMSE (between y(t) and y_hat(t)):   1.402424331927748
