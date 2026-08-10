@@ -542,7 +542,7 @@ for run, seed in enumerate(seeds):
                 fb_last_layer_activation = 'linear'
                 fb_mlp_sizes = [2*3*n_pcs*n_robots, 64, 64, 3*n_pcs*n_robots]
 
-            case 'mlp':
+            case 'small_mlp':
                 fb_scale_init = 0.001
                 fb_last_layer_activation = 'linear'
                 fb_mlp_sizes = [2*3*n_pcs*n_robots, 16, 3*n_pcs*n_robots]
