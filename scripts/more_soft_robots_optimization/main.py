@@ -68,7 +68,7 @@ for run, seed in enumerate(seeds):
     # controller
     train_unique_controller = False # if True, Tau = Tau_tot(Z, u), where Tau_tot is specified in fb_controller_to_train. 
                                     # If False, Tau = Tau_fb(Z) + Tau_ff(u), where Tau_fb is specified in fb_controller_to_train and Tau_ff in ff_controller_to_train
-    fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'none'
+    fb_controller_to_train = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'none', 'small_mlp'
     ff_controller_to_train = 'mlp' # (only applies to train_unique_controller = False). Choose 'linear', 'tanh', 'mlp'
 
     # Mapping
@@ -504,6 +504,11 @@ for run, seed in enumerate(seeds):
                 last_layer_activation = 'linear'
                 mlp_sizes = [2*3*n_pcs*n_robots + n_input, 64, 64, 3*n_pcs*n_robots]
 
+            case 'small_mlp':
+                scale_init = 0.001
+                last_layer_activation = 'linear'
+                mlp_sizes = [2*3*n_pcs*n_robots + n_input, 16, 3*n_pcs*n_robots]
+
             case _:
                 raise ValueError('Unknown controller')
             
@@ -536,6 +541,11 @@ for run, seed in enumerate(seeds):
                 fb_scale_init = 0.001
                 fb_last_layer_activation = 'linear'
                 fb_mlp_sizes = [2*3*n_pcs*n_robots, 64, 64, 3*n_pcs*n_robots]
+
+            case 'mlp':
+                fb_scale_init = 0.001
+                fb_last_layer_activation = 'linear'
+                fb_mlp_sizes = [2*3*n_pcs*n_robots, 16, 3*n_pcs*n_robots]
 
             case 'none':
                 fb_scale_init = 0.0
