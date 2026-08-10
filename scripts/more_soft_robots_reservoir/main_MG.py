@@ -82,7 +82,7 @@ load_model_path = saved_data_folder/'more_soft_robots_optimization'/'MG/N6/defau
 map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
 
 controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
-fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp'
+fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'small_mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
 
 robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
