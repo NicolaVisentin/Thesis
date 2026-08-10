@@ -965,6 +965,26 @@ if True:
         flops_readout = (2 * n_u * n_y) * (K - N_lag) if n_c is None else 2 * n_c * n_y + 3 * n_c
         flops_total = flops_reservoir + flops_readout
         return (flops_reservoir, flops_readout, flops_total)
+
+    def flops_physical_simpler(n_y, n_u, K, n_c=None, N_lag=None):
+            """
+            Args
+            ----
+            n_y : reservoir hidden dimension
+            n_u : input dimension
+            K : total timesteps
+            n_c : number of classes (only for classification tasks, otherwise None)
+            N_lag : prediction lag (only for forecasting, otherwise None)
+    
+            Return
+            ------
+            FLOPs : tuple (flops_reservoir, flops_readout, flops_total)
+            """
+            assert n_c is not None or N_lag is not None
+            flops_reservoir = K * (96 * n_y + 2 * n_y * n_u + 17)
+            flops_readout = (2 * n_u * n_y) * (K - N_lag) if n_c is None else 2 * n_c * n_y + 3 * n_c
+            flops_total = flops_reservoir + flops_readout
+            return (flops_reservoir, flops_readout, flops_total)
     
     # Compute FLOPs
     flops_res_ron_smnist, flops_read_ron_smnist, flops_tot_ron_smnist = flops_ron(
@@ -1023,7 +1043,35 @@ if True:
         N_lag = 25
     )
 
-    # Plot stuff
+    flops_res_phy_simp_smnist, flops_read_phy_simp_smnist, flops_tot_phy_simp_smnist = flops_physical_simpler(
+        n_y,
+        n_u = 1,
+        K = 784,
+        n_c = 10
+    )
+    
+    flops_res_phy_simp_adiac, flops_read_phy_simp_adiac, flops_tot_phy_simp_adiac = flops_physical_simpler(
+        n_y,
+        n_u = 1,
+        K = 176,
+        n_c = 37
+    )
+    
+    flops_res_phy_simp_mg, flops_read_phy_simp_mg, flops_tot_phy_simp_mg = flops_physical_simpler(
+        n_y,
+        n_u = 1,
+        K = 2000,
+        N_lag = 84
+    )
+    
+    flops_res_phy_simp_lorenz, flops_read_phy_simp_lorenz, flops_tot_phy_simp_lorenz = flops_physical_simpler(
+        n_y,
+        n_u = 5,
+        K = 2000,
+        N_lag = 25
+    )
+
+    # Plot stuff (with full-scale MLP controllers)
     plt.rcParams.update({
         'font.family':        'serif',
         'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
@@ -1083,6 +1131,79 @@ if True:
     plt.plot(n_y, flops_tot_phy_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_tot_phy_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=2.5)
     plt.plot(n_y, flops_tot_phy_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.2)
+    plt.plot(n_y, flops_tot_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_ron_lorenz, 'g--', label=r'RON (Lorenz96)', linewidth=2.5)
+    # ax = plt.gca()
+    # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.yscale('log')
+    plt.xlabel(r'$n_y$', fontsize=24)
+    plt.ylabel(r'FLOPs', fontsize=20)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    #plt.ylim(1e2, 1e10)
+    plt.title(r'FLOPs count (total)', fontsize=22)
+    plt.grid(True)
+    #plt.legend(ncol=1, fontsize=16)
+    plt.tight_layout()
+    plt.show()
+
+    # Plot stuff (with simpler controllers)    
+    plt.figure()
+    plt.plot(n_y, flops_res_phy_simp_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=2.5)
+    plt.plot(n_y, flops_res_phy_simp_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=2.5)
+    plt.plot(n_y, flops_res_phy_simp_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=2.5)
+    plt.plot(n_y, flops_res_phy_simp_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.2)
+    plt.plot(n_y, flops_res_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
+    plt.plot(n_y, flops_res_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
+    plt.plot(n_y, flops_res_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
+    plt.plot(n_y, flops_res_ron_lorenz, 'g--', label=r'RON (Lorenz96)', linewidth=2.5)
+    # ax = plt.gca()
+    # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.yscale('log')
+    plt.xlabel(r'$n_y$', fontsize=24)
+    plt.ylabel(r'FLOPs', fontsize=20)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    #plt.ylim(1e2, 1e10)
+    plt.title(r'FLOPs count (reservoir)', fontsize=22)
+    plt.grid(True)
+    #plt.legend(ncol=1, fontsize=14)
+    plt.tight_layout()
+    #plt.show()
+    
+    plt.figure()
+    plt.plot(n_y, flops_read_phy_simp_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=1.5)
+    plt.plot(n_y, flops_read_phy_simp_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=1.5)
+    plt.plot(n_y, flops_read_phy_simp_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=1.5)
+    plt.plot(n_y, flops_read_phy_simp_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.5)
+    plt.plot(n_y, flops_read_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
+    plt.plot(n_y, flops_read_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
+    plt.plot(n_y, flops_read_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
+    plt.plot(n_y, flops_read_ron_lorenz, 'g--', label=r'RON (Lorenz96)', linewidth=2.5)
+    # ax = plt.gca()
+    # ax.yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    # ax.ticklabel_format(axis='y', style='sci', scilimits=(0, 0))
+    plt.yscale('log')
+    plt.xlabel(r'$n_y$', fontsize=24)
+    plt.ylabel(r'FLOPs', fontsize=20)
+    plt.xticks(fontsize=18)
+    plt.yticks(fontsize=18)
+    #plt.ylim(1e2, 10e9)
+    plt.title(r'FLOPs count (readout layer)', fontsize=22)
+    plt.grid(True)
+    #plt.legend(ncol=2, fontsize=14, loc='lower right')
+    plt.tight_layout()
+    #plt.show()
+    
+    plt.figure()
+    plt.plot(n_y, flops_tot_phy_simp_smnist, 'b', label=r'phy. res. (sMNIST)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_phy_simp_adiac, 'r', label=r'phy. res. (ADIAC)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_phy_simp_mg, 'm', label=r'phy. res. (Mackey-Glass)', linewidth=2.5)
+    plt.plot(n_y, flops_tot_phy_simp_lorenz, 'g', label=r'phy. res. (Lorenz96)', linewidth=1.2)
     plt.plot(n_y, flops_tot_ron_smnist, 'b--', label=r'RON (sMNIST)', linewidth=2.5)
     plt.plot(n_y, flops_tot_ron_adiac, 'r--', label=r'RON (ADIAC)', linewidth=2.5)
     plt.plot(n_y, flops_tot_ron_mg, 'm--', label=r'RON (Mackey-Glass)', linewidth=2.5)
