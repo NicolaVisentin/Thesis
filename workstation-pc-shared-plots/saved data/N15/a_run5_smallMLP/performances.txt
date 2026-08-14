@@ -1,0 +1,19 @@
+SETUP
+   Train set size: 30000
+   Test set size:  2500
+
+RESERVOIR PROPERTIES
+   Model path:  /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/sMNIST/N15/default_run5_smallMLP
+   Dimension:   15
+   n. robots:   5
+   n. segments: 1
+   Robots:      those in /home/nicolavisentin/codes/saved data/more_soft_robots_optimization/sMNIST/N15/default_run5_smallMLP
+   Map:         linear
+   Controller:  small_mlp (fb) + linear (ff)
+
+METRICS
+   Elapsed time forward pass (train set): 18637.288073841948
+   Elapsed time training output layer:    1.3904895009472966
+   Elapsed time forward pass (test set):  1846.8549889530987
+   Accuracy (train set): 0.7068333333333333
+   Accuracy (test set):  0.7166666666666667
