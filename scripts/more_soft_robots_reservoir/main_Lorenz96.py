@@ -82,11 +82,14 @@ for run, seed in enumerate(seeds):
 
     # Reservoir (robots + map + controller)
     load_model_path = saved_data_folder/'more_soft_robots_optimization'/f'lorenz/N6/default_run{n_run}' # choose the reservoir to load (robots + map + controller)
+    
     map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
     controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
     fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'small_mlp'
     ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+    
     robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
+    param_uncert = 0.05 # uncertainties on robots parameters, as param = param_nominal * (1 + alpha), alpha ~ U(-param_uncert; +param_uncert)
 
 
     # =====================================================
@@ -132,12 +135,14 @@ for run, seed in enumerate(seeds):
     # Define robots system
     data_robot_load = onp.load(load_model_path/'optimal_data_robot.npz')
 
-    L = jnp.array(data_robot_load['L'], dtype=jnp.float64)
-    D = jnp.array(data_robot_load['D'], dtype=jnp.float64)
-    r = jnp.array(data_robot_load['r'], dtype=jnp.float64)
-    rho = jnp.array(data_robot_load['rho'], dtype=jnp.float64)
-    E = jnp.array(data_robot_load['E'], dtype=jnp.float64)
-    G = jnp.array(data_robot_load['G'], dtype=jnp.float64)
+    key, *key_uncert = jax.random.split(key, 7) # random keys for parameters uncertainties
+    
+    L = jnp.array(data_robot_load['L'], dtype=jnp.float64) * (1 + jax.random.uniform(key_uncert[0], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+    D = jnp.array(data_robot_load['D'], dtype=jnp.float64) * (1 + jax.random.uniform(key_uncert[1], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+    r = jnp.array(data_robot_load['r'], dtype=jnp.float64) * (1 + jax.random.uniform(key_uncert[2], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+    rho = jnp.array(data_robot_load['rho'], dtype=jnp.float64) * (1 + jax.random.uniform(key_uncert[3], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+    E = jnp.array(data_robot_load['E'], dtype=jnp.float64) * (1 + jax.random.uniform(key_uncert[4], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+    G = jnp.array(data_robot_load['G'], dtype=jnp.float64) * (1 + jax.random.uniform(key_uncert[5], shape=(1,), minval=-param_uncert, maxval=param_uncert))
     if len(L.shape) == 1:
         n_robots = 1
         n_pcs = L.shape[0]
@@ -151,12 +156,12 @@ for run, seed in enumerate(seeds):
         n_robots, n_pcs = L.shape
 
     if robots_type == 'default':
-        L = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1))
-        D = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1))
-        r = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1))
-        rho = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1))
-        E = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1))
-        G = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1))
+        L = jnp.tile(1e-1 * jnp.ones(n_pcs), (n_robots,1)) * (1 + jax.random.uniform(key_uncert[0], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        D = jnp.tile(jnp.diag(jnp.tile(jnp.array([5e-6, 5e-3, 5e-3]), n_pcs)), (n_robots,1,1)) * (1 + jax.random.uniform(key_uncert[1], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        r = jnp.tile(2e-2 * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[2], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        rho = jnp.tile(1070 * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[3], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        E = jnp.tile(2e3 * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[4], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        G = jnp.tile(1e3 * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[5], shape=(1,), minval=-param_uncert, maxval=param_uncert))
     elif robots_type == 'random':
         key, *keys_robot = jax.random.split(key, 9)
         L_init = jax.random.uniform(keys_robot[0], minval=7e-2, maxval=3e-1)
@@ -168,12 +173,12 @@ for run, seed in enumerate(seeds):
         E_init = jax.random.uniform(keys_robot[6], minval=1800, maxval=2200)
         G_init = jax.random.uniform(keys_robot[7], minval=800, maxval=1200)
 
-        L = jnp.tile(L_init * jnp.ones(n_pcs), (n_robots,1))
-        D = jnp.tile(jnp.diag(jnp.tile(jnp.array([D_init_1, D_init_2, D_init_3]), n_pcs)), (n_robots,1,1))
-        r = jnp.tile(r_init * jnp.ones(n_pcs),(n_robots,1))
-        rho = jnp.tile(rho_init * jnp.ones(n_pcs),(n_robots,1))
-        E = jnp.tile(E_init * jnp.ones(n_pcs),(n_robots,1))
-        G = jnp.tile(G_init * jnp.ones(n_pcs),(n_robots,1))
+        L = jnp.tile(L_init * jnp.ones(n_pcs), (n_robots,1)) * (1 + jax.random.uniform(key_uncert[0], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        D = jnp.tile(jnp.diag(jnp.tile(jnp.array([D_init_1, D_init_2, D_init_3]), n_pcs)), (n_robots,1,1)) * (1 + jax.random.uniform(key_uncert[1], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        r = jnp.tile(r_init * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[2], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        rho = jnp.tile(rho_init * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[3], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        E = jnp.tile(E_init * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[4], shape=(1,), minval=-param_uncert, maxval=param_uncert))
+        G = jnp.tile(G_init * jnp.ones(n_pcs),(n_robots,1)) * (1 + jax.random.uniform(key_uncert[5], shape=(1,), minval=-param_uncert, maxval=param_uncert))
     else:
         pass
 
@@ -607,6 +612,7 @@ for run, seed in enumerate(seeds):
             file.write(f"   Controller:  {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
         else:
             file.write(f"   Controller:  no fb + random ff\n\n")
+        file.write(f"   Robots parameters uncertainty: {100*param_uncert}%\n\n")
         file.write(f"METRICS\n")
         file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
         file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
