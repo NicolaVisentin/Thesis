@@ -77,7 +77,7 @@ for run, seed in enumerate(seeds):
     batch = 128 # number of trajectories in the datasets
 
     # Output layer (scaler + predictor)
-    experiment_name = f'lorenz/N6/a_run{n_run}' # name of the experiment to save/load
+    experiment_name = f'lorenz/N6/a_run{n_run}_uncertainties' # name of the experiment to save/load
     train = True # if True, perform training (output layer). Otherwise, test saved 'experiment_name' model
 
     # Reservoir (robots + map + controller)
@@ -87,9 +87,11 @@ for run, seed in enumerate(seeds):
     controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
     fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'small_mlp'
     ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
-    
+    input_disturb = 0.03 # either None or a float representing the relative scale of the disturbance. If not None, remember to define covariance manually
+
     robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
-    param_uncert = 0.05 # uncertainties on robots parameters, as param = param_nominal * (1 + alpha), alpha ~ U(-param_uncert; +param_uncert)
+    param_uncert = 0.01 # uncertainties on robots parameters, as param = param_nominal * (1 + alpha), alpha ~ U(-param_uncert; +param_uncert)
+    measurement_noise = 0.03 # either None or a float representing the relative scale of the noise. If not None, remember to define covariance manually
 
 
     # =====================================================
@@ -386,13 +388,33 @@ for run, seed in enumerate(seeds):
     saveat_train = time_u_train # for saving simulation results
     saveat_test = time_u_test # for saving simulation results
 
-    reservoir_batched = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None))) # vmap reservoir's forward pass
+    reservoir_batched = jax.jit(jax.vmap(reservoir, in_axes=(0,None,None,None,0,None,None,None,None))) # vmap reservoir's forward pass
     num_minibatches_train = 16 # split batch B into 'num_minibatches' minibatches of 'n_minibatch' elements each
     n_minibatch_train = 8 # split batch B into 'num_minibatches' minibatches of 'n_minibatch' elements each
     num_minibatches_test = 16 # split batch B into 'num_minibatches' minibatches of 'n_minibatch' elements each
     n_minibatch_test = 8 # split batch B into 'num_minibatches' minibatches of 'n_minibatch' elements each
 
+    # Define measurement noise and input disturbances
+    key_noise_train, key_noise_test = jax.random.split(jax.random.fold_in(key, 1))
+    keys_train = jax.random.split(key_noise_train, batch) # shape (B,)
+    keys_test  = jax.random.split(key_noise_test,  batch) # shape (B,)
+    dt_noise = dt_u
 
+    if input_disturb is not None:
+        Tau_scale = jnp.tile(jnp.array([0.1, 0.1, 0.1]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+        Sigma_Tau = jnp.diag((input_disturb * Tau_scale) ** 2)
+    else:
+        Sigma_Tau = None
+    
+    if measurement_noise is not None:
+        Q_scale = jnp.tile(jnp.array([0.01, 0.01, 0.01]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+        Sigma_Q = jnp.diag((measurement_noise * Q_scale) ** 2)
+        Qd_scale = jnp.tile(jnp.array([0.01, 0.01, 0.01]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+        Sigma_Qd = jnp.diag((measurement_noise * Qd_scale) ** 2)
+    else:
+        Sigma_Q = Sigma_Qd = None
+    
+    
     # =====================================================
     # Training
     # =====================================================
@@ -407,13 +429,17 @@ for run, seed in enumerate(seeds):
         start = time.perf_counter()
         state_reservoir_ts = []
         for i in tqdm(range(num_minibatches_train), 'Model forward'):
+            sl = slice(i*n_minibatch_train, (i+1)*n_minibatch_train)
             (
                 _,
                 state_reservoir_ts_i, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (num_minibatches, N-Nl, 2*n_hid)
                 _, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (num_minibatches, N-Nl, 2*n_robots*3*n_pcs)
                 _, # pcs actuation. Shape (num_minibatches, N-Nl, 3*n_pcs*n_robots)
                 _
-            ) = reservoir_batched(train_datapoints[i*n_minibatch_train:(i+1)*n_minibatch_train], time_u_train, saveat_train, dt_sim)
+            ) = reservoir_batched(
+                train_datapoints[sl], time_u_train, saveat_train, dt_sim,
+                keys_train[sl], Sigma_Tau, Sigma_Q, Sigma_Qd, dt_noise
+            )
             state_reservoir_ts.append(state_reservoir_ts_i)
 
         state_reservoir_ts = jnp.concatenate(state_reservoir_ts) # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (B, N-Nl, 2*n_hid)
@@ -464,13 +490,17 @@ for run, seed in enumerate(seeds):
     start = time.perf_counter()
     state_reservoir_ts, state_pcs_ts, actuation_ts = [], [], []
     for i in tqdm(range(num_minibatches_test), 'Model forward'):
+        sl = slice(i*n_minibatch_test, (i+1)*n_minibatch_test)
         (
             time_ts,
             state_reservoir_ts_i, # reservoir's states evolution from k=0 to k=N-Nl-1. Shape (num_minibatches, N-Nl, 2*n_hid)
             state_pcs_ts_i, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (num_minibatches, N-Nl, 2*n_robots*3*n_pcs)
             actuation_ts_i, # pcs actuation. Shape (num_minibatches, N-Nl, 3*n_pcs*n_robots)
             _
-        ) = reservoir_batched(test_datapoints[i*n_minibatch_test:(i+1)*n_minibatch_test], time_u_test, saveat_test, dt_sim)
+        ) = reservoir_batched(
+            test_datapoints[sl], time_u_test, saveat_test, dt_sim,
+            keys_test[sl], Sigma_Tau, Sigma_Q, Sigma_Qd, dt_noise
+        )
         state_reservoir_ts.append(state_reservoir_ts_i)
         state_pcs_ts.append(state_pcs_ts_i)
         actuation_ts.append(actuation_ts_i)
@@ -612,7 +642,9 @@ for run, seed in enumerate(seeds):
             file.write(f"   Controller:  {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
         else:
             file.write(f"   Controller:  no fb + random ff\n\n")
-        file.write(f"   Robots parameters uncertainty: {100*param_uncert}%\n\n")
+        file.write(f"   Robots parameters uncertainty: {100*param_uncert}%\n")
+        file.write(f"   Measurement noise:             {'None' if measurement_noise is None else f'{100*measurement_noise}%'}\n")
+        file.write(f"   Input disturbance:             {'None' if input_disturb is None else f'{100*input_disturb}%'}\n\n")
         file.write(f"METRICS\n")
         file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
         file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")

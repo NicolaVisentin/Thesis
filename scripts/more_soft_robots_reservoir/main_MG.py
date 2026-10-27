@@ -24,7 +24,7 @@ import time
 from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.pcs import PlanarPCS
 
-curr_folder = Path(__file__).parent      # current folder
+curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
 from utilis import *
 
@@ -84,11 +84,13 @@ map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
 controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
 fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'small_mlp'
 ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+input_disturb = 0.03 # either None or a float representing the relative scale of the disturbance. If not None, remember to define covariance manually
 
 robots_type = 'saved' # 'saved' (those in 'load_model_path'), 'random' (randomly sampled), 'default'
 coriolis = False # whether to include or not Coriolis and centrifugal forces in the PCS model
 compare = False # if True, enables the comparison with the system without Coriolis/centrifugal forces (! requires coriolis=True)
-param_uncert = 0.05 # uncertainties on robots parameters, as param = param_nominal * (1 + alpha), alpha ~ U(-param_uncert; +param_uncert)
+param_uncert = 0.01 # uncertainties on robots parameters, as param = param_nominal * (1 + alpha), alpha ~ U(-param_uncert; +param_uncert)
+measurement_noise = 0.03 # either None or a float representing the relative scale of the noise. If not None, remember to define covariance manually
 
 # Rename folders for plots/data
 plots_folder = plots_folder/experiment_name
@@ -371,6 +373,24 @@ else:
         return tau_ff
     controller = jax.jit(partial(controller, V=V, d=d))
 
+# Define measurement noise and input disturbances
+key, key_noise_train, key_noise_test = jax.random.split(key, 3)
+dt_noise = dt_u
+
+if input_disturb is not None:
+    Tau_scale = jnp.tile(jnp.array([0.1, 0.1, 0.1]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+    Sigma_Tau = jnp.diag((input_disturb * Tau_scale) ** 2)
+else:
+    Sigma_Tau = None
+
+if measurement_noise is not None:
+    Q_scale = jnp.tile(jnp.array([0.01, 0.01, 0.01]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+    Sigma_Q = jnp.diag((measurement_noise * Q_scale) ** 2)
+    Qd_scale = jnp.tile(jnp.array([0.01, 0.01, 0.01]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+    Sigma_Qd = jnp.diag((measurement_noise * Qd_scale) ** 2)
+else:
+    Sigma_Q = Sigma_Qd = None
+
 # Instantiate the reservoir
 reservoir = MultiPcsReservoir(
     robots_system=robots_system,
@@ -413,7 +433,10 @@ if train:
         _, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_robots*3*n_pcs)
         _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
         _
-    ) = reservoir(train_dataset, time_u_train, saveat_train, dt_sim)
+    ) = reservoir(
+        train_dataset, time_u_train, saveat_train, dt_sim,
+        key_noise_train, Sigma_Tau, Sigma_Q, Sigma_Qd, dt_noise
+    )
     
     y_ts, _ = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
     activations = y_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
@@ -452,7 +475,10 @@ if train:
             _, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*n_robots*3*n_pcs)
             _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
             _
-        ) = reservoir_NoCoriolis(train_dataset, time_u_train, saveat_train, dt_sim)
+        ) = reservoir_NoCoriolis(
+            train_dataset, time_u_train, saveat_train, dt_sim,
+            key_noise_train, Sigma_Tau, Sigma_Q, Sigma_Qd, dt_noise
+        )
         
         y_ts_NC, _ = jnp.split(state_reservoir_ts_NC, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
         activations_NC = y_ts_NC[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
@@ -483,7 +509,10 @@ start = time.perf_counter()
     state_pcs_ts, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs*n_robots)
     actuation_ts, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
     _
-) = reservoir(test_dataset, time_u_test, saveat_test, dt_sim)
+) = reservoir(
+    test_dataset, time_u_test, saveat_test, dt_sim,
+    key_noise_test, Sigma_Tau, Sigma_Q, Sigma_Qd, dt_noise
+)
 
 y_ts, _ = jnp.split(state_reservoir_ts, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
 activations = y_ts[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
@@ -510,7 +539,11 @@ if compare:
         state_pcs_ts_NC, # pcs's states evolution from k=0 to k=N-Nl-1. Shape (N-Nl, 2*3*n_pcs*n_robots)
         _, # pcs actuation. Shape (N-Nl, 3*n_pcs*n_robots)
         _
-    ) = reservoir_NoCoriolis(test_dataset, time_u_test, saveat_test, dt_sim)
+    ) = reservoir_NoCoriolis(
+        test_dataset, time_u_test, saveat_test, dt_sim,
+        key_noise_test, Sigma_Tau, Sigma_Q, Sigma_Qd, dt_noise
+    )
+
     y_ts_NC, _ = jnp.split(state_reservoir_ts_NC, 2, axis=1) # reservoir's position evolution from k=0 to k=N-Nl-1. Shape (N-Nl, n_hid)
     activations_NC = y_ts_NC[Nw:] # remove the initial washout steps. Shape (N-Nl-Nw, n_hid). It's the reservoir's states evolution from k=Nw to k=N-Nl-1
     activations_NC.block_until_ready()
@@ -677,7 +710,9 @@ with open(data_folder/'performances.txt', 'w') as file:
         file.write(f"   Controller:  {fb_controller_type} (fb) + {ff_controller_type} (ff)\n\n")
     else:
         file.write(f"   Controller:  no fb + random ff\n\n")
-    file.write(f"   Robots parameters uncertainty: {100*param_uncert}%\n\n")
+    file.write(f"   Robots parameters uncertainty: {100*param_uncert}%\n")
+    file.write(f"   Measurement noise:             {'None' if measurement_noise is None else f'{100*measurement_noise}%'}\n")
+    file.write(f"   Input disturbance:             {'None' if input_disturb is None else f'{100*input_disturb}%'}\n\n")
     file.write(f"METRICS\n")
     file.write(f"   Elapsed time forward pass (train set): {elatime_forward_pass_training}\n")
     file.write(f"   Elapsed time training output layer:    {elatime_train_output_layer}\n")
