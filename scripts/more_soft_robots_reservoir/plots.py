@@ -36,16 +36,16 @@ jnp.set_printoptions(
 seed = 123
 key = jax.random.key(seed)
 
+# Plots settings
+plt.rcParams.update({
+    'font.family':        'serif',
+    'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
+    'mathtext.fontset':   'cm',
+})
+
 
 ### PRC accuracy vs reservoir dimension (sMNIST)
 if False:
-    # Plots settings
-    plt.rcParams.update({
-        'font.family':        'serif',
-        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
-        'mathtext.fontset':   'cm',
-    })
-
     # Data
     ny = np.arange(6, 16, 3)
 
@@ -90,13 +90,6 @@ if False:
 
 ### PRC accuracy vs reservoir dimension (ADIAC)
 if False:
-    # Plots settings
-    plt.rcParams.update({
-        'font.family':        'serif',
-        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
-        'mathtext.fontset':   'cm',
-    })
-
     # Data
     ny = np.arange(6, 16, 3)
 
@@ -120,7 +113,7 @@ if False:
     plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # pretrained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -141,13 +134,6 @@ if False:
 
 ### PRC accuracy vs reservoir dimension (Mackey-Glass)
 if False:
-    # Plots settings
-    plt.rcParams.update({
-        'font.family':        'serif',
-        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
-        'mathtext.fontset':   'cm',
-    })
-
     # Data
     ny = np.arange(6, 16, 3)
 
@@ -171,7 +157,7 @@ if False:
     plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # pretrained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -192,13 +178,6 @@ if False:
 
 ### PRC accuracy vs reservoir dimension (Lorenz96)
 if False:
-    # Plots settings
-    plt.rcParams.update({
-        'font.family':        'serif',
-        'font.serif':         ['Computer Modern Roman', 'DejaVu Serif'],
-        'mathtext.fontset':   'cm',
-    })
-
     # Data
     ny = np.arange(6, 16, 3)
 
@@ -222,7 +201,7 @@ if False:
     plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # prerained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -922,7 +901,7 @@ if False:
 
 
 ### FLOPs count
-if True:
+if False:
     # Prepare data and functions
     n_y = np.arange(6, 500)
     
@@ -1221,4 +1200,252 @@ if True:
     plt.grid(True)
     #plt.legend(ncol=1, fontsize=16)
     plt.tight_layout()
+    plt.show()
+
+
+# Noise, uncertainties, disturbance experiments
+if False:
+    ny = np.arange(6, 16, 3)
+
+    # sMNIST
+    acc_ideal = np.array([64.03, 66.78, 66.18, 71.30])
+    acc_noise = np.array([0, 0, 0, 0])
+    
+    stddev_ideal = np.array([1.32, 1.82, 2.41, 0.63])
+    stddev_noise = np.array([0, 0, 0, 0])
+    
+    fig = plt.figure(figsize=(4.1, 3))
+
+    plt.plot(ny, acc_ideal, label='Ideal', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # ideal
+    plt.fill_between(ny, acc_ideal-stddev_ideal, acc_ideal+stddev_ideal, color ="#10C200FF", alpha=0.15)
+    
+    plt.plot(ny, acc_noise, label='Noise + disturbance + uncertainties', color="#FF4949", linestyle='-', linewidth='1.8', marker='s', markersize='8') # noise, disturbance, uncertainties
+    plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
+    
+    plt.grid(True, alpha=0.6)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'accuracy [%]', fontsize=13)
+    plt.title(r'sMNIST ($\uparrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
+    #plt.yticks(np.arange(30, 81, 10))
+    plt.xlim(5.5, 15.5)
+    plt.ylim(0.0, 80)
+    #plt.legend(ncol=1, fontsize=9, loc='best')
+    
+    fig.tight_layout()
+    #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
+    #plt.show()
+
+    # ADIAC    
+    acc_ideal = np.array([44.58, 51.01, 50.18, 53.10])
+    acc_noise = np.array([43.99, 53.39, 45.36, 50.96])
+
+    stddev_ideal = np.array([1.03, 3.75, 0.68, 2.45])
+    stddev_noise = np.array([1.68, 2.15, 2.65, 2.28])
+    
+    fig = plt.figure(figsize=(4.1, 3))
+    
+    plt.plot(ny, acc_ideal, label='Ideal', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # ideal
+    plt.fill_between(ny, acc_ideal-stddev_ideal, acc_ideal+stddev_ideal, color ="#10C200FF", alpha=0.15)
+    
+    plt.plot(ny, acc_noise, label='Noise + disturbance + uncertainties', color="#FF4949", linestyle='-', linewidth='1.8', marker='s', markersize='8') # noise, disturbance, uncertainties
+    plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
+    
+    plt.grid(True, alpha=0.6)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'accuracy [%]', fontsize=13)
+    plt.title(r'ADIAC ($\uparrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
+    #plt.yticks(np.arange(30, 81, 10))
+    plt.xlim(5.5, 15.5)
+    plt.ylim(0.0, 60)
+    #plt.legend(ncol=1, fontsize=9, loc='best')
+    
+    fig.tight_layout()
+    #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
+    #plt.show()
+
+    # Mackey-Glass    
+    acc_ideal = np.array([0.525, 0.505, 0.435, 0.424])
+    acc_noise = np.array([0.549, 0.530, 0.499, 0.460])
+    
+    stddev_ideal = np.array([0.003, 0.016, 0.014, 0.006])
+    stddev_noise = np.array([0.004, 0.026, 0.014, 0.009])
+    
+    fig = plt.figure(figsize=(4.1, 3))
+    
+    plt.plot(ny, acc_ideal, label='Ideal', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # ideal
+    plt.fill_between(ny, acc_ideal-stddev_ideal, acc_ideal+stddev_ideal, color ="#10C200FF", alpha=0.15)
+    
+    plt.plot(ny, acc_noise, label='Noise + disturbance + uncertainties', color="#FF4949", linestyle='-', linewidth='1.8', marker='s', markersize='8') # noise, disturbance, uncertainties
+    plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
+    
+    plt.grid(True, alpha=0.6)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'NRMSE [–]', fontsize=13)
+    plt.title(r'Mackey-Glass ($\downarrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
+    #plt.yticks(np.arange(0.2, 0.9, 0.1))
+    plt.xlim(5.5, 15.5)
+    plt.ylim(0.0, 0.7)
+    #plt.legend(ncol=1, fontsize=9, loc='best')
+    
+    fig.tight_layout()
+    #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
+    #plt.show()
+
+    # Lorenz96
+    acc_ideal = np.array([0.567, 0.522, 0.463, 0.455])
+    acc_noise = np.array([0.575, 0.564, 0, 0])
+
+    stddev_ideal = np.array([0.002, 0.001, 0.011, 0.013])
+    stddev_untrained = np.array([0.004, 0.018, 0, 0])
+    
+    # Plot
+    fig = plt.figure(figsize=(4.1, 3))
+    
+    plt.plot(ny, acc_ideal, label='Ideal', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # ideal
+    plt.fill_between(ny, acc_ideal-stddev_ideal, acc_ideal+stddev_ideal, color ="#10C200FF", alpha=0.15)
+    
+    plt.plot(ny, acc_noise, label='Noise + disturbance + uncertainties', color="#FF4949", linestyle='-', linewidth='1.8', marker='s', markersize='8') # noise, disturbance, uncertainties
+    plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
+    
+    plt.grid(True, alpha=0.6)
+    plt.xlabel(r'$n_y$', fontsize=13)
+    plt.ylabel(r'NRMSE [–]', fontsize=13)
+    plt.title(r'Lorenz96 ($\downarrow$)', fontsize=14)
+    plt.xticks(np.arange(6, 16), fontsize=13)
+    plt.yticks(fontsize=13)
+    #plt.yticks(np.arange(0.2, 0.9, 0.1))
+    plt.xlim(5.5, 15.5)
+    plt.ylim(0.0, 0.7)
+    #plt.legend(ncol=1, fontsize=9, loc='best')
+    
+    fig.tight_layout()
+    #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
+    #plt.show()
+    
+    # Legend in a separate figure
+    ax = plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+    
+    fig_leg = plt.figure(figsize=(9, 0.5))
+    fig_leg.legend(handles, labels, loc='center', ncol=4, frameon=True, fontsize=9)
+    plt.show()
+
+
+# Computational cost of pretraining
+if False:
+    # Data
+    ny = np.arange(6, 16, 3)
+
+    data = {
+        "sMNIST": {
+            "Normal pretraining": {
+                "mean": [5615, 5534, 8428, 7295],
+                "std":  [413, 336, 892, 467],
+            },
+            "Fixed morphology": {
+                "mean": [5055, 4435, 8166, 6693],
+                "std":  [263, 1548, 872, 551],
+            },
+            "Simpler controller": {
+                "mean": [6001, 5729, 9803, 8043],
+                "std":  [38, 356, 65, 66],
+            },
+        },
+        "ADIAC": {
+            "Normal pretraining": {
+                "mean": [5920, 5440, 8673, 7430],
+                "std":  [46, 93, 459, 206],
+            },
+            "Fixed morphology": {
+                "mean": [5210, 4627, 8398, 6766],
+                "std":  [25, 28, 320, 286],
+            },
+            "Simpler controller": {
+                "mean": [np.nan] * 4,
+                "std":  [np.nan] * 4,
+            },
+        },
+        "Mackey-Glass": {
+            "Normal pretraining": {
+                "mean": [5485, 5067, 10356, 6782],
+                "std":  [258, 472, 1741, 1507],
+            },
+            "Fixed morphology": {
+                "mean": [5437, 4463, 9111, 4856],
+                "std":  [518, 437, 482, 1439],
+            },
+            "Simpler controller": {
+                "mean": [5994, 5926, 5208, 8008],
+                "std":  [45, 31, 10, 60],
+            },
+        },
+        "Lorenz96": {
+            "Normal pretraining": {
+                "mean": [5673, 6217, 7640, 6512],
+                "std":  [67, 1179, 136, 966],
+            },
+            "Fixed morphology": {
+                "mean": [4491, 4924, 7554, 6761],
+                "std":  [892, 165, 70, 856],
+            },
+            "Simpler controller": {
+                "mean": [np.nan] * 4,
+                "std":  [np.nan] * 4,
+            },
+        },
+    }
+
+    # Plots configurations
+    styles = {
+        "Normal pretraining": dict(color="#10C200FF", marker='o'),
+        "Fixed morphology":   dict(color="#FF4949",   marker='s'),
+        "Simpler controller": dict(color="#1F77B4",   marker='^'),
+    }
+
+    ylims = {
+        "sMNIST":       (3000, 11000),
+        "ADIAC":        (3000, 11000),
+        "Mackey-Glass": (3000, 12500),
+        "Lorenz96":     (3000, 9000),
+    }
+
+    ylabel = r'Elapsed time [min]'
+
+    # Plots
+    for task, curves in data.items():
+        fig = plt.figure(figsize=(4.1, 3))
+
+        for label, vals in curves.items():
+            mean = np.array(vals["mean"], dtype=float)
+            std = np.array(vals["std"], dtype=float)
+            st = styles[label]
+
+            plt.plot(ny, mean / 60, label=label, color=st["color"], linestyle='-',
+                    linewidth=1.8, marker=st["marker"], markersize=8)
+            plt.fill_between(ny, (mean - std)/60, (mean + std)/60, color=st["color"], alpha=0.15)
+
+        plt.grid(True, alpha=0.6)
+        plt.xlabel(r'$n_y$', fontsize=13)
+        plt.ylabel(ylabel, fontsize=13)
+        plt.title(task, fontsize=14)
+        plt.xticks(np.arange(6, 16), fontsize=13)
+        plt.yticks(fontsize=13)
+        plt.xlim(5.5, 15.5)
+        #plt.ylim(*ylims[task])
+
+        fig.tight_layout()
+        #fig.savefig(f"{task.lower()}_pretraining.pdf", bbox_inches="tight")
+
+    # Legend in a separate plot
+    ax = plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+
+    fig_leg = plt.figure(figsize=(9, 0.5))
+    fig_leg.legend(handles, labels, loc='center', ncol=3, frameon=True, fontsize=9)
     plt.show()
