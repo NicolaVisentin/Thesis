@@ -5,6 +5,7 @@ from matplotlib import pyplot as plt
 from matplotlib.animation import FuncAnimation
 from matplotlib.ticker import ScalarFormatter
 import matplotlib.ticker as ticker
+from matplotlib.lines import Line2D
 from sklearn import preprocessing
 from sklearn.linear_model import Ridge
 import sys
@@ -15,14 +16,15 @@ import jax.numpy as jnp
 import joblib
 import sys
 import time
+from scipy.stats import mannwhitneyu, spearmanr, rankdata
 
 from soromox.rendering import MatplotlibRenderer, OpenCVPlanarRenderer, Open3DRenderer, RendererColorConfig, BackboneColorConfig, ViserRenderer
 
-curr_folder = Path(__file__).parent      # current folder
+curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
-main_folder = curr_folder.parent.parent       # main folder "codes"
+main_folder = curr_folder.parent.parent # main folder "codes"
 plots_folder = main_folder/'plots and videos' # folder for plots and videos
-dataset_folder = main_folder/'datasets'   # folder with the dataset
+dataset_folder = main_folder/'datasets' # folder with the dataset
 data_folder = main_folder/'saved data' # folder for saving data
 from utilis import *
 
@@ -900,6 +902,160 @@ if False:
     #plt.close('all')
 
 
+# Statistical significance of the benchmarking experiments (Mann-Whitney U test)
+if False:
+    """
+    Mann-Whitney U significance tests for the benchmarking experiments: our approach
+    vs baselines ("unoptimized", "partially pretrained").
+    All raw per-seed values are hard-coded below (up to 4 runs per configuration).
+
+    Handling of problematic runs:
+    - NaN run  (None below)  -> excluded; the test simply uses the remaining runs.
+    - Diverged run ("div:X")  -> kept in the Mann-Whitney test (rank-based, so it
+        only counts as the worst rank), but excluded from descriptive mean/std.
+
+    Metric direction:
+    - sMNIST      -> Accuracy, higher is better.
+    - Mackey-Glass / Lorenz96 -> NRMSE, lower is better.
+
+    Test: one-sided Mann-Whitney U ("our approach is better"), exact method (small samples).
+    """
+
+    # Raw data (hard coded) and setup
+    data = {
+        "sMNIST": {
+            "lower_is_better": False, # classification accuracy: higher is better
+            6:  {"ours": [0.6424, 0.6534, 0.6218, 0.6434],
+                "unoptimized": [0.3712, 0.5376, 0.3976, 0.4248],
+                "partially": [0.6082, 0.5962, 0.5900, 0.6052]},
+            9:  {"ours": [0.6798, 0.6444, 0.6626, 0.6844],
+                "unoptimized": [0.3666, 0.5308, 0.4522, 0.3330],
+                "partially": [0.6068, 0.6314, 0.6222, 0.6140]},
+            12: {"ours": [0.6304, 0.6734, 0.6572, 0.6862],
+                "unoptimized": [0.4718, 0.5996, 0.5042, 0.5296],
+                "partially": [0.5994, 0.6426, 0.6506, 0.6148]},
+            15: {"ours": [0.7196, 0.7140, 0.7138, 0.7044],
+                "unoptimized": [0.3714, 0.6318, 0.3660, 0.3940],
+                "partially": [0.7284, 0.5410, 0.4690, 0.6860]},
+        },
+        "ADIAC": {
+                "lower_is_better": False, # classification accuracy: higher is better
+                6:  {"ours": [0.4595, 0.4357, 0.4405, 0.4476],
+                    "unoptimized": [0.3476, 0.2714, 0.3095, 0.2929],
+                    "partially": [0.3048, 0.4381, 0.3881, 0.4429]},
+                9:  {"ours": [0.4548, 0.5357, 0.5190, 0.5310],
+                    "unoptimized": [0.4238, 0.3976, 0.3714, 0.3500],
+                    "partially": [0.1643, 0.4929, 0.3190, 0.5071]},
+                12: {"ours": [0.5024, 0.5024, 0.5095, 0.4929],
+                    "unoptimized": [0.4905, 0.3381, 0.4357, 0.3476],
+                    "partially": [0.2381, 0.2190, 0.4429, 0.4167]},
+                15: {"ours": [0.5024, 0.5619, 0.5333, 0.5262],
+                    "unoptimized": [0.4857, 0.2119, 0.6000, 0.5190],
+                    "partially": [0.4167, 0.2381, 0.2143, 0.4214]},
+            },
+        "Mackey-Glass": {
+            "lower_is_better": True, # NRMSE: lower is better
+            6:  {"ours": [0.529971, 0.523017, 0.523637, 0.524097],
+                "unoptimized": [0.713295, 0.896077, 0.563369, 0.696531],
+                "partially": [0.795480, 0.523017, 0.538880, 0.532117]},
+            9:  {"ours": [0.498168, 0.500019, 0.529598, 0.492952],
+                "unoptimized": [0.728679, 0.839122, 0.720081, 0.689492],
+                "partially": [0.509839, 0.562238, 0.613869, 0.570043]},
+            12: {"ours": [0.428501, 0.456062, 0.429164, 0.427103],
+                "unoptimized": [0.712862, 0.883061, 0.556907, 0.635217],
+                "partially": [None, 0.621812, 0.599603, 0.639629]},
+            15: {"ours": [0.421557, 0.433578, 0.425380, 0.420137],
+                "unoptimized": [0.711437, 0.812779, 0.717735, 0.678939],
+                "partially": [0.497475, 0.481226, "div:301681", 0.476295]},
+        },
+        "Lorenz96": {
+            "lower_is_better": True, # NRMSE, lower is better
+            6:  {"ours": [0.569331, 0.565004, 0.566337, 0.566348],
+                "unoptimized": [0.672494, 0.847201, 0.602625, 0.675680],
+                "partially": [0.606512, 0.813911, 0.574410, 0.652679]},
+            9:  {"ours": [0.522059, 0.521936, 0.521430, 0.522149],
+                "unoptimized": [0.955513, 0.589739, 0.595031, 0.599063],
+                "partially": [0.530333, 0.730225, 0.526154, 0.735342]},
+            12: {"ours": [0.464620, 0.476204, 0.461021, 0.449093],
+                "unoptimized": [0.539597, "div:6.303236515258028e+90", 0.546038, 0.470961],
+                "partially": [0.519680, 0.500026, 0.479805, 0.524575]},
+            15: {"ours": [0.451392, 0.473310, 0.455775, 0.443129],
+                "unoptimized": [0.872217, 0.471598, 0.850005, 0.524543],
+                "partially": [0.507516, 0.466502, 0.479136, 0.844571]},
+        },
+    }
+
+    TASKS = ["sMNIST", "ADIAC", "Mackey-Glass", "Lorenz96"]
+    NYS = [6, 9, 12, 15]
+    BASELINES = ["unoptimized", "partially"]
+
+    def parse_runs(raw):
+        """Return (valid, test):
+        valid = numeric, non-diverged, non-NaN (for mean/std);
+        test  = numeric incl. diverged, excl. NaN (for the U test)."""
+        valid, test = [], []
+        for x in raw:
+            if x is None: # NaN run: dropped everywhere
+                continue
+            if isinstance(x, str) and x.startswith("div:"):
+                test.append(float(x.split("div:")[1]))
+            else:
+                valid.append(float(x)); test.append(float(x))
+        return valid, test
+
+    # Print means and std devs for each case
+    print("=" * 82)
+    print("DESCRIPTIVE  (mean +/- std over VALID runs; NaN & diverged excluded)")
+    print("=" * 82)
+    hdr = f"{'Task':<14}{'ny':>3}   {'ours':>17}{'unoptimized':>19}{'partially':>19}"
+    print(hdr); print("-" * len(hdr))
+    for task in TASKS:
+        for ny in NYS:
+            cells = []
+            for m in ["ours", "unoptimized", "partially"]:
+                valid, _ = parse_runs(data[task][ny][m])
+                mean = np.mean(valid)
+                std = np.std(valid, ddof=1) if len(valid) > 1 else 0.0
+                tag = "" if len(valid) == 4 else f"[n{len(valid)}]"
+                cells.append(f"{mean:.4f}+-{std:.4f}{tag}")
+            print(f"{task:<14}{ny:>3}   {cells[0]:>17}{cells[1]:>19}{cells[2]:>19}")
+
+    # Mann-Whitney test
+    print("\n" + "=" * 82)
+    print("MANN-WHITNEY U   ours vs baseline   (one-sided: 'ours is better', exact)")
+    print("=" * 82)
+    results = []
+    for task in TASKS:
+        lower = data[task]["lower_is_better"]
+        for ny in NYS:
+            _, ours = parse_runs(data[task][ny]["ours"])
+            for b in BASELINES:
+                _, base = parse_runs(data[task][ny][b])
+                x = np.array(ours) * (-1 if lower else 1)
+                y = np.array(base) * (-1 if lower else 1)
+                U, p = mannwhitneyu(x, y, alternative="greater", method="exact")
+                results.append(dict(task=task, ny=ny, base=b,
+                                    no=len(x), nb=len(y), U=U, p=p))
+    m = len(results)
+    for r in results:
+        r["pbonf"] = min(1.0, r["p"] * m)
+
+    print(f"{'Task':<14}{'ny':>3}{'baseline':>13}{'n_o':>4}{'n_b':>4}"
+        f"{'U':>6}{'p':>9}{'p_bonf':>9}{'sig':>5}")
+    print("-" * 74)
+    for r in results:
+        sig = "*" if r["p"] < 0.05 else ""
+        print(f"{r['task']:<14}{r['ny']:>3}{r['base']:>13}{r['no']:>4}{r['nb']:>4}"
+            f"{r['U']:>6.1f}{r['p']:>9.4f}{r['pbonf']:>9.4f}{sig:>5}")
+
+    ns = sum(1 for r in results if r["p"] < 0.05)
+    print(f"\nSignificant (uncorrected, p<0.05): {ns}/{m}")
+    print(f"Significant (Bonferroni):          "
+        f"{sum(1 for r in results if r['pbonf'] < 0.05)}/{m}")
+    print("Floor: 4v4 -> min one-sided p = 1/C(8,4) = 0.0143 ; "
+        "4v3 -> 1/C(7,4) = 0.0286.")
+
+
 ### FLOPs count
 if False:
     # Prepare data and functions
@@ -1209,10 +1365,10 @@ if False:
 
     # sMNIST
     acc_ideal = np.array([64.03, 66.78, 66.18, 71.30])
-    acc_noise = np.array([0, 0, 0, 0])
+    acc_noise = np.array([57.7, 67.26, 64.32, 0])
     
     stddev_ideal = np.array([1.32, 1.82, 2.41, 0.63])
-    stddev_noise = np.array([0, 0, 0, 0])
+    stddev_noise = np.array([0.76, 4.16, 0.4, 0])
     
     fig = plt.figure(figsize=(4.1, 3))
 
@@ -1299,10 +1455,10 @@ if False:
 
     # Lorenz96
     acc_ideal = np.array([0.567, 0.522, 0.463, 0.455])
-    acc_noise = np.array([0.575, 0.564, 0, 0])
+    acc_noise = np.array([0.575, 0.564, 0.502, 0.556])
 
     stddev_ideal = np.array([0.002, 0.001, 0.011, 0.013])
-    stddev_untrained = np.array([0.004, 0.018, 0, 0])
+    stddev_untrained = np.array([0.004, 0.018, 0.003, 0.013])
     
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
@@ -1440,7 +1596,6 @@ if False:
         #plt.ylim(*ylims[task])
 
         fig.tight_layout()
-        #fig.savefig(f"{task.lower()}_pretraining.pdf", bbox_inches="tight")
 
     # Legend in a separate plot
     ax = plt.gca()
@@ -1449,3 +1604,254 @@ if False:
     fig_leg = plt.figure(figsize=(9, 0.5))
     fig_leg.legend(handles, labels, loc='center', ncol=3, frameon=True, fontsize=9)
     plt.show()
+
+
+# ESN baseline
+if False:
+    # Data
+    ny = np.arange(6, 16, 3)
+
+    data = {
+        "sMNIST": {
+            "RON": {
+                "mean": [65.88, 68.66, 70.51, 78.57],
+                "std":  [0] * 4,
+            },
+            "ESN": {
+                "mean": [58.52, 63.37, 64.89, 67.30],
+                "std":  [1.73, 1.24, 1.13, 1.21],
+            },
+            "Pretrained (ours)": {
+                "mean": [64.03, 66.78, 66.18, 71.30],
+                "std":  [1.32, 1.82, 2.41, 0.63],
+            },
+        },
+        "ADIAC": {
+            "RON": {
+                "mean": [46.80, 53.20, 57.03, 62.15],
+                "std":  [0] * 4,
+            },
+            "ESN": {
+                "mean": [46.55, 51.51, 54.01, 57.95],
+                "std":  [2.39, 3.47, 3.85, 2.20],
+            },
+            "Pretrained (ours)": {
+                "mean": [44.58, 51.01, 50.18, 53.10],
+                "std":  [1.03, 3.75, 0.68, 2.45],
+            },
+        },
+        "Mackey-Glass": {
+            "RON": {
+                "mean": [0.513, 0.432, 0.358, 0.309],
+                "std":  [0] * 4,
+            },
+            "ESN": {
+                "mean": [0.520, 0.483, 0.435, 0.388],
+                "std":  [0.006, 0.056, 0.048, 0.050],
+            },
+            "Pretrained (ours)": {
+                "mean": [0.525, 0.505, 0.435, 0.425],
+                "std":  [0.003, 0.016, 0.014, 0.006],
+            },
+        },
+        "Lorenz96": {
+            "RON": {
+                "mean": [0.564, 0.515, 0.417, 0.385],
+                "std":  [0] * 4,
+            },
+            "ESN": {
+                "mean": [0.602, 0.529, 0.491, 0.447],
+                "std":  [0.023, 0.020, 0.023, 0.015],
+            },
+            "Pretrained (ours)": {
+                "mean": [0.567, 0.522, 0.463, 0.455],
+                "std":  [0.002, 0.001, 0.011, 0.013],
+            },
+        },
+    }
+
+    # Plots configurations
+    styles = {
+        "RON": dict(color="#7E7E7E", marker='^', linestyle='--'),
+        "ESN": dict(color="#FF00F2",   marker='*', linestyle='--'),
+        "Pretrained (ours)":   dict(color="#10C200FF",   marker='o', linestyle='-'),
+    }
+
+    # ylims = {
+    #     "sMNIST":       (3000, 11000),
+    #     "ADIAC":        (3000, 11000),
+    #     "Mackey-Glass": (3000, 12500),
+    #     "Lorenz96":     (3000, 9000),
+    # }
+
+    ylabels = {
+        "sMNIST":       'Accuracy [%]',
+        "ADIAC":        'Accuracy [%]',
+        "Mackey-Glass": 'NRMSE [-]',
+        "Lorenz96":     'NRMSE [-]',
+    }
+
+    # Plots
+    for task, curves in data.items():
+        fig = plt.figure(figsize=(4.1, 3))
+
+        for label, vals in curves.items():
+            mean = np.array(vals["mean"], dtype=float)
+            std = np.array(vals["std"], dtype=float)
+            st = styles[label]
+
+            plt.plot(ny, mean, label=label, color=st["color"], linestyle=st["linestyle"],
+                    linewidth=1.8, marker=st["marker"], markersize=8)
+            plt.fill_between(ny, (mean - std), (mean + std), color=st["color"], alpha=0.15)
+            plt.ylabel(ylabels[task], fontsize=13)
+
+        plt.grid(True, alpha=0.6)
+        plt.xlabel(r'$n_y$', fontsize=13)
+        plt.title(task, fontsize=14)
+        plt.xticks(np.arange(6, 16), fontsize=13)
+        plt.yticks(fontsize=13)
+        plt.xlim(5.5, 15.5)
+        #plt.ylim(*ylims[task])
+
+        fig.tight_layout()
+
+    # Legend in a separate plot
+    ax = plt.gca()
+    handles, labels = ax.get_legend_handles_labels()
+
+    fig_leg = plt.figure(figsize=(9, 0.5))
+    fig_leg.legend(handles, labels, loc='center', ncol=3, frameon=True, fontsize=9)
+    plt.show()
+
+
+# Correlation analysis between dynamics-matching pretraining and downstream PRC performance
+if True:
+    # Consider various scenarios, ny, tasks, etc
+    tasks = ["sMNIST", "Adiac", "MG", "lorenz"]
+    nys = [6, 9, 12, 15] # reservoir dim
+    pretraining_scenarios = ["default", "no_robots"] # "default" = full pretraining, "no_robots" = partial pretraining
+    downstream_scenarios = ["a", "b"] # "a" = full pretraining, "b" = partial pretraining
+    runs = [1, 2, 3, 4] # different random seeds
+    stages = ["pretraining", "downstream"]
+
+    # Read and collect all data in a dict with keys (task, ny, scenario, run)
+    data = {}
+    for task in tasks:
+        for ny in nys:
+            for pre_scenario, down_scenario in zip(pretraining_scenarios, downstream_scenarios):
+                for run in runs:
+                    # find paths
+                    if Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{pre_scenario}_run{run}'/'metrics.txt').exists():
+                        path_pre = Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{pre_scenario}_run{run}'/'metrics.txt')
+                    else:
+                        path_pre = Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{pre_scenario}_run{run}'/'metrics_NoOptimization.txt')
+
+                    if Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{down_scenario}_run{run}'/'performances.txt').exists():
+                        path_down = Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{down_scenario}_run{run}'/'performances.txt')
+                    else:
+                        path_down = Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{down_scenario}_run{run}'/'note.txt')
+
+                    # collect metrics for that case
+                    metrics_pre = extract_pretraining_metrics(path_pre)
+                    metrics_down = extract_downstream_metrics(path_down, task)
+
+                    # create dict with data
+                    data[(task, ny, pre_scenario, run)] = {
+                        "pretraining": metrics_pre.get("test_rmse", np.nan) if metrics_pre.get("test_rmse", np.nan)<1e2 else np.nan,
+                        "downstream": metrics_down.get("performance", np.nan) if metrics_down.get("performance", np.nan)<1e2 else np.nan,
+                    }
+
+    # Normalize metrics: compute the acceleration target RMS in the test pretraining dataset
+    rms_dataset = {} # keys (task, ny)
+    for task in tasks:
+        for ny in nys:
+            dataset = np.load(dataset_folder/'soft robot optimization'/f'{task}_RON_N{ny}/dataset_m1e5_N{ny}.npz')
+            ydd = dataset["ydd"] # accelerations of the RON oscillators. Shape (m, ny)
+            rms_dataset[(task, ny)] = np.sqrt(np.mean(np.sum(ydd ** 2, axis=1)))
+
+    # Normalize metrics: insert teacher RON downstream performance
+    ron = {
+        "sMNIST": dict(zip(nys, [0.6588, 0.6866, 0.7051, 0.7857])),
+        "Adiac": dict(zip(nys, [0.4680, 0.5320, 0.5703, 0.6215])),
+        "MG": dict(zip(nys, [0.513, 0.432, 0.358, 0.309])),
+        "lorenz": dict(zip(nys, [0.564, 0.515, 0.417, 0.385])),
+    }
+    higher_is_better = {"sMNIST": True, "Adiac": True, "MG": False, "lorenz": False}
+
+    # Normalize metrics
+    for (task, ny, scenario, run), v in data.items():
+        down_perf, ron_perf = v["downstream"], ron[task][ny]
+        v["downstream_rel"] = down_perf / ron_perf if higher_is_better[task] else ron_perf / down_perf # relative downstream performance
+        v["log_norm_pretraining"] = np.log(v["pretraining"] / rms_dataset[(task, ny)]) # log normalized pretraining test RMSE
+    # Now data is a dict with keys (task, ny, scenario, run) and values that are dict with keys "pretraining", "downstream", "log_norm_pretraining" and "downstream_rel"
+
+
+
+    def get_points(task):
+        """Punti validi (coppie senza NaN) per un task."""
+        pts = []
+        for (t, ny, sc, run), v in data.items():
+            if t != task:
+                continue
+            x, y = v["log_norm_pretraining"], v["downstream_rel"]
+            if np.isnan(x) or np.isnan(y):
+                continue
+            pts.append({"ny": ny, "sc": sc, "run": run, "x": x, "y": y})
+        return pts
+
+    def boot_ci(x, y, n=5000, seed=0):
+        rng = np.random.default_rng(seed)
+        idx = np.arange(len(x))
+        vals = []
+        for _ in range(n):
+            s = rng.choice(idx, len(idx))
+            vals.append(spearmanr(x[s], y[s])[0])
+        return np.nanpercentile(vals, [2.5, 97.5])
+
+    def centered_ranks(a):
+        r = rankdata(a)
+        return r - r.mean()
+
+    def analyze(task):
+        pts = get_points(task)
+        x = np.array([p["x"] for p in pts])
+        y = np.array([p["y"] for p in pts])
+
+        # 1) pooled
+        rho = spearmanr(x, y)[0]
+        lo, hi = boot_ci(x, y)
+        print(f"{task} pooled:        rho={rho:+.2f}  CI95=[{lo:+.2f}, {hi:+.2f}]  n={len(x)}")
+
+        # 2) controllato per ny: rank centrati dentro ogni cella ny
+        xe, ye = [], []
+        for ny in nys:
+            cell = [p for p in pts if p["ny"] == ny]
+            xe.append(centered_ranks([p["x"] for p in cell]))
+            ye.append(centered_ranks([p["y"] for p in cell]))
+        xe, ye = np.concatenate(xe), np.concatenate(ye)
+        print(f"{task} within-ny:     rho={spearmanr(xe, ye)[0]:+.2f}  n={len(xe)}")
+
+        # 3) dentro ogni scenario
+        for sc in pretraining_scenarios:
+            cell = [p for p in pts if p["sc"] == sc]
+            xs = np.array([p["x"] for p in cell])
+            ys = np.array([p["y"] for p in cell])
+            print(f"{task} [{sc:9s}]: rho={spearmanr(xs, ys)[0]:+.2f}  n={len(cell)}")
+
+    #analyze("sMNIST")
+
+    def within_cell(task):
+        pts = get_points(task)
+        xe, ye = [], []
+        for ny in nys:
+            for sc in pretraining_scenarios:
+                cell = [p for p in pts if p["ny"] == ny and p["sc"] == sc]
+                if len(cell) < 3:   # celle con troppi NaN: salta
+                    continue
+                xe.append(centered_ranks([p["x"] for p in cell]))
+                ye.append(centered_ranks([p["y"] for p in cell]))
+        xe, ye = np.concatenate(xe), np.concatenate(ye)
+        rho = spearmanr(xe, ye)[0]
+        print(f"{task} within-(ny,scenario): rho={rho:+.2f}  n={len(xe)}")
+
+    within_cell("sMNIST")

@@ -9,6 +9,7 @@ import jax
 from jax import numpy as jnp
 from jax import Array
 from scipy.integrate import odeint
+import re
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
@@ -608,3 +609,101 @@ def animate_robot_matplotlib(
         plt.show()
 
     plt.close(fig)
+
+
+# Functions for extracting results/data from txt files
+def extract_pretraining_metrics(file_path):
+    """Extracts pretraining metrics from txt file and returns a dictionary with them."""
+    # Read file
+    with open(file_path, "r") as f:
+        text = f.read()
+
+    # Look for the metrics
+    match_ny = re.search(
+        r"Latent dimension:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_n_robots = re.search(
+        r"Number of robots:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_n_pcs = re.search(
+        r"PCS segments:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_time = re.search(
+        r"Elapsed time for optimization:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_test_rmse = re.search(
+        r"Final test RMS error:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_rollout_nrmse = re.search(
+        r"Rollout NRMSE \(between y\(t\) and y_hat\(t\)\):\s*([0-9.eE+-]+)",
+        text
+    )
+
+    # Create metrics dict
+    metrics = {
+        "ny": float(match_ny.group(1)) if match_ny else np.nan,
+        "n_robots": float(match_n_robots.group(1)) if match_n_robots else np.nan,
+        "n_pcs": float(match_n_pcs.group(1)) if match_n_pcs else np.nan,
+        "time": float(match_time.group(1)) if match_time else np.nan,
+        "test_rmse": float(match_test_rmse.group(1)) if match_test_rmse else np.nan,
+        "rollout_nrmse": float(match_rollout_nrmse.group(1)) if match_rollout_nrmse else np.nan,
+    }
+
+    return metrics
+
+def extract_downstream_metrics(file_path, task):
+    """
+    Extracts downstream PRC metrics from txt file and returns a dictionary with them.
+    Possible tasks are "sMNIST", "Adiac", "MG" or "lorenz".
+    """
+    # Read file
+    with open(file_path, "r") as f:
+        text = f.read()
+
+    # Look for the metrics
+    match_ny = re.search(
+        r"Dimension:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_n_robots = re.search(
+        r"n. robots:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_n_pcs = re.search(
+        r"n. segments:\s*([0-9.eE+-]+)",
+        text
+    )
+    match_time_train1 = re.search(
+        r"Elapsed time forward pass \(train set\):\s*([0-9.eE+-]+)",
+        text
+    )
+    match_time_train2 = re.search(
+        r"Elapsed time training output layer:\s*([0-9.eE+-]+)",
+        text
+    )
+    if task == "sMNIST" or task == "Adiac":
+        match_test_performance = re.search(
+            r"Accuracy \(test set\):\s*([0-9.eE+-]+)",
+            text
+        )
+    else:
+        match_test_performance = re.search(
+            r"NRMSE \(test set\):\s*([0-9.eE+-]+)",
+            text
+        )
+
+    # Create metrics dict
+    metrics = {
+        "ny": float(match_ny.group(1)) if match_ny else np.nan,
+        "n_robots": float(match_n_robots.group(1)) if match_n_robots else np.nan,
+        "n_pcs": float(match_n_pcs.group(1)) if match_n_pcs else np.nan,
+        "time_train": float(match_time_train1.group(1)) + float(match_time_train2.group(1)) if (match_time_train1 and match_time_train2) else np.nan,
+        "performance": float(match_test_performance.group(1)) if match_test_performance else np.nan,
+    }
+
+    return metrics
