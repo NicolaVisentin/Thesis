@@ -407,15 +407,15 @@ for run, seed in enumerate(seeds):
     dt_noise = dt_u
 
     if input_disturb is not None:
-        Tau_scale = jnp.tile(jnp.array([0.1, 0.1, 0.1]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+        Tau_scale = jnp.tile(jnp.array([0.0001, 0.0001, 0.0001]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
         Sigma_Tau = jnp.diag((input_disturb * Tau_scale) ** 2)
     else:
         Sigma_Tau = None
 
     if measurement_noise is not None:
-        Q_scale = jnp.tile(jnp.array([0.01, 0.01, 0.01]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+        Q_scale = jnp.tile(jnp.array([0.0001, 0.0001, 0.0001]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
         Sigma_Q = jnp.diag((measurement_noise * Q_scale) ** 2)
-        Qd_scale = jnp.tile(jnp.array([0.01, 0.01, 0.01]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
+        Qd_scale = jnp.tile(jnp.array([0.0001, 0.0001, 0.0001]), n_pcs * n_robots) # MANUAL TUNING. Shape (3*n_pcs*n_robots,)
         Sigma_Qd = jnp.diag((measurement_noise * Qd_scale) ** 2)
     else:
         Sigma_Q = Sigma_Qd = None
