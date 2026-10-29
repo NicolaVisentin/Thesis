@@ -10,6 +10,7 @@ from jax import numpy as jnp
 from jax import Array
 from scipy.integrate import odeint
 import re
+from scipy.stats import spearmanr, permutation_test
 
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
@@ -707,3 +708,119 @@ def extract_downstream_metrics(file_path, task):
     }
 
     return metrics
+
+
+# Spearman correlation test
+def spearman_report(x, y, permutation=True, side='less', print_result=False):
+    """
+    Spearman correlation test.
+
+    Args
+    ----
+    x, y : list
+        Lists of points.
+    permutation : bool
+        If True, computes the p-value with a permutation test. Otherwise, 
+        computes the p-value with asymptotic appoximation (standard Spearman).
+    side
+        'less', 'greater', 'two-sided'. Side of the correlation test.
+    print_result
+        It True, prints the report of the test (default: False).
+
+    Returns
+    -------
+    rho_s
+        Spearman correlation coefficient.
+    pvalue
+        p-value of the Spearman correlation test.
+    n_samples
+        Number of samples used for the test.
+    """
+    # remove pairs with nan
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    mask = ~(np.isnan(x) | np.isnan(y))
+    x, y = x[mask], y[mask]
+    n_samples = len(x)
+
+    # Spearman coefficient
+    result = spearmanr(x, y, alternative=side)
+    rho_s = result.statistic
+
+    # pvalue
+    if not permutation:
+        pvalue = result.pvalue
+    else:
+        pvalue = permutation_test(
+            data = (x,),
+            statistic = lambda x_perm: spearmanr(x_perm, y).statistic,
+            permutation_type = 'pairings',
+            alternative = side,
+        ).pvalue
+
+    if print_result:
+        side_desc = {
+            'less': 'one-sided (H1: rho < 0)',
+            'greater': 'one-sided (H1: rho > 0)',
+            'two-sided': 'two-sided (H1: rho != 0)',
+        }
+        method = 'permutation test' if permutation else 'asymptotic approximation'
+        print('SPEARMAN CORRELATION TEST')
+        print(f'  Number of samples: {n_samples}')
+        print(f'  Type of test:      {side_desc[side]}')
+        print(f'  p-value method:    {method}')
+        print()
+        print(f'  rho_s = {rho_s:+.3f}')
+        print(f'  p-value = {pvalue:.2e}')
+        print()
+
+    return rho_s, pvalue, n_samples
+
+def get_points_from_dict(
+    data_dict : dict,
+    tasks : tuple[str],
+    nys : tuple[int],
+    scenarios : tuple[str],
+    runs : tuple[int],
+    norm_x : bool=True,
+    norm_y : bool=True
+):
+    """
+    Extracts two lists x and y of paired (x, y) values from `data_dict`.
+    
+    Args
+    ----
+    data_dict : dict
+        Dictionary with:
+        - keys: (task, ny, scenario, run)
+        - values: dict with keys "downstream", "pretraining", "downstream_norm", "pretraining_norm" and "downstream_signed".
+    tasks
+        Tuple of selected tasks. E.g.: ("sMNIST",). E.g.: ("sMNIST", "lorenz").
+    nys
+        Tuple of selected ny. E.g.: (6,). E.g.: (12, 9).
+    scenarios
+        Tuple of selected scenarios. E.g.: ("partially pretrained", "fully pretrained").
+    runs
+        Tuple of selected runs. E.g.: (1, 4, 2).
+    norm_x, norm_y : bool
+        Choose whether to use normalized data or not (default: True).
+    
+    Returns
+    -------
+    x_list, y_list
+        List of selected points.
+    """
+    x_list = []
+    y_list = []
+    
+    for key, metrics_dict in data_dict.items():
+        task, ny, sc, run = key # current experiment (current data_dict key)
+        
+        # Consider only the selected cases
+        if (task in tasks) and (ny in nys) and (sc in scenarios) and (run in runs):
+            x_val = metrics_dict["pretraining"] if not norm_x else metrics_dict["pretraining_norm"]
+            y_val = metrics_dict["downstream_signed"] if not norm_y else metrics_dict["downstream_norm"]
+
+            x_list.append(x_val)
+            y_list.append(y_val)
+                    
+    return x_list, y_list
