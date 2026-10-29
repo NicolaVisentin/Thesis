@@ -16,7 +16,7 @@ import jax.numpy as jnp
 import joblib
 import sys
 import time
-from scipy.stats import mannwhitneyu, spearmanr, rankdata
+from scipy.stats import mannwhitneyu
 
 from soromox.rendering import MatplotlibRenderer, OpenCVPlanarRenderer, Open3DRenderer, RendererColorConfig, BackboneColorConfig, ViserRenderer
 
@@ -1365,10 +1365,10 @@ if False:
 
     # sMNIST
     acc_ideal = np.array([64.03, 66.78, 66.18, 71.30])
-    acc_noise = np.array([57.7, 67.26, 64.32, 0])
+    acc_noise = np.array([57.7, 67.26, 64.32, 66.96])
     
     stddev_ideal = np.array([1.32, 1.82, 2.41, 0.63])
-    stddev_noise = np.array([0.76, 4.16, 0.4, 0])
+    stddev_noise = np.array([0.76, 4.16, 0.4, 0.99])
     
     fig = plt.figure(figsize=(4.1, 3))
 
@@ -1726,37 +1726,45 @@ if False:
 
 # Correlation analysis between dynamics-matching pretraining and downstream PRC performance
 if True:
+    # Select what to use for the test
+    TASKS = ("sMNIST",)
+    NYS = (6, 9, 12, 15)
+    SCENARIOS = ("fully pretrained", "partially pretrained")
+    RUNS = (1, 2, 3 ,4)
+    NORM_X, NORM_Y = True, True
+
     # Consider various scenarios, ny, tasks, etc
     tasks = ["sMNIST", "Adiac", "MG", "lorenz"]
     nys = [6, 9, 12, 15] # reservoir dim
-    pretraining_scenarios = ["default", "no_robots"] # "default" = full pretraining, "no_robots" = partial pretraining
-    downstream_scenarios = ["a", "b"] # "a" = full pretraining, "b" = partial pretraining
+    scenarios = ["fully pretrained", "partially pretrained"]
     runs = [1, 2, 3, 4] # different random seeds
     stages = ["pretraining", "downstream"]
 
     # Read and collect all data in a dict with keys (task, ny, scenario, run)
     data = {}
+    sc_pre = {"fully pretrained": "default", "partially pretrained": "no_robots"}
+    sc_down = {"fully pretrained": "a", "partially pretrained": "b"}
     for task in tasks:
         for ny in nys:
-            for pre_scenario, down_scenario in zip(pretraining_scenarios, downstream_scenarios):
+            for sc in scenarios:
                 for run in runs:
                     # find paths
-                    if Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{pre_scenario}_run{run}'/'metrics.txt').exists():
-                        path_pre = Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{pre_scenario}_run{run}'/'metrics.txt')
+                    if Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{sc_pre[sc]}_run{run}'/'metrics.txt').exists():
+                        path_pre = Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{sc_pre[sc]}_run{run}'/'metrics.txt')
                     else:
-                        path_pre = Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{pre_scenario}_run{run}'/'metrics_NoOptimization.txt')
+                        path_pre = Path(data_folder/'more_soft_robots_optimization'/task/f'N{ny}'/f'{sc_pre[sc]}_run{run}'/'metrics_NoOptimization.txt')
 
-                    if Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{down_scenario}_run{run}'/'performances.txt').exists():
-                        path_down = Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{down_scenario}_run{run}'/'performances.txt')
+                    if Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{sc_down[sc]}_run{run}'/'performances.txt').exists():
+                        path_down = Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{sc_down[sc]}_run{run}'/'performances.txt')
                     else:
-                        path_down = Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{down_scenario}_run{run}'/'note.txt')
+                        path_down = Path(data_folder/'more_soft_robots_reservoir'/task/f'N{ny}'/f'{sc_down[sc]}_run{run}'/'note.txt')
 
                     # collect metrics for that case
-                    metrics_pre = extract_pretraining_metrics(path_pre)
-                    metrics_down = extract_downstream_metrics(path_down, task)
+                    metrics_pre = extract_pretraining_metrics(path_pre) # dict with key "test_rmse"
+                    metrics_down = extract_downstream_metrics(path_down, task) # dict with key "performance"
 
                     # create dict with data
-                    data[(task, ny, pre_scenario, run)] = {
+                    data[(task, ny, sc, run)] = {
                         "pretraining": metrics_pre.get("test_rmse", np.nan) if metrics_pre.get("test_rmse", np.nan)<1e2 else np.nan,
                         "downstream": metrics_down.get("performance", np.nan) if metrics_down.get("performance", np.nan)<1e2 else np.nan,
                     }
@@ -1781,77 +1789,75 @@ if True:
     # Normalize metrics
     for (task, ny, scenario, run), v in data.items():
         down_perf, ron_perf = v["downstream"], ron[task][ny]
-        v["downstream_rel"] = down_perf / ron_perf if higher_is_better[task] else ron_perf / down_perf # relative downstream performance
-        v["log_norm_pretraining"] = np.log(v["pretraining"] / rms_dataset[(task, ny)]) # log normalized pretraining test RMSE
-    # Now data is a dict with keys (task, ny, scenario, run) and values that are dict with keys "pretraining", "downstream", "log_norm_pretraining" and "downstream_rel"
+        v["downstream_norm"] = down_perf / ron_perf if higher_is_better[task] else ron_perf / down_perf # relative downstream performance
+        v["pretraining_norm"] = np.log(v["pretraining"] / rms_dataset[(task, ny)]) # log normalized pretraining test RMSE
+        v["downstream_signed"] = v["downstream"] if higher_is_better[task] else -v["downstream"]
+    # Now data is a dict with keys (task, ny, scenario, run) and values that are dict with keys "pretraining", "downstream", "downstream_signed", "pretraining_norm" and "downstream_norm"
 
+    # Spearman correlation test
+    x, y = get_points_from_dict(
+        data,
+        tasks = TASKS,
+        nys = NYS,
+        scenarios = SCENARIOS,
+        runs = RUNS,
+        norm_x = NORM_X,
+        norm_y = NORM_Y
+    )
+    n = len(x)
 
+    rho_s, pvalue, _ = spearman_report(
+        x, y, 
+        permutation = True if n<30 else False, 
+        side = 'less', 
+        print_result = True
+    )
+    
+    # Plots (for the Spearman test)
+    fig, ax = plt.subplots(figsize=(5, 4))
+    ax.scatter(x, y)
+    ax.grid(True, alpha=0.5)
+    ax.set_title(f'Samples: {n}')
+    ax.set_xlabel('log normalized pretraining RMSE' if NORM_X else 'pretraining RMSE')
+    ax.set_ylabel('relative downstream performance' if NORM_Y else 'downstream performance')
+    fig.tight_layout()
 
-    def get_points(task):
-        """Punti validi (coppie senza NaN) per un task."""
-        pts = []
-        for (t, ny, sc, run), v in data.items():
-            if t != task:
-                continue
-            x, y = v["log_norm_pretraining"], v["downstream_rel"]
-            if np.isnan(x) or np.isnan(y):
-                continue
-            pts.append({"ny": ny, "sc": sc, "run": run, "x": x, "y": y})
-        return pts
+    # Plots (for all points)
+    if False:
+        ny_colors = dict(zip(nys, ["tab:blue", "tab:orange", "tab:green", "tab:red"]))
+        ny_markers = dict(zip(nys, ["o", "s", "^", "D"]))
+        task_titles = {"sMNIST": "sMNIST", "Adiac": "ADIAC", "MG": "Mackey-Glass", "lorenz": "Lorenz96"}
 
-    def boot_ci(x, y, n=5000, seed=0):
-        rng = np.random.default_rng(seed)
-        idx = np.arange(len(x))
-        vals = []
-        for _ in range(n):
-            s = rng.choice(idx, len(idx))
-            vals.append(spearmanr(x[s], y[s])[0])
-        return np.nanpercentile(vals, [2.5, 97.5])
+        for task in tasks:
+            for sc in scenarios:
+                fig, ax = plt.subplots(figsize=(5, 4))
+                for ny in nys:
+                    xs = [np.exp(data[(task, ny, sc, r)]["pretraining_norm"]) for r in runs]
+                    ys = [data[(task, ny, sc, r)]["downstream_norm"] for r in runs]
+                    ax.scatter(xs, ys, c=ny_colors[ny], marker=ny_markers[ny], s=55,
+                            edgecolors="k", linewidths=0.4, label=f"$n_y$={ny}")
+                ax.set_xscale("log")
+                ax.set_xlabel("log normalized pretraining RMSE")
+                ax.set_ylabel("relative downstream accuracy" if task==("sMNIST", "Adiac") else "relative downstream NRMSE")
+                ax.set_title(f"{task_titles[task]} - {sc}")
+                ax.grid(alpha=0.3)
+                ax.legend(frameon=False)
+                fig.tight_layout()
 
-    def centered_ranks(a):
-        r = rankdata(a)
-        return r - r.mean()
+        for task in tasks:
+            for sc in scenarios:
+                fig, ax = plt.subplots(figsize=(5, 4))
+                for ny in nys:
+                    xs = [data[(task, ny, sc, r)]["pretraining"] for r in runs]
+                    ys = [data[(task, ny, sc, r)]["downstream"] for r in runs]
+                    ax.scatter(xs, ys, c=ny_colors[ny], marker=ny_markers[ny], s=55,
+                            edgecolors="k", linewidths=0.4, label=f"$n_y$={ny}")
+                ax.set_xscale("log")
+                ax.set_xlabel("pretraining RMSE")
+                ax.set_ylabel("downstream accuracy" if task==("sMNIST", "Adiac") else "downstream NRMSE")
+                ax.set_title(f"{task_titles[task]} - {sc}")
+                ax.grid(alpha=0.3)
+                ax.legend(frameon=False)
+                fig.tight_layout()
 
-    def analyze(task):
-        pts = get_points(task)
-        x = np.array([p["x"] for p in pts])
-        y = np.array([p["y"] for p in pts])
-
-        # 1) pooled
-        rho = spearmanr(x, y)[0]
-        lo, hi = boot_ci(x, y)
-        print(f"{task} pooled:        rho={rho:+.2f}  CI95=[{lo:+.2f}, {hi:+.2f}]  n={len(x)}")
-
-        # 2) controllato per ny: rank centrati dentro ogni cella ny
-        xe, ye = [], []
-        for ny in nys:
-            cell = [p for p in pts if p["ny"] == ny]
-            xe.append(centered_ranks([p["x"] for p in cell]))
-            ye.append(centered_ranks([p["y"] for p in cell]))
-        xe, ye = np.concatenate(xe), np.concatenate(ye)
-        print(f"{task} within-ny:     rho={spearmanr(xe, ye)[0]:+.2f}  n={len(xe)}")
-
-        # 3) dentro ogni scenario
-        for sc in pretraining_scenarios:
-            cell = [p for p in pts if p["sc"] == sc]
-            xs = np.array([p["x"] for p in cell])
-            ys = np.array([p["y"] for p in cell])
-            print(f"{task} [{sc:9s}]: rho={spearmanr(xs, ys)[0]:+.2f}  n={len(cell)}")
-
-    #analyze("sMNIST")
-
-    def within_cell(task):
-        pts = get_points(task)
-        xe, ye = [], []
-        for ny in nys:
-            for sc in pretraining_scenarios:
-                cell = [p for p in pts if p["ny"] == ny and p["sc"] == sc]
-                if len(cell) < 3:   # celle con troppi NaN: salta
-                    continue
-                xe.append(centered_ranks([p["x"] for p in cell]))
-                ye.append(centered_ranks([p["y"] for p in cell]))
-        xe, ye = np.concatenate(xe), np.concatenate(ye)
-        rho = spearmanr(xe, ye)[0]
-        print(f"{task} within-(ny,scenario): rho={rho:+.2f}  n={len(xe)}")
-
-    within_cell("sMNIST")
+    plt.show()
