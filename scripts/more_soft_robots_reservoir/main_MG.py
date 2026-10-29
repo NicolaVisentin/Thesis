@@ -21,8 +21,6 @@ from tqdm import tqdm
 import sys
 import time
 
-from soromox.systems.my_systems import PlanarPCS_simple
-from soromox.systems.pcs import PlanarPCS
 
 curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder

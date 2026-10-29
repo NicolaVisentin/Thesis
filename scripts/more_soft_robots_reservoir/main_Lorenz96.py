@@ -21,7 +21,6 @@ from pathlib import Path
 import sys
 import time
 
-from soromox.systems.my_systems import PlanarPCS_simple
 
 # Folders
 curr_folder = Path(__file__).parent # current folder

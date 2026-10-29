@@ -19,8 +19,6 @@ from pathlib import Path
 import time
 import sys
 
-from soromox.systems.my_systems import PlanarPCS_simple
-
 curr_folder = Path(__file__).parent      # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
 from utilis import *
@@ -84,7 +82,7 @@ def Araw2A(A_raw: Tuple, s_thresh: float=0.0) -> Array:
 def Loss(
         params_optimiz : Sequence, 
         data_batch : Dict, 
-        robot : PlanarPCS_simple,
+        robot : PlanarPCSNoCoriolis,
         mlp_controller : MLP,
         s_thresh : float,
         additional_arg : Tuple
@@ -105,7 +103,7 @@ def Loss(
         - **phi**: Tuple with pcs params (L_raw, D_raw, r_raw, rho_raw, E_raw, G_raw). !!! THEY ARE NOT USED FOR 
                    UPDATING THE ROBOT BUT ONLY FOR GRADIENT COMPUTATION (THAT WILL ALWAYS BE ZERO, SINCE THEY 
                    ARE NOT USED). THIS TRICK IS USED TO MAINTAIN THE SAME STRUCTURE OF THE FUNCTION. !!!
-    robot : PlanarPCS_simple
+    robot : PlanarPCSNoCoriolis
         Robot instance.
     mlp_controller : MLP
         MLP instance.
@@ -156,7 +154,7 @@ def Loss(
     G_fixed = jax.nn.softplus(G_raw_fixed)
 
     # update robot (with parameters NOT used for gradient computation) and controller
-    robot_updated = robot.update_params(
+    robot_updated = update_planar_pcs(robot,
         {"L": L_fixed, "D": D_fixed, "r": r_fixed, 
          "rho": rho_fixed, "E": E_fixed, "G": G_fixed}
     )
@@ -369,11 +367,7 @@ parameters = {
     "G": G0[0],
     "D": jnp.diag(D0[0])
 }
-robot = PlanarPCS_simple(
-    num_segments = n_pcs,
-    params = parameters,
-    order_gauss = 5
-)
+robot = build_planar_pcs(parameters, num_gauss_points=5)
 
 # Compute RMSE on the test set before optimization for the various guesses
 _, metrics = Loss_vmap(params_optimiz0, test_set, robot, mlp_controller, s_thresh, phi0)

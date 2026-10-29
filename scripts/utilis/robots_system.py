@@ -1,13 +1,124 @@
 import jax
 from jax import numpy as jnp, Array
 import equinox as eqx
-from soromox.systems.my_systems import PlanarPCS_simple
-from soromox.systems.pcs import PlanarPCS
+from soromox.systems import LinkSpec
+from soromox.systems.pcs import PlanarPCS, PlanarPCSStructure
 from soromox.systems.dynamical_system import DynamicalSystem
 
 
 # Custom types
 ParamsRobots = dict[str,Array] # (batched) parameters of all robots: {"L":L, "D":D, ...}, where L has shape (n_robots, n_pcs), etc.
+
+
+class PlanarPCSNoCoriolis(PlanarPCS):
+    """Planar PCS model with the legacy scripts' simplified dynamics."""
+
+    def dynamics_terms(
+        self, q: Array, qd: Array, *, backend: str | None = None
+    ) -> tuple[Array, Array, Array]:
+        inertia, _, gravity = super().dynamics_terms(q, qd, backend=backend)
+        return inertia, jnp.zeros_like(qd), gravity
+
+
+def _segment_damping(damping: Array, num_segments: int) -> Array:
+    damping = jnp.asarray(damping)
+    if damping.ndim == 1 and damping.shape == (3 * num_segments,):
+        damping = jnp.diag(damping)
+    if damping.ndim == 2 and damping.shape == (num_segments, 3):
+        return jax.vmap(jnp.diag)(damping)
+    if damping.ndim == 2 and damping.shape == (3, 3) and num_segments == 1:
+        return damping[None, ...]
+    if damping.ndim == 2 and damping.shape == (3 * num_segments, 3 * num_segments):
+        return jnp.stack(
+            [
+                damping[3 * index : 3 * index + 3, 3 * index : 3 * index + 3]
+                for index in range(num_segments)
+            ]
+        )
+    if damping.ndim == 3 and damping.shape == (num_segments, 3, 3):
+        return damping
+    raise ValueError(
+        "D must be per-segment diagonal values, per-segment 3x3 matrices, "
+        "or a (3*num_segments)x(3*num_segments) matrix."
+    )
+
+
+def build_planar_pcs(
+    parameters: ParamsRobots,
+    *,
+    num_gauss_points: int = 5,
+    coriolis: bool = False,
+) -> PlanarPCS:
+    """Build a current SoRoMoX planar PCS from the scripts' physical parameters."""
+    lengths = jnp.asarray(parameters["L"])
+    num_segments = lengths.shape[0]
+    radii = jnp.broadcast_to(jnp.asarray(parameters["r"]), (num_segments,))
+    densities = jnp.broadcast_to(jnp.asarray(parameters["rho"]), (num_segments,))
+    young_moduli = jnp.broadcast_to(jnp.asarray(parameters["E"]), (num_segments,))
+    shear_moduli = jnp.broadcast_to(jnp.asarray(parameters["G"]), (num_segments,))
+    damping = _segment_damping(parameters["D"], num_segments)
+    reference_strain = jnp.asarray(
+        parameters.get("reference_strain", [0.0, 1.0, 0.0])
+    )
+    reference_strain = jnp.broadcast_to(reference_strain, (num_segments, 3))
+    gravity = jnp.asarray(parameters.get("g", [0.0, -9.81]))
+    theta = jnp.asarray(parameters.get("th0", 0.0))
+    base_pose = jnp.array([theta, 0.0, 0.0])
+    model_type = PlanarPCS if coriolis else PlanarPCSNoCoriolis
+    links = [
+        LinkSpec.circular(
+            length=float(lengths[index]),
+            radius=float(radii[index]),
+            density=float(densities[index]),
+            reference_strain=reference_strain[index],
+            young_modulus=float(young_moduli[index]),
+            shear_modulus=float(shear_moduli[index]),
+            damping=damping[index],
+        )
+        for index in range(num_segments)
+    ]
+    return model_type.from_links(
+        links,
+        structure=PlanarPCSStructure(num_gauss_points=num_gauss_points),
+        gravity=gravity,
+        base_pose=base_pose,
+    )
+
+
+def update_planar_pcs(robot: PlanarPCS, parameters: ParamsRobots) -> PlanarPCS:
+    """Update a PCS model from the physical parameter dictionaries used by scripts."""
+    lengths = jnp.asarray(parameters["L"])
+    num_segments = robot.num_segments
+    radii = jnp.broadcast_to(jnp.asarray(parameters["r"]), (num_segments,))
+    densities = jnp.broadcast_to(jnp.asarray(parameters["rho"]), (num_segments,))
+    young_moduli = jnp.broadcast_to(jnp.asarray(parameters["E"]), (num_segments,))
+    shear_moduli = jnp.broadcast_to(jnp.asarray(parameters["G"]), (num_segments,))
+    damping = _segment_damping(parameters["D"], num_segments)
+
+    area = jnp.pi * radii**2
+    second_moment = jnp.pi * radii**4 / 4.0
+    zeros = jnp.zeros_like(lengths)
+    young_operator = lengths[:, None, None] * jax.vmap(jnp.diag)(
+        jnp.stack([second_moment, area, zeros], axis=1)
+    )
+    shear_operator = lengths[:, None, None] * jax.vmap(jnp.diag)(
+        jnp.stack([zeros, zeros, area], axis=1)
+    )
+    stiffness = (
+        young_moduli[:, None, None] * young_operator
+        + shear_moduli[:, None, None] * shear_operator
+    )
+    cross_section = robot.params.link.cross_section.replace(
+        coefficients=radii[:, None]
+    )
+    links = robot.params.link.replace(
+        length=lengths,
+        density=densities,
+        cross_section=cross_section,
+        stiffness=stiffness,
+        damping=damping,
+    )
+    return robot.with_params(robot.params.replace(link=links))
 
 
 # Class
@@ -24,10 +135,10 @@ class MultiPcsSystem(DynamicalSystem):
         Number of segments for the single robot.
     dim : int
         Dimension of the system.
-    robots : PlanarPCS_simple | PlanarPCS
-        Batched representation of multiple `PlanarPCS_simple` or `PlanarPCS` robots as a PyTree.
+    robots : PlanarPCSNoCoriolis | PlanarPCS
+        Batched representation of multiple planar PCS robots as a PyTree.
     """
-    robots: PlanarPCS_simple | PlanarPCS
+    robots: PlanarPCSNoCoriolis | PlanarPCS
     n_robots: int = eqx.field(static=True)
     n_pcs: int = eqx.field(static=True)
     dim: int = eqx.field(static=True)
@@ -50,37 +161,27 @@ class MultiPcsSystem(DynamicalSystem):
             (default: False).
         """
         num_dofs = 3 * n_pcs * n_robots
-        super().__init__(num_dofs=num_dofs, num_actuators=num_dofs)
+        super().__init__(num_actuators=num_dofs)
 
         self.n_robots = n_robots
         self.n_pcs = n_pcs
         self.dim = num_dofs
         
         # Create list of robots
-        if not coriolis:
-            robot_list = [
-                PlanarPCS_simple(
-                    num_segments=n_pcs,
-                    params={k: v[i] for k, v in params_robots.items()},
-                )
-                for i in range(n_robots)
-            ]
-        else:
-            robot_list = [
-                PlanarPCS(
-                    num_segments=n_pcs,
-                    params={k: v[i] for k, v in params_robots.items()},
-                )
-                for i in range(n_robots)
-            ]
-        # Convert list of robots into `PlanarPCS_simple` (or `PlanarPCS`) object with batched leaves.
+        robot_list = [
+            build_planar_pcs(
+                {key: value[index] for key, value in params_robots.items()},
+                coriolis=coriolis,
+            )
+            for index in range(n_robots)
+        ]
         self.robots = jax.tree_util.tree_map(
             lambda *arrays: jnp.stack(arrays, axis=0),
             *robot_list,
         )
 
-    def get_robot(self, i: int) -> PlanarPCS_simple | PlanarPCS:
-        """Extracts i-th robot from pytree. Returns the corresponding `PlanarPCS_simple` (or `PlanarPCS`) instance."""
+    def get_robot(self, i: int) -> PlanarPCSNoCoriolis | PlanarPCS:
+        """Extract the i-th robot from the batched PyTree."""
         return jax.tree_util.tree_map(lambda x: x[i], self.robots)
     
     def transform_Z(self, Z: Array) -> Array:
@@ -165,7 +266,7 @@ class MultiPcsSystem(DynamicalSystem):
         """
         # Update all robots
         def update_single(robot, params_i):
-            return robot.update_params(params_i)
+            return update_planar_pcs(robot, params_i)
         
         # params_i is the dictionary with the values for the i-th robot
         new_robots = jax.vmap(update_single)(
@@ -199,10 +300,14 @@ class MultiPcsSystem(DynamicalSystem):
         # Split the actuation arguments if provided
         if actuation_args is None:
             Tau = jnp.zeros(self.dim)
+            Tau_ext = jnp.zeros(self.dim)
         elif len(actuation_args) == 1:
             Tau = actuation_args[0]
+            Tau_ext = jnp.zeros(self.dim)
         elif len(actuation_args) == 2:
-            Tau, _ = actuation_args
+            Tau, Tau_ext = actuation_args
+            if Tau_ext is None:
+                Tau_ext = jnp.zeros(self.dim)
         else:
             raise ValueError("actuation_args must be a tuple of length 1 or 2.")
 
@@ -211,12 +316,13 @@ class MultiPcsSystem(DynamicalSystem):
 
         # Reshape Tau = [tau1^T, ..., tauN^T]^T to tau_robots = [tau1, ..., tauN]. Shape (3*n_pcs*n_robots) -> (n_robots, 3*n_pcs)
         tau_robots = self.transform_Tau(Tau)  # (3*n_pcs*n_robots) -> (n_robots, 3*n_pcs)
+        tau_ext_robots = self.transform_Tau(Tau_ext)
 
         # Apply forward dynamics to all robots with vmap
-        def forward_single(robot: PlanarPCS_simple | PlanarPCS_simple, z: Array, tau: Array) -> Array:
+        def forward_single(robot: PlanarPCSNoCoriolis | PlanarPCS, z: Array, tau: Array, tau_ext: Array) -> Array:
             """Forward dynamics for the single robot."""
-            return robot.forward_dynamics(t, z, (tau,))
-        zd_robots = jax.vmap(forward_single)(self.robots, z_robots, tau_robots) # zd_robots = [z1, ]. Shape (n_robots, 2*3*n_pcs)
+            return robot.forward_dynamics(t, z, (tau, tau_ext))
+        zd_robots = jax.vmap(forward_single)(self.robots, z_robots, tau_robots, tau_ext_robots) # zd_robots = [z1, ]. Shape (n_robots, 2*3*n_pcs)
 
         # Reshape zd_robots = [zd1, ..., zdN] to Zd = [Qd^T, Qdd^T]^T = [qd1^T, ..., qdN^T, qdd1^T, ..., qddN^T]^T. Shape (n_robots, 2*3*n_pcs) -> (2*3*n_pcs*n_robots)
         Zd, _, _ = self.transform_z_robots(zd_robots)  # [Qd^T, Qdd^T]^T. Shape (2*n_robots*3*n_pcs,)

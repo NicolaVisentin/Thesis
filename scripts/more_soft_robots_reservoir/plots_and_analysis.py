@@ -18,7 +18,8 @@ import sys
 import time
 from scipy.stats import mannwhitneyu
 
-from soromox.rendering import MatplotlibRenderer, OpenCVPlanarRenderer, Open3DRenderer, RendererColorConfig, BackboneColorConfig, ViserRenderer
+from soromox.rendering import ViserRenderer
+from soromox.rendering.config import GeometryConfig, RendererConfig
 
 curr_folder = Path(__file__).parent # current folder
 sys.path.append(str(curr_folder.parent)) # scripts folder
@@ -833,15 +834,8 @@ if False:
     # with GUI controls for playback, speed, and looping.
     # Plotly plots are automatically added to the GUI at the end of the sidebar
     import plotly.graph_objects as go
-    from soromox.rendering import (
-        BackboneColorConfig,
-        MatplotlibRenderer,
-        Open3DRenderer,
-        RendererColorConfig,
-        ViserRenderer,
-        get_color_theme,
-    )
-    from soromox.systems import PCS
+    from soromox.systems import LinkSpec, PCS
+    from soromox.systems.pcs import PCSStructure
 
     # ── accorcia sequenze ──────────────────────────────────────────────────────────
     print()
@@ -852,12 +846,31 @@ if False:
     print('simulation time: ', time_ts[0],time_ts[-1],time_ts.shape)
 
     # ── build robot ────────────────────────────────────────────────────────────────
-    robot = PCS(
-        num_segments=2,
-        params=parameters_single,
+    damping = parameters_single["D"]
+    links = [
+        LinkSpec.circular(
+            length=float(parameters_single["L"][index]),
+            radius=float(parameters_single["r"][index]),
+            density=float(parameters_single["rho"][index]),
+            reference_strain=[0.0, 0.0, 0.0, 0.0, 0.0, 1.0],
+            young_modulus=float(parameters_single["E"][index]),
+            shear_modulus=float(parameters_single["G"][index]),
+            damping=damping[6 * index : 6 * index + 6, 6 * index : 6 * index + 6],
+        )
+        for index in range(2)
+    ]
+    robot = PCS.from_links(
+        links,
+        structure=PCSStructure(num_gauss_points=5),
+        gravity=parameters_single["g"],
     )
 
-    viser_renderer = ViserRenderer(robot, num_points=80, backbone_style="discrete")
+    viser_renderer = ViserRenderer(
+        robot,
+        config=RendererConfig(
+            geometry=GeometryConfig(num_points=80, backbone_style="discrete")
+        ),
+    )
 
     # ── Increase strains for better animations (shape of q_ts is (n_steps, n_robots, 3*n_pcs))
     print(q_ts.shape)
@@ -880,8 +893,6 @@ if False:
         .at[:, :, 10].set(q_ts[:, :, 5])
     )
     q_new = jnp.transpose(q_new, axes=(1,0,2)) # (n_steps, n_robots, n_dofs) -> (n_robots, n_steps, n_dofs)
-    render_color = RendererColorConfig()
-
     # ── Animation ──────────────────────────────────────────────────────────────────
     viser_renderer.render_sequence(
         time_ts,

@@ -21,7 +21,6 @@ from tqdm import tqdm
 import time
 import sys
 
-from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 # Folders
@@ -62,7 +61,7 @@ for run, seed in enumerate(seeds):
     simulation_duration = 100 # seconds of example simulation to perform. Choose simulation_duration=jnp.inf for the full simulation in ron_evolution_example
 
     # Reference RON reservoir
-    source_task = 'ADIAC' # 'sMNIST', 'MG', 'lorenz', 'Adiac'
+    source_task = 'Adiac' # 'sMNIST', 'MG', 'lorenz', 'Adiac'
     target_task = 'sMNIST' # 'sMNIST', 'MG', 'lorenz', 'Adiac'
     reservoir_dim = 6
 

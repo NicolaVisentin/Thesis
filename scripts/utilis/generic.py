@@ -16,8 +16,8 @@ import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
 from matplotlib.widgets import Slider
 
-from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.pcs import PlanarPCS
+from .robots_system import PlanarPCSNoCoriolis
 
 
 # =====================================================
@@ -455,14 +455,14 @@ def init_A_svd(
 
 # Functions for plotting planar PCS robot
 def draw_robot(
-        robot: PlanarPCS_simple | PlanarPCS, 
+        robot: PlanarPCSNoCoriolis | PlanarPCS,
         q: Array, 
         num_points: int = 50
 ):
     L_max = jnp.sum(robot.L)
     s_ps = jnp.linspace(0, L_max, num_points)
 
-    chi_ps = robot.forward_kinematics_batched(q, s_ps)  # (N,3)
+    chi_ps = robot.forward_kinematics_abscissa_batched(q, s_ps)  # (N,3)
     curve = jnp.array(chi_ps[:, 1:], dtype=jnp.float64) # (N,2)
     pos_tip = curve[-1]                                 # [x_tip, y_tip]
 
@@ -470,7 +470,7 @@ def draw_robot(
 
 
 def animate_robot_matplotlib(
-    robot: PlanarPCS_simple | PlanarPCS,
+    robot: PlanarPCSNoCoriolis | PlanarPCS,
     t_list: Array,  # shape (T,)
     q_list: Array,  # shape (T, DOF)
     target: Array = None,
@@ -500,8 +500,9 @@ def animate_robot_matplotlib(
         target = np.interp(t_new, t_old, target)
 
     def draw_base(ax, robot, L=robot.L[0] / 2):
-        angle1 = robot.th0 - jnp.pi / 2
-        angle2 = robot.th0 + jnp.pi / 2
+        base_angle = robot.fixed_base_pose[0]
+        angle1 = base_angle - jnp.pi / 2
+        angle2 = base_angle + jnp.pi / 2
         x1, y1 = L * jnp.cos(angle1), L * jnp.sin(angle1)
         x2, y2 = L * jnp.cos(angle2), L * jnp.sin(angle2)
         ax.plot([x1, x2], [y1, y2], color="black", linestyle="-", linewidth=2)
@@ -764,7 +765,7 @@ def spearman_report(x, y, permutation=True, side='less', print_result=False):
             'two-sided': 'two-sided (H1: rho != 0)',
         }
         method = 'permutation test' if permutation else 'asymptotic approximation'
-        print('SPEARMAN CORRELATION TEST')
+        print(f'\nSPEARMAN CORRELATION TEST')
         print(f'  Number of samples: {n_samples}')
         print(f'  Type of test:      {side_desc[side]}')
         print(f'  p-value method:    {method}')

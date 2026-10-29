@@ -5,7 +5,6 @@ from typing import Callable, Tuple
 from diffrax import Euler, Tsit5, ConstantStepSize, LinearInterpolation
 from functools import partial
 
-from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 

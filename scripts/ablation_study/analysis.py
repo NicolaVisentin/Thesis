@@ -19,7 +19,6 @@ from diffrax import Tsit5, ConstantStepSize
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator
 
-from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 curr_folder = Path(__file__).parent      # current folder
@@ -77,11 +76,7 @@ parameters = {
     "G": jnp.ones(n_pcs),
     "D": jnp.eye(3*n_pcs)
 }
-robot = PlanarPCS_simple(
-    num_segments = n_pcs,
-    params = parameters,
-    order_gauss = 5
-)
+robot = build_planar_pcs(parameters, num_gauss_points=5)
 
 key, subkey = jax.random.split(key)
 mlp_controller = MLP(key=subkey, layer_sizes=[2*3*n_pcs, 64, 64, 3*n_pcs])
@@ -156,7 +151,7 @@ if do_ref_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_REF_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -252,7 +247,7 @@ if do_ref_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -274,7 +269,7 @@ if do_ref_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -660,7 +655,7 @@ if do_nopcs_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_NOPCS_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -756,7 +751,7 @@ if do_nopcs_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -778,7 +773,7 @@ if do_nopcs_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -1165,7 +1160,7 @@ if do_nomap_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_NOMAP_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -1261,7 +1256,7 @@ if do_nomap_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -1283,7 +1278,7 @@ if do_nomap_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -1669,7 +1664,7 @@ if do_diagmap_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_DIAGMAP_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -1765,7 +1760,7 @@ if do_diagmap_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -1787,7 +1782,7 @@ if do_diagmap_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -2173,7 +2168,7 @@ if do_nomlp_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_NOMLP_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -2269,7 +2264,7 @@ if do_nomlp_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -2291,7 +2286,7 @@ if do_nomlp_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -2678,7 +2673,7 @@ if do_regulmlp_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_REGULMLP_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -2776,7 +2771,7 @@ if do_regulmlp_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -2798,7 +2793,7 @@ if do_regulmlp_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -3187,7 +3182,7 @@ if do_regulmap_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_REGULMAP_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -3285,7 +3280,7 @@ if do_regulmap_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -3307,7 +3302,7 @@ if do_regulmap_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -3696,7 +3691,7 @@ if do_regulall_case or do_overall:
     print('Computing mapping effort (after training)')
     SAMPLES_REGULALL_mapping_effort_after = []
     for i in range(n_samples):
-        robot_i = robot.update_params({
+        robot_i = update_planar_pcs(robot, {
             "L": jnp.array(all_robot_params_after["L_after"][i]), 
             "D": jnp.diag(all_robot_params_after["D_after"][i]),
             "r": jnp.array(all_robot_params_after["r_after"][i]),
@@ -3794,7 +3789,7 @@ if do_regulall_case or do_overall:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -3816,7 +3811,7 @@ if do_regulall_case or do_overall:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -4288,7 +4283,7 @@ if do_tanhQ_svd_case:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -4310,7 +4305,7 @@ if do_tanhQ_svd_case:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])
@@ -4760,7 +4755,7 @@ if do_coupled_case:
     rho_before = jnp.array(robot_data_before["rho_before"][0])
     E_before = jnp.array(robot_data_before["E_before"][0])
     G_before = jnp.array(robot_data_before["G_before"][0])
-    robot_before = robot.update_params({"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
+    robot_before = update_planar_pcs(robot, {"L": L_before, "D": jnp.diag(D_before), "r": r_before, "rho": rho_before, "E": E_before, "G": G_before})
 
     map_data_before = onp.load(data_folder/test_case/f'{prefix}_all_data_map_before.npz')
     A_before = jnp.array(map_data_before["A_before"][0])
@@ -4782,7 +4777,7 @@ if do_coupled_case:
     rho_after = jnp.array(robot_data_after["rho_after"][0])
     E_after = jnp.array(robot_data_after["E_after"][0])
     G_after = jnp.array(robot_data_after["G_after"][0])
-    robot_after = robot.update_params({"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
+    robot_after = update_planar_pcs(robot, {"L": L_after, "D": jnp.diag(D_after), "r": r_after, "rho": rho_after, "E": E_after, "G": G_after})
 
     map_data_after = onp.load(data_folder/test_case/f'{prefix}_all_data_map_after.npz')
     A_after = jnp.array(map_data_after["A_after"][0])

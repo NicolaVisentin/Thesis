@@ -21,7 +21,6 @@ from tqdm import tqdm
 import time
 import sys
 
-from soromox.systems.my_systems import PlanarPCS_simple
 from soromox.systems.system_state import SystemState
 
 # Folders
