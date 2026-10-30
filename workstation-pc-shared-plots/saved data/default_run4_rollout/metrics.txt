@@ -1,0 +1,17 @@
+DATASET
+   Dataset:                /home/nicolavisentin/codes/datasets/soft robot optimization/MG_RON_N6/dataset_trajectories_N6.npz
+   Number of trajectories: 128
+   Number of stepsizes:    16
+
+SETUP
+   Latent dimension: 6
+   Number of robots: 1
+   PCS segments:     2
+   Mapping:          svd
+   Controller:       mlp (fb) + mlp (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               4078.1815085619455
+   Test position RMSE:                          0.7133033411165874
+   Test velocity RMSE:                          1.3412268739878128
+   Test position rollout NRMSE:                 3.7846747302038293
