@@ -10,9 +10,9 @@ plots and videos/*
 saved data/*
 !saved data/.gitkeep
 
-#datasets/*
-#!datasets/.gitkeep
-#!datasets/soft robot optimization
+datasets/*
+!datasets/.gitkeep
+!datasets/soft robot optimization
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
