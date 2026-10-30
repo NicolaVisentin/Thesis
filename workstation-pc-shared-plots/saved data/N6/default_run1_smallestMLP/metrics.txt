@@ -1,0 +1,14 @@
+SETUP
+   Dataset:          MG_RON_N6/dataset_m1e5_N6
+   Latent dimension: 6
+   Number of robots: 1
+   PCS segments:     2
+   Mapping:          svd
+   Controller:       smallest_mlp (fb) + linear (ff)
+
+METRICS AFTER OPTIMIZATION
+   Elapsed time for optimization:               2767.5878075030632
+   Final test RMS error:                        0.1795906904444433
+   Final test RMS power:                        0.007049854059302654 (fb: 0.001977858679881285, ff: 0.006186802006727775)
+   Final test RMSE reconstruction (y, yd, ydd): (1.2448069427017415e-14, 3.0056719227698284e-16, 1.650420322899482e-15)
+   Rollout NRMSE (between y(t) and y_hat(t)):   0.4094436415700335
