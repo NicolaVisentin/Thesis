@@ -1966,7 +1966,11 @@ if False:
 # Ranges of pretrained robot parameters
 if True:
     robot_parameters_folder = data_folder/'more_soft_robots_optimization'
-    robot_parameter_files = sorted(robot_parameters_folder.rglob('optimal_data_robot.npz'))
+    robot_parameter_files = sorted(
+        path
+        for path in robot_parameters_folder.rglob('optimal_data_robot.npz')
+        if path.parent.name in {f'default_run{run}' for run in range(1, 5)}
+    )
     robot_parameter_ranges = {}
     robot_parameter_values = {}
     robot_parameter_segment_ratios = {}
@@ -2109,6 +2113,8 @@ if True:
             name for name in parameter_labels if name in robot_parameter_values
         ]
         parameter_names.extend(sorted(set(robot_parameter_values) - set(parameter_labels)))
+        use_log_scale_first_figure = True  # Set True to use logarithmic x-axes.
+        use_log_scale_second_figure = True  # Set True to use logarithmic y-axes.
         n_rows, n_cols = 4, 2
         fig, axs = plt.subplots(
             n_rows,
@@ -2118,25 +2124,30 @@ if True:
         )
         for ax, parameter_name in zip(axs.flat, parameter_names):
             values = np.concatenate(robot_parameter_values[parameter_name])
-            if np.all(values > 0):
-                value_min = float(np.min(values))
-                value_max = float(np.max(values))
-                if value_min == value_max:
-                    value_min /= np.sqrt(10)
-                    value_max *= np.sqrt(10)
-                initial_min, initial_max = initial_parameter_ranges[parameter_name]
-                value_min = min(value_min, initial_min)
-                value_max = max(value_max, initial_max)
-                bins = np.geomspace(value_min, value_max, 31)
-                ax.hist(values, bins=bins, color='#1f77b4', alpha=0.8)
+            initial_min, initial_max = initial_parameter_ranges[parameter_name]
+            value_min = min(float(np.min(values)), initial_min)
+            value_max = max(float(np.max(values)), initial_max)
+            if value_min == value_max:
+                value_min -= 0.5
+                value_max += 0.5
+            use_log_scale = use_log_scale_first_figure and value_min > 0
+            if use_log_scale_first_figure and not use_log_scale:
+                print(
+                    f'Using linear x-axis for {parameter_name}: '
+                    'log scale requires positive values and bounds.'
+                )
+            bins = (
+                np.geomspace(value_min, value_max, 31)
+                if use_log_scale
+                else np.linspace(value_min, value_max, 31)
+            )
+            ax.hist(values, bins=bins, color='#1f77b4', alpha=0.8)
+            if use_log_scale:
                 ax.set_xscale('log')
-            else:
-                ax.hist(values, bins=30, color='#1f77b4', alpha=0.8)
             title, xlabel = parameter_labels.get(
                 parameter_name,
                 (parameter_name, 'Value'),
             )
-            initial_min, initial_max = initial_parameter_ranges[parameter_name]
             initial_range = ax.axvspan(
                 initial_min,
                 initial_max,
@@ -2160,6 +2171,15 @@ if True:
             name for name in parameter_names if name in robot_parameter_segment_ratios
         ]
         if segment_parameter_names:
+            print('Maximum within-robot segment ratio by parameter:')
+            for parameter_name in segment_parameter_names:
+                max_ratio = max(robot_parameter_segment_ratios[parameter_name])
+                parameter_title = parameter_labels.get(
+                    parameter_name,
+                    (parameter_name, ''),
+                )[0]
+                print(f'  {parameter_title}: {max_ratio:.6g}')
+
             fig_ratios, ratio_axes = plt.subplots(
                 2,
                 4,
@@ -2169,6 +2189,16 @@ if True:
             jitter_rng = np.random.default_rng(0)
             for ax, parameter_name in zip(ratio_axes.flat, segment_parameter_names):
                 ratios = np.asarray(robot_parameter_segment_ratios[parameter_name])
+                ratio_min = float(np.min(ratios))
+                ratio_max = float(np.max(ratios))
+                ratio_y_min = 1.0
+                if use_log_scale_second_figure:
+                    ratio_y_max = max(1.0, ratio_max) * 1.1
+                else:
+                    ratio_span = max(1.0, ratio_max) - 1.0
+                    ratio_padding = 0.05 * ratio_span if ratio_span > 0 else 0.1
+                    ratio_y_max = max(1.0, ratio_max) + ratio_padding
+
                 x_values = 1 + jitter_rng.uniform(-0.12, 0.12, size=ratios.size)
                 ax.boxplot(
                     ratios,
@@ -2184,9 +2214,9 @@ if True:
                     color='#1f77b4',
                     edgecolors='none',
                 )
-                ax.axhline(1, color='#d62728', linestyle='--', linewidth=1)
-                ax.set_yscale('log')
-                ax.set_ylim(bottom=0.9)
+                if use_log_scale_second_figure:
+                    ax.set_yscale('log')
+                ax.set_ylim(ratio_y_min, ratio_y_max)
                 ax.set_xlim(0.5, 1.5)
                 ax.set_xticks([])
                 ax.set_title(parameter_labels.get(parameter_name, (parameter_name, ''))[0])
