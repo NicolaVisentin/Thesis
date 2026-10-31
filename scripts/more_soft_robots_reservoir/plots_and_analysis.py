@@ -16,7 +16,9 @@ import jax.numpy as jnp
 import joblib
 import sys
 import time
+from diffrax import ConstantStepSize, Euler, LinearInterpolation
 from scipy.stats import mannwhitneyu
+from soromox.systems.system_state import SystemState
 
 from soromox.rendering import ViserRenderer
 from soromox.rendering.config import GeometryConfig, RendererConfig
@@ -1068,7 +1070,7 @@ if False:
 
 
 ### FLOPs count
-if True:
+if False:
     # FLOPs count laws
     n_y = np.arange(6, 500)
     
@@ -1727,5 +1729,235 @@ if False:
                 ax.grid(alpha=0.3)
                 ax.legend(frameon=False)
                 fig.tight_layout()
+
+    plt.show()
+
+
+# Rollout mismatch
+if True:
+    # Select model
+    model_relative_path = Path('MG/N6/default_run1')
+    reference_relative_path = Path('MG_RON_N6/RON_evolution_N6.npz')
+    map_type = 'linear' # 'linear', 'encoder-decoder', 'bijective', 'none'
+    controller_type = 'fb+ff' # if 'unique': Tau = Tau_tot(Z,u). If 'fb+ff': Tau = Tau_fb(Z) + Tau_ff(u). If 'ff': Tau = Tau_ff(u) (randomly initialized tanh(V*u+d)) !!! If 'unique', the controller tau_tot is defined in fb_controller_type
+    fb_controller_type = 'mlp' # 'linear_simple', 'linear_complete', 'tanh_simple', 'tanh_complete', 'mlp', 'small_mlp', 'smallest_mlp'
+    ff_controller_type = 'mlp' # 'linear', 'tanh', 'mlp'
+    dt_sim = 1e-4
+    seed = 123
+
+    # Load data
+    load_model_path = data_folder/'more_soft_robots_optimization'/model_relative_path
+    reference_path = dataset_folder/'soft robot optimization'/reference_relative_path
+    if not load_model_path.is_dir():
+        raise FileNotFoundError(f'Pretrained architecture not found: {load_model_path}')
+    if not reference_path.is_file():
+        raise FileNotFoundError(f'Reference trajectory not found: {reference_path}')
+
+    with np.load(reference_path) as reference_data:
+        time_ref = np.asarray(reference_data['time'], dtype=np.float64)
+        y_ref = np.asarray(reference_data['y'], dtype=np.float64)
+        yd_ref = np.asarray(reference_data['yd'], dtype=np.float64)
+        u_ref = np.asarray(reference_data['u'], dtype=np.float64)
+
+    if u_ref.ndim == 1:
+        u_ref = u_ref[:, None]
+
+    n_min = min(len(time_ref), len(y_ref), len(yd_ref), len(u_ref))
+    if not (len(time_ref) == len(y_ref) == len(yd_ref) == len(u_ref)):
+        print(f'Warning: trimming to {n_min} samples '
+            f'(time={len(time_ref)}, y={len(y_ref)}, yd={len(yd_ref)}, u={len(u_ref)})')
+    time_ref, y_ref, yd_ref, u_ref = (a[:n_min] for a in (time_ref, y_ref, yd_ref, u_ref))
+
+    if (
+        time_ref.ndim != 1
+        or y_ref.ndim != 2
+        or yd_ref.shape != y_ref.shape
+        or u_ref.ndim != 2
+        or len(time_ref) != len(y_ref)
+        or len(time_ref) != len(u_ref)
+        or len(time_ref) < 2
+        or np.any(np.diff(time_ref) <= 0)
+    ):
+        raise ValueError('Reference time, state, and input arrays have incompatible shapes.')
+
+    # Build the saved reservoir
+    # ...robots
+    with np.load(load_model_path/'optimal_data_robot.npz') as data_robot:
+        L = jnp.asarray(data_robot['L'], dtype=jnp.float64)
+        D = jnp.asarray(data_robot['D'], dtype=jnp.float64)
+        r = jnp.asarray(data_robot['r'], dtype=jnp.float64)
+        rho = jnp.asarray(data_robot['rho'], dtype=jnp.float64)
+        E = jnp.asarray(data_robot['E'], dtype=jnp.float64)
+        G = jnp.asarray(data_robot['G'], dtype=jnp.float64)
+    if L.ndim == 1:
+        L, D, r, rho, E, G = (
+            jnp.expand_dims(value, axis=0) for value in (L, D, r, rho, E, G)
+        )
+    n_robots, n_pcs = L.shape
+    pcs_parameters = {
+        'th0': jnp.tile(jnp.array(jnp.pi/2), n_robots),
+        'L': L,
+        'r': r,
+        'rho': rho,
+        'g': jnp.tile(jnp.array([0.0, 9.81]), (n_robots, 1)),
+        'E': E,
+        'G': G,
+        'D': D,
+    }
+    robots_system = MultiPcsSystem(
+        n_robots=n_robots,
+        n_pcs=n_pcs,
+        params_robots=pcs_parameters,
+    )
+
+    # ...map
+    key = jax.random.key(seed)
+    match map_type:
+        case 'linear':
+            with np.load(load_model_path/'optimal_data_map.npz') as data_map:
+                A = jnp.asarray(data_map['A'], dtype=jnp.float64)
+                c = jnp.asarray(data_map['c'], dtype=jnp.float64)
+            if A.shape != (y_ref.shape[1], y_ref.shape[1]) or c.shape != (y_ref.shape[1],):
+                raise ValueError('Saved linear map dimensions do not match the reference state dimension.')
+
+            def map_direct(y, yd):
+                return A @ y + c, A @ yd
+
+            def map_inverse(q, qd):
+                return (
+                    jnp.linalg.solve(A, (q - c).T).T,
+                    jnp.linalg.solve(A, qd.T).T,
+                )
+        case _:
+            raise ValueError(f'Unsupported map type for this rollout block: {map_type}')
+
+    # ...controllers
+    def load_saved_mlp(filename, last_layer='linear'):
+        loader = MLP(key, [1, 1])
+        params = loader.load_params(load_model_path/filename)
+        layer_sizes = [params[0][0].shape[1]]
+        layer_sizes.extend(weight.shape[0] for weight, _ in params)
+        return MLP(key, layer_sizes, last_layer=last_layer).update_params(params), params
+
+    match controller_type:
+        case 'fb+ff':
+            fb_controller, fb_params = load_saved_mlp(
+                'optimal_data_fb_controller.npz',
+                last_layer='tanh' if fb_controller_type in ('tanh_simple', 'tanh_complete') else 'linear',
+            )
+            ff_controller, ff_params = load_saved_mlp(
+                'optimal_data_ff_controller.npz',
+                last_layer='tanh' if ff_controller_type == 'tanh' else 'linear',
+            )
+            n_dof = 3*n_pcs*n_robots
+            n_fb_input = fb_params[0][0].shape[1]
+            if n_fb_input not in (n_dof, 2*n_dof):
+                raise ValueError(
+                    f'Feedback controller input dimension {n_fb_input} does not match '
+                    f'the saved robot state dimension {n_dof}.'
+                )
+            if ff_params[0][0].shape[1] != u_ref.shape[1]:
+                raise ValueError(
+                    f'Feedforward input dimension {ff_params[0][0].shape[1]} does not match '
+                    f'the reference input dimension {u_ref.shape[1]}.'
+                )
+            if fb_params[-1][0].shape[0] != n_dof or ff_params[-1][0].shape[0] != n_dof:
+                raise ValueError('Saved controller output dimensions do not match the robot actuation dimension.')
+
+            def controller(z, u):
+                fb_input = z[:n_dof] if n_fb_input == n_dof else z
+                return fb_controller(fb_input) + ff_controller(u)
+        case _:
+            raise ValueError(
+                f'Unsupported controller type for this rollout block: {controller_type}'
+            )
+
+    # Simulate the system
+    y_ref_jax = jnp.asarray(y_ref, dtype=jnp.float64)
+    yd_ref_jax = jnp.asarray(yd_ref, dtype=jnp.float64)
+    u_ref_jax = jnp.asarray(u_ref, dtype=jnp.float64)
+    q0, qd0 = map_direct(y_ref_jax[0], yd_ref_jax[0])
+    initial_state = SystemState(
+        t=jnp.asarray(time_ref[0], dtype=jnp.float64),
+        y=jnp.concatenate((q0, qd0)),
+    )
+
+    input_interpolation = LinearInterpolation(
+        ts=jnp.asarray(time_ref, dtype=jnp.float64),
+        ys=u_ref_jax,
+    )
+
+    def time_varying_controller(system_state):
+        u_t = input_interpolation.evaluate(system_state.t)
+        return controller(system_state.y, u_t), None
+
+    rollout = robots_system.rollout_closed_loop_to(
+        initial_state=initial_state,
+        controller=jax.jit(time_varying_controller),
+        t1=jnp.asarray(time_ref[-1], dtype=jnp.float64),
+        solver_dt=dt_sim,
+        save_ts=jnp.asarray(time_ref, dtype=jnp.float64),
+        solver=Euler(),
+        stepsize_controller=ConstantStepSize(),
+        max_steps=int(1e8),
+    )
+    q_sim, qd_sim = jnp.split(rollout.y, 2, axis=1)
+    y_sim, _ = map_inverse(q_sim, qd_sim)
+    y_sim = np.asarray(y_sim)
+    if y_sim.shape != y_ref.shape or not np.all(np.isfinite(y_sim)):
+        raise FloatingPointError('Simulated reservoir trajectory has invalid dimensions or non-finite states.')
+
+    # Compute istantaneous Normalized Error NE(t)
+    reference_mean = np.mean(y_ref, axis=0)
+    reference_std = np.sqrt(np.mean(np.sum((y_ref - reference_mean)**2, axis=1)))
+    if not np.isfinite(reference_std) or reference_std == 0:
+        raise ValueError('Reference trajectory has zero or non-finite overall standard deviation.')
+    normalized_error = np.linalg.norm(y_ref - y_sim, axis=1) / reference_std
+
+    print(
+        f'Long rollout: {model_relative_path} against {reference_relative_path}\n'
+        f'Duration: {time_ref[-1] - time_ref[0]:.3f} s ({len(time_ref)} saved samples)\n'
+        f'NE: initial={normalized_error[0]:.6g}, '
+        f'final={normalized_error[-1]:.6g}, '
+        f'mean={np.mean(normalized_error):.6g}, '
+        f'max={np.max(normalized_error):.6g}'
+    )
+
+    # Plot NE vs time
+    output_name = '_'.join(model_relative_path.parts)
+
+    fig, ax = plt.subplots(figsize=(7, 4))
+    ax.plot(time_ref, normalized_error, color='#1f77b4', linewidth=1.5)
+    ax.set_xlabel('Time [s]')
+    ax.set_ylabel('NE')
+    ax.set_title(f'Long-rollout drift: {output_name}')
+    ax.grid(True, alpha=0.4)
+    fig.tight_layout()
+
+    # Plot reservoir trajectories vs reference
+    n_states = y_ref.shape[1]
+    n_cols = min(3, n_states)
+    n_rows = int(np.ceil(n_states / n_cols))
+    fig_trajectory, axs = plt.subplots(
+        n_rows,
+        n_cols,
+        figsize=(5*n_cols, 2.8*n_rows),
+        squeeze=False,
+        sharex=True,
+    )
+    for state_index, ax in enumerate(axs.flat):
+        if state_index >= n_states:
+            ax.set_visible(False)
+            continue
+        ax.plot(time_ref, y_ref[:, state_index], 'k--', linewidth=1.2, label='Reference')
+        ax.plot(time_ref, y_sim[:, state_index], color='#1f77b4', linewidth=1.2, label='Reservoir')
+        ax.set_ylabel(f'$y_{state_index + 1}$')
+        ax.grid(True, alpha=0.4)
+    for ax in axs[-1, :]:
+        if ax.get_visible():
+            ax.set_xlabel('Time [s]')
+    axs[0, 0].legend()
+    fig_trajectory.suptitle(f'Reservoir trajectory vs reference: {output_name}')
+    fig_trajectory.tight_layout()
 
     plt.show()
