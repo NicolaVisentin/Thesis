@@ -1734,7 +1734,7 @@ if False:
 
 
 # Rollout mismatch
-if True:
+if False:
     # Select model
     model_relative_path = Path('MG/N6/default_run1')
     reference_relative_path = Path('MG_RON_N6/RON_evolution_N6.npz')
@@ -1961,3 +1961,241 @@ if True:
     fig_trajectory.tight_layout()
 
     plt.show()
+
+
+# Ranges of pretrained robot parameters
+if True:
+    robot_parameters_folder = data_folder/'more_soft_robots_optimization'
+    robot_parameter_files = sorted(robot_parameters_folder.rglob('optimal_data_robot.npz'))
+    robot_parameter_ranges = {}
+    robot_parameter_values = {}
+    robot_parameter_segment_ratios = {}
+    loaded_robot_archives = 0
+
+    def collect_segment_ratios(parameter_name, values_by_robot):
+        values_by_robot = np.asarray(values_by_robot)
+        if values_by_robot.ndim == 1:
+            values_by_robot = values_by_robot[None, :]
+        elif values_by_robot.ndim > 2:
+            values_by_robot = values_by_robot.reshape(values_by_robot.shape[0], -1)
+
+        for segment_values in values_by_robot:
+            finite_values = segment_values[np.isfinite(segment_values)]
+            if finite_values.size < 2:
+                continue
+            if np.any(finite_values <= 0):
+                print(
+                    f'Skipping segment ratio for {parameter_name}: '
+                    'ratio requires positive values.'
+                )
+                continue
+            robot_parameter_segment_ratios.setdefault(parameter_name, []).append(
+                float(np.max(finite_values) / np.min(finite_values))
+            )
+
+    for robot_parameter_file in robot_parameter_files:
+        try:
+            with np.load(robot_parameter_file) as robot_parameters:
+                loaded_robot_archives += 1
+                for parameter_name in robot_parameters.files:
+                    if parameter_name == 'D':
+                        damping_matrix = np.asarray(robot_parameters[parameter_name])
+                        if (
+                            damping_matrix.ndim < 2
+                            or damping_matrix.shape[-2] != damping_matrix.shape[-1]
+                        ):
+                            print(f'Skipping invalid damping matrix in {robot_parameter_file}')
+                            continue
+                        damping_diagonal = np.diagonal(
+                            damping_matrix,
+                            axis1=-2,
+                            axis2=-1,
+                        )
+                        if damping_diagonal.ndim == 1:
+                            damping_diagonal = damping_diagonal[None, :]
+                        if damping_diagonal.shape[-1] % 3 != 0:
+                            print(
+                                f'Skipping damping matrix with unexpected diagonal size '
+                                f'in {robot_parameter_file}'
+                            )
+                            continue
+                        damping_coefficients = damping_diagonal.reshape(
+                            damping_diagonal.shape[0],
+                            -1,
+                            3,
+                        )
+                        for coefficient_index in range(3):
+                            collect_segment_ratios(
+                                f'd{coefficient_index + 1}',
+                                damping_coefficients[:, :, coefficient_index],
+                            )
+                        damping_coefficients = damping_coefficients.reshape(-1, 3)
+                        named_values = (
+                            (f'd{coefficient_index + 1}', damping_coefficients[:, coefficient_index])
+                            for coefficient_index in range(3)
+                        )
+                    else:
+                        parameter_values = np.asarray(robot_parameters[parameter_name])
+                        if parameter_name in ('L', 'r', 'rho', 'E', 'G'):
+                            collect_segment_ratios(parameter_name, parameter_values)
+                        named_values = (
+                            (parameter_name, parameter_values),
+                        )
+
+                    for reported_name, values in named_values:
+                        if not np.issubdtype(values.dtype, np.number):
+                            print(f'Skipping non-numeric parameter {reported_name} in {robot_parameter_file}')
+                            continue
+
+                        finite_values = values[np.isfinite(values)]
+                        if finite_values.size == 0:
+                            continue
+
+                        robot_parameter_values.setdefault(reported_name, []).append(finite_values)
+                        parameter_min = float(np.min(finite_values))
+                        parameter_max = float(np.max(finite_values))
+                        if reported_name not in robot_parameter_ranges:
+                            robot_parameter_ranges[reported_name] = [
+                                parameter_min,
+                                parameter_max,
+                                finite_values.size,
+                                1,
+                            ]
+                        else:
+                            parameter_range = robot_parameter_ranges[reported_name]
+                            parameter_range[0] = min(parameter_range[0], parameter_min)
+                            parameter_range[1] = max(parameter_range[1], parameter_max)
+                            parameter_range[2] += finite_values.size
+                            parameter_range[3] += 1
+        except (OSError, ValueError, EOFError) as error:
+            print(f'Skipping unreadable robot parameter archive {robot_parameter_file}: {error}')
+
+    print(
+        f'Robot parameter ranges from {loaded_robot_archives} readable archives '
+        f'(found {len(robot_parameter_files)} archive files):'
+    )
+    if not robot_parameter_ranges:
+        print('No finite robot parameter values found.')
+    else:
+        for parameter_name, (parameter_min, parameter_max, value_count, experiment_count) in sorted(
+            robot_parameter_ranges.items()
+        ):
+            print(
+                f'  {parameter_name}: [{parameter_min:.6g}, {parameter_max:.6g}] '
+                f'({value_count} finite values from {experiment_count} experiments)'
+            )
+
+        parameter_labels = {
+            'L': ('Length', 'L [m]'),
+            'd1': ('Bending damping', r'$d_{\mathrm{be}}$ [Pa s]'),
+            'd2': ('Axial damping', r'$d_{\mathrm{ax}}$ [Pa s]'),
+            'd3': ('Shear damping', r'$d_{\mathrm{sh}}$ [Pa s]'),
+            'E': ('Elastic modulus', 'E [Pa]'),
+            'G': ('Shear modulus', 'G [Pa]'),
+            'r': ('Radius', 'r [m]'),
+            'rho': ('Density', r'$\rho$ [kg/m$^3$]'),
+        }
+        initial_parameter_ranges = {
+            'L': (1e-2, 8e-1),
+            'd1': (5e-7, 5e-5),
+            'd2': (5e-4, 5e-2),
+            'd3': (5e-4, 5e-2),
+            'r': (5e-3, 7e-2),
+            'rho': (900, 1200),
+            'E': (1500, 2500),
+            'G': (700, 1300),
+        }
+        parameter_names = [
+            name for name in parameter_labels if name in robot_parameter_values
+        ]
+        parameter_names.extend(sorted(set(robot_parameter_values) - set(parameter_labels)))
+        n_rows, n_cols = 4, 2
+        fig, axs = plt.subplots(
+            n_rows,
+            n_cols,
+            figsize=(5*n_cols, 3*n_rows),
+            squeeze=False,
+        )
+        for ax, parameter_name in zip(axs.flat, parameter_names):
+            values = np.concatenate(robot_parameter_values[parameter_name])
+            if np.all(values > 0):
+                value_min = float(np.min(values))
+                value_max = float(np.max(values))
+                if value_min == value_max:
+                    value_min /= np.sqrt(10)
+                    value_max *= np.sqrt(10)
+                initial_min, initial_max = initial_parameter_ranges[parameter_name]
+                value_min = min(value_min, initial_min)
+                value_max = max(value_max, initial_max)
+                bins = np.geomspace(value_min, value_max, 31)
+                ax.hist(values, bins=bins, color='#1f77b4', alpha=0.8)
+                ax.set_xscale('log')
+            else:
+                ax.hist(values, bins=30, color='#1f77b4', alpha=0.8)
+            title, xlabel = parameter_labels.get(
+                parameter_name,
+                (parameter_name, 'Value'),
+            )
+            initial_min, initial_max = initial_parameter_ranges[parameter_name]
+            initial_range = ax.axvspan(
+                initial_min,
+                initial_max,
+                color='#ff7f0e',
+                alpha=0.2,
+                zorder=0,
+                label='Initial sampling range',
+            )
+            if ax is axs.flat[0]:
+                ax.legend(handles=[initial_range], loc='upper right', fontsize=8)
+            ax.set_title(title)
+            ax.set_xlabel(xlabel)
+            ax.set_ylabel('Count')
+            ax.grid(True, axis='y', alpha=0.3)
+        for ax in axs.flat[len(parameter_names):]:
+            ax.set_visible(False)
+        fig.suptitle('Distributions of pretrained robot parameters')
+        fig.tight_layout()
+
+        segment_parameter_names = [
+            name for name in parameter_names if name in robot_parameter_segment_ratios
+        ]
+        if segment_parameter_names:
+            fig_ratios, ratio_axes = plt.subplots(
+                2,
+                4,
+                figsize=(16, 6),
+                squeeze=False,
+            )
+            jitter_rng = np.random.default_rng(0)
+            for ax, parameter_name in zip(ratio_axes.flat, segment_parameter_names):
+                ratios = np.asarray(robot_parameter_segment_ratios[parameter_name])
+                x_values = 1 + jitter_rng.uniform(-0.12, 0.12, size=ratios.size)
+                ax.boxplot(
+                    ratios,
+                    positions=[1],
+                    widths=0.45,
+                    showfliers=False,
+                )
+                ax.scatter(
+                    x_values,
+                    ratios,
+                    s=10,
+                    alpha=0.35,
+                    color='#1f77b4',
+                    edgecolors='none',
+                )
+                ax.axhline(1, color='#d62728', linestyle='--', linewidth=1)
+                ax.set_yscale('log')
+                ax.set_ylim(bottom=0.9)
+                ax.set_xlim(0.5, 1.5)
+                ax.set_xticks([])
+                ax.set_title(parameter_labels.get(parameter_name, (parameter_name, ''))[0])
+                ax.set_ylabel('Max / min ratio')
+                ax.grid(True, axis='y', alpha=0.3)
+            for ax in ratio_axes.flat[len(segment_parameter_names):]:
+                ax.set_visible(False)
+            fig_ratios.suptitle(
+                'Within-robot parameter variation across PCS segments'
+            )
+            fig_ratios.tight_layout()
+        plt.show()
