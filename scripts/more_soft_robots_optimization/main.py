@@ -370,6 +370,7 @@ for run, seed in enumerate(seeds):
     )
     train_size, n_ron = train_set["y"].shape
     n_input = train_set["u"].shape[1]
+    print(f"Training datapoints: {train_size:,}")
 
 
     # =====================================================

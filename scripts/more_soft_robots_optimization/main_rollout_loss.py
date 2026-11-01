@@ -489,10 +489,13 @@ for run, seed in enumerate(seeds):
     n_ron = train_set["y"].shape[-1]
     n_input = train_set["u"].shape[-1]
     ron_dataset = trajectory_dataset.name
-    print('Train size: ', train_size)
+    train_steps = train_set["y"].shape[1]
+    train_point_count = train_size * train_steps
+    print(f"Training trajectories: {train_size:,}")
+    print(f"Training datapoints (trajectories x steps): {train_point_count:,}")
     print('Val size: ', val_set["y"].shape[0])
     print('Test size: ', test_set["y"].shape[0])
-    print('Number of steps: ', train_set["y"].shape[1])
+    print('Number of steps: ', train_steps)
     
 
     # =====================================================
