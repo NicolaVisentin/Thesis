@@ -49,16 +49,22 @@ plt.rcParams.update({
 })
 
 
-### PRC accuracy vs reservoir dimension (sMNIST)
-if False:
-    # Data
+### PRC accuracy vs reservoir dimension
+if True:
+    marker_sz = '6'
     ny = np.arange(6, 16, 3)
 
+    ##################
+    ##### sMNIST #####
+
+    # Data
     acc_ron = np.array([65.88, 68.66, 70.51, 78.57])
+    acc_esn = np.array([58.52, 63.37, 64.89, 67.30])
     acc_untrained = np.array([43.28, 42.07, 52.63, 44.08])
     acc_part_trained = np.array([59.99, 61.86, 62.68, 60.61])
     acc_trained = np.array([64.03, 66.78, 66.18, 71.30])
-        
+
+    stddev_esn = np.array([1.73, 1.24, 1.13, 1.21])
     stddev_untrained = np.array([7.32, 8.89, 5.43, 12.79])
     stddev_part_trained = np.array([0.83, 1.06, 2.39, 12.16])
     stddev_trained = np.array([1.32, 1.82, 2.41, 0.63])
@@ -66,15 +72,18 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
+    plt.plot(ny, acc_ron, label='Digital RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize=marker_sz) # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.plot(ny, acc_esn, label='Digital ESN', color="#D038FF", linestyle='--', linewidth='1.8', marker='x', markersize=marker_sz) # ESN
+    plt.fill_between(ny, acc_esn-stddev_esn, acc_esn+stddev_esn, color ="#D038FF", alpha=0.15)
+
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize=marker_sz) # unoptimized
     plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize=marker_sz) # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # partially trained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize=marker_sz) # partially trained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -92,17 +101,17 @@ if False:
     #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
     #plt.show()
 
+    #################
+    ##### ADIAC #####
 
-### PRC accuracy vs reservoir dimension (ADIAC)
-if False:
     # Data
-    ny = np.arange(6, 16, 3)
-
     acc_ron = np.array([46.80, 53.20, 57.03, 62.15])
+    acc_esn = np.array([46.55, 51.51, 54.01, 57.95])
     acc_untrained = np.array([30.54, 38.57, 40.30, 45.42])
     acc_part_trained = np.array([39.35, 37.08, 32.92, 32.26])
     acc_trained = np.array([44.58, 51.01, 50.18, 53.10])
-        
+
+    stddev_esn = np.array([2.39, 3.47, 3.85, 2.20])
     stddev_untrained = np.array([3.22, 3.20, 7.30, 16.85])
     stddev_part_trained = np.array([6.41, 16.21, 11.68, 11.18])
     stddev_trained = np.array([1.03, 3.75, 0.68, 2.45])
@@ -110,15 +119,18 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
+    plt.plot(ny, acc_ron, label='Digital RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize=marker_sz) # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.plot(ny, acc_esn, label='Digital ESN', color="#D038FF", linestyle='--', linewidth='1.8', marker='x', markersize=marker_sz) # ESN
+    plt.fill_between(ny, acc_esn-stddev_esn, acc_esn+stddev_esn, color ="#D038FF", alpha=0.15)
+
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize=marker_sz) # unoptimized
     plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize=marker_sz) # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # pretrained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize=marker_sz) # pretrained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -136,17 +148,17 @@ if False:
     #fig.savefig("smnist_scalability.pdf", bbox_inches="tight")
     #plt.show()
 
+    ########################
+    ##### Mackey-Glass #####
 
-### PRC accuracy vs reservoir dimension (Mackey-Glass)
-if False:
     # Data
-    ny = np.arange(6, 16, 3)
-
     acc_ron = np.array([0.513, 0.432, 0.358, 0.309])
+    acc_esn = np.array([0.520, 0.483, 0.435, 0.388])
     acc_untrained = np.array([0.717, 0.744, 0.697, 0.730])
     acc_part_trained = np.array([0.597, 0.582, 0.621, 0.485])
     acc_trained = np.array([0.525, 0.505, 0.435, 0.424])
-        
+
+    stddev_esn = np.array([0.006, 0.056, 0.048, 0.050])
     stddev_untrained = np.array([0.137, 0.065, 0.139, 0.058])
     stddev_part_trained = np.array([0.132, 0.028, 0.020, 0.011])
     stddev_trained = np.array([0.003, 0.016, 0.014, 0.006])
@@ -154,15 +166,18 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
+    plt.plot(ny, acc_ron, label='Digital RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize=marker_sz) # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.plot(ny, acc_esn, label='Digital ESN', color="#D038FF", linestyle='--', linewidth='1.8', marker='x', markersize=marker_sz) # ESN
+    plt.fill_between(ny, acc_esn-stddev_esn, acc_esn+stddev_esn, color ="#D038FF", alpha=0.15)
+
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize=marker_sz) # unoptimized
     plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize=marker_sz) # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # pretrained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize=marker_sz) # pretrained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -180,17 +195,17 @@ if False:
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
     #plt.show()
 
+    ####################
+    ##### Lorenz96 #####
 
-### PRC accuracy vs reservoir dimension (Lorenz96)
-if False:
     # Data
-    ny = np.arange(6, 16, 3)
-
     acc_ron = np.array([0.564, 0.515, 0.417, 0.385])
+    acc_esn = np.array([0.602, 0.529, 0.491, 0.447])
     acc_untrained = np.array([0.700, 0.685, 0.519, 0.680])
     acc_part_trained = np.array([0.662, 0.630, 0.506, 0.575])
     acc_trained = np.array([0.567, 0.522, 0.463, 0.455])
-        
+
+    stddev_esn = np.array([0.030, 0.020, 0.023, 0.015])
     stddev_untrained = np.array([0.104, 0.181, 0.042, 0.211])
     stddev_part_trained = np.array([0.106, 0.118, 0.021, 0.181])
     stddev_trained = np.array([0.002, 0.001, 0.011, 0.013])
@@ -198,15 +213,18 @@ if False:
     # Plot
     fig = plt.figure(figsize=(4.1, 3))
 
-    plt.plot(ny, acc_ron, label='Virtual RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize='8') # RON
+    plt.plot(ny, acc_ron, label='Digital RON', color="#7E7E7E", linestyle='--', linewidth='1.8', marker='^', markersize=marker_sz) # RON
 
-    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize='8') # unoptimized
+    plt.plot(ny, acc_esn, label='Digital ESN', color="#D038FF", linestyle='--', linewidth='1.8', marker='x', markersize=marker_sz) # ESN
+    plt.fill_between(ny, acc_esn-stddev_esn, acc_esn+stddev_esn, color ="#D038FF", alpha=0.15)
+
+    plt.plot(ny, acc_untrained, label='Unoptimized', color="#49C5FF", linestyle='-', linewidth='1.8', marker='s', markersize=marker_sz) # unoptimized
     plt.fill_between(ny, acc_untrained-stddev_untrained, acc_untrained+stddev_untrained, color ="#49C5FF", alpha=0.15)
 
-    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize='8') # partially trained
+    plt.plot(ny, acc_part_trained, label='Partially pretrained', color="#FF9924", linestyle='-', linewidth='1.8', marker='D', markersize=marker_sz) # partially trained
     plt.fill_between(ny, acc_part_trained-stddev_part_trained, acc_part_trained+stddev_part_trained, color ="#FF9924", alpha=0.15)
 
-    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize='8') # prerained
+    plt.plot(ny, acc_trained, label='Pretrained (ours)', color="#10C200FF", linestyle='-', linewidth='1.8', marker='o', markersize=marker_sz) # prerained
     plt.fill_between(ny, acc_trained-stddev_trained, acc_trained+stddev_trained, color ="#10C200FF", alpha=0.15)
 
     plt.grid(True, alpha=0.6)
@@ -224,12 +242,13 @@ if False:
     #fig.savefig("mg_scalability.pdf", bbox_inches="tight")
     #plt.show()
 
-    # Legend in a separate figure
+    #########################
+    ##### Common legend #####
     ax = plt.gca()
     handles, labels = ax.get_legend_handles_labels()
 
     fig_leg = plt.figure(figsize=(9, 0.5))
-    fig_leg.legend(handles, labels, loc='center', ncol=4, frameon=True, fontsize=9)
+    fig_leg.legend(handles, labels, loc='center', ncol=5, frameon=True, fontsize=9)
     plt.show()
 
 
@@ -1964,7 +1983,7 @@ if False:
 
 
 # Ranges of pretrained robot parameters
-if True:
+if False:
     robot_parameters_folder = data_folder/'more_soft_robots_optimization'
     robot_parameter_files = sorted(
         path
