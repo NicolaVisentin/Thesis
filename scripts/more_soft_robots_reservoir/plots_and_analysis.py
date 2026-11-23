@@ -1249,7 +1249,7 @@ if False:
 
 
 # Noise, uncertainties, disturbance experiments
-if True:
+if False:
     ny = np.arange(6, 16, 3)
     font_sizes = {"axis_labels": 17, "titles": 19, "ticks": 16}
 
@@ -1984,7 +1984,7 @@ if False:
 
 
 # Ranges of pretrained robot parameters
-if False:
+if True:
     robot_parameters_folder = data_folder/'more_soft_robots_optimization'
     robot_parameter_files = sorted(
         path
@@ -2135,11 +2135,11 @@ if False:
         parameter_names.extend(sorted(set(robot_parameter_values) - set(parameter_labels)))
         use_log_scale_first_figure = True  # Set True to use logarithmic x-axes.
         use_log_scale_second_figure = True  # Set True to use logarithmic y-axes.
-        n_rows, n_cols = 4, 2
+        n_rows, n_cols = 2, 4
         fig, axs = plt.subplots(
             n_rows,
             n_cols,
-            figsize=(5*n_cols, 3*n_rows),
+            figsize=(3.5*n_cols, 3*n_rows),
             squeeze=False,
         )
         for ax, parameter_name in zip(axs.flat, parameter_names):
@@ -2151,7 +2151,7 @@ if False:
                 value_min -= 0.5
                 value_max += 0.5
             use_log_scale = use_log_scale_first_figure and value_min > 0
-            if use_log_scale_first_figure and not use_log_scale:
+            if use_log_scale_first_figure and value_min <= 0:
                 print(
                     f'Using linear x-axis for {parameter_name}: '
                     'log scale requires positive values and bounds.'
@@ -2174,17 +2174,22 @@ if False:
                 color='#ff7f0e',
                 alpha=0.2,
                 zorder=0,
-                label='Initial sampling range',
+                label='Initial sampling\nrange',
             )
             if ax is axs.flat[0]:
-                ax.legend(handles=[initial_range], loc='upper right', fontsize=8)
-            ax.set_title(title)
-            ax.set_xlabel(xlabel)
-            ax.set_ylabel('Count')
-            ax.grid(True, axis='y', alpha=0.3)
+                ax.legend(handles=[initial_range], loc='upper left', fontsize=10)
+            ax.set_title(title, fontsize=15)
+            ax.set_xlabel(xlabel, fontsize=15)
+            ax.set_ylabel('Count', fontsize=15)
+            if parameter_name in {'E', 'G', 'rho'} and use_log_scale:
+                x_min, x_max = ax.get_xlim()
+                ticks = np.geomspace(x_min, x_max, num=4)
+                ax.xaxis.set_major_locator(ticker.FixedLocator(ticks))
+                ax.xaxis.set_major_formatter(ticker.FormatStrFormatter('%.0f'))
+                ax.xaxis.set_minor_locator(ticker.NullLocator())
+            ax.tick_params(axis='both', which='major', labelsize=13)
         for ax in axs.flat[len(parameter_names):]:
             ax.set_visible(False)
-        fig.suptitle('Distributions of pretrained robot parameters')
         fig.tight_layout()
 
         segment_parameter_names = [
@@ -2203,7 +2208,7 @@ if False:
             fig_ratios, ratio_axes = plt.subplots(
                 2,
                 4,
-                figsize=(16, 6),
+                figsize=(11, 4),
                 squeeze=False,
             )
             jitter_rng = np.random.default_rng(0)
