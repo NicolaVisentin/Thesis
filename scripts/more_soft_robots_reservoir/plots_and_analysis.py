@@ -50,7 +50,7 @@ plt.rcParams.update({
 
 
 ### PRC accuracy vs reservoir dimension
-if True:
+if False:
     marker_sz = '6'
     ny = np.arange(6, 16, 3)
 
@@ -1249,8 +1249,9 @@ if False:
 
 
 # Noise, uncertainties, disturbance experiments
-if False:
+if True:
     ny = np.arange(6, 16, 3)
+    font_sizes = {"axis_labels": 17, "titles": 19, "ticks": 16}
 
     # sMNIST
     acc_ideal = np.array([64.03, 66.78, 66.18, 71.30])
@@ -1268,11 +1269,11 @@ if False:
     plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
     
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'$n_y$', fontsize=13)
-    plt.ylabel(r'accuracy [%]', fontsize=13)
-    plt.title(r'sMNIST ($\uparrow$)', fontsize=14)
-    plt.xticks(np.arange(6, 16), fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(r'$n_y$', fontsize=font_sizes["axis_labels"]+4)
+    plt.ylabel(r'accuracy [%]', fontsize=font_sizes["axis_labels"])
+    plt.title(r'sMNIST ($\uparrow$)', fontsize=font_sizes["titles"])
+    plt.xticks(np.arange(6, 16), fontsize=font_sizes["ticks"])
+    plt.yticks(fontsize=font_sizes["ticks"])
     #plt.yticks(np.arange(30, 81, 10))
     plt.xlim(5.5, 15.5)
     plt.ylim(0.0, 80)
@@ -1298,11 +1299,11 @@ if False:
     plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
     
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'$n_y$', fontsize=13)
-    plt.ylabel(r'accuracy [%]', fontsize=13)
-    plt.title(r'ADIAC ($\uparrow$)', fontsize=14)
-    plt.xticks(np.arange(6, 16), fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(r'$n_y$', fontsize=font_sizes["axis_labels"]+4)
+    plt.ylabel(r'accuracy [%]', fontsize=font_sizes["axis_labels"])
+    plt.title(r'ADIAC ($\uparrow$)', fontsize=font_sizes["titles"])
+    plt.xticks(np.arange(6, 16), fontsize=font_sizes["ticks"])
+    plt.yticks(fontsize=font_sizes["ticks"])
     #plt.yticks(np.arange(30, 81, 10))
     plt.xlim(5.5, 15.5)
     plt.ylim(0.0, 60)
@@ -1328,11 +1329,11 @@ if False:
     plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
     
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'$n_y$', fontsize=13)
-    plt.ylabel(r'NRMSE [–]', fontsize=13)
-    plt.title(r'Mackey-Glass ($\downarrow$)', fontsize=14)
-    plt.xticks(np.arange(6, 16), fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(r'$n_y$', fontsize=font_sizes["axis_labels"]+4)
+    plt.ylabel(r'NRMSE [–]', fontsize=font_sizes["axis_labels"])
+    plt.title(r'Mackey-Glass ($\downarrow$)', fontsize=font_sizes["titles"])
+    plt.xticks(np.arange(6, 16), fontsize=font_sizes["ticks"])
+    plt.yticks(fontsize=font_sizes["ticks"])
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
     plt.xlim(5.5, 15.5)
     plt.ylim(0.0, 0.7)
@@ -1359,11 +1360,11 @@ if False:
     plt.fill_between(ny, acc_noise-stddev_noise, acc_noise+stddev_noise, color ="#FF4949", alpha=0.15)
     
     plt.grid(True, alpha=0.6)
-    plt.xlabel(r'$n_y$', fontsize=13)
-    plt.ylabel(r'NRMSE [–]', fontsize=13)
-    plt.title(r'Lorenz96 ($\downarrow$)', fontsize=14)
-    plt.xticks(np.arange(6, 16), fontsize=13)
-    plt.yticks(fontsize=13)
+    plt.xlabel(r'$n_y$', fontsize=font_sizes["axis_labels"]+4)
+    plt.ylabel(r'NRMSE [–]', fontsize=font_sizes["axis_labels"])
+    plt.title(r'Lorenz96 ($\downarrow$)', fontsize=font_sizes["titles"])
+    plt.xticks(np.arange(6, 16), fontsize=font_sizes["ticks"])
+    plt.yticks(fontsize=font_sizes["ticks"])
     #plt.yticks(np.arange(0.2, 0.9, 0.1))
     plt.xlim(5.5, 15.5)
     plt.ylim(0.0, 0.7)
