@@ -1384,7 +1384,7 @@ if False:
 
 
 # Computational cost of pretraining
-if True:
+if False:
     ny = np.arange(6, 16, 3)
 
     ##############################################################
@@ -1669,7 +1669,7 @@ if False:
 # Correlation analysis between dynamics-matching pretraining and downstream PRC performance
 if False:
     # Select what to use for the test
-    TASKS = ("sMNIST",)
+    TASKS = ("lorenz") # "sMNIST", "Adiac", "MG", "lorenz"
     NYS = (6, 9, 12, 15)
     SCENARIOS = ("fully pretrained", "partially pretrained")
     RUNS = (1, 2, 3 ,4)
@@ -1750,7 +1750,7 @@ if False:
 
     rho_s, pvalue, _ = spearman_report(
         x, y, 
-        permutation = True if n<30 else False, 
+        permutation = True if n<500 else False, 
         side = 'less', 
         print_result = True
     )
