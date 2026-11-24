@@ -1384,10 +1384,62 @@ if False:
 
 
 # Computational cost of pretraining
-if False:
-    # Data
+if True:
     ny = np.arange(6, 16, 3)
 
+    ##############################################################
+    ##### SINGLE PLOT FOR THE MAIN PRETRAINING SCENARIO ONLY #####
+    
+    # Data
+    data = {
+        "sMNIST": {
+            "mean": [96, 101, 158, 129],
+            "std":  [7, 6, 2, 3],
+            "color": "#1F77B4", "marker": "o",
+        },
+        "ADIAC": {
+            "mean": [107, 96, 139, 129],
+            "std":  [2, 8, 7, 3],
+            "color": "#FF7F0E", "marker": "s",
+        },
+        "Mackey-Glass": {
+            "mean": [107, 104, 145, 127],
+            "std":  [3, 2, 5, 3],
+            "color": "#2CA02C", "marker": "^",
+        },
+        "Lorenz96": {
+            "mean": [115, 112, 162, 139],
+            "std":  [4, 2, 2, 5],
+            "color": "#D62728", "marker": "D",
+        },
+    }
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(4.6, 3.4))
+
+    for task, d in data.items():
+        mean = np.array(d["mean"], dtype=float)
+        std = np.array(d["std"], dtype=float)
+
+        ax.plot(ny, mean, label=task, color=d["color"], marker=d["marker"],
+                linestyle="-", linewidth=1.8, markersize=8)
+        ax.fill_between(ny, mean - std, mean + std, color=d["color"], alpha=0.15)
+
+    ax.grid(True, alpha=0.6)
+    ax.set_xlabel(r"$n_y$", fontsize=16)
+    ax.set_ylabel(r"Elapsed time [min]", fontsize=13)
+    ax.set_xticks(ny)
+    ax.set_xlim(5.5, 15.5)
+    ax.tick_params(labelsize=13)
+    ax.legend(fontsize=10, frameon=True)
+
+    fig.tight_layout()
+    plt.show()
+
+    ##########################################
+    ##### MORE SCENARIOS DIVIDED BY TASK #####
+    
+    # Data
     data = {
         "sMNIST": {
             "Normal pretraining": {
@@ -1984,7 +2036,7 @@ if False:
 
 
 # Ranges of pretrained robot parameters
-if True:
+if False:
     robot_parameters_folder = data_folder/'more_soft_robots_optimization'
     robot_parameter_files = sorted(
         path
